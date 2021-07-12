@@ -14,21 +14,21 @@
 # is strictly forbidden unless prior written permission is obtained
 # from Mattia Giambirtone
 
-# Token object
+import strformat
 
 type
   TokenType* {.pure.} = enum
     ## Token types enumeration
-    
+
     # Booleans
     True, False,
-    
+
     # Other singleton types
     Inf, NaN, Nil
 
     # Control-flow statements
     If, Else,
-    
+
     # Looping statements
     While, For,
 
@@ -44,18 +44,18 @@ type
     # Brackets, parentheses and other
     # symbols
 
-    LeftParen, RightParen,  # ()
-    LeftBrace, RightBrace,  # {}
+    LeftParen, RightParen, # ()
+    LeftBrace, RightBrace, # {}
     LeftBracket, RightBracket, # []
-    Dot, Semicolon, Colon, Comma,  # . ; : ,
-    Plus, Minus, Slash, Asterisk,  # + - / *
-    Percentage, DoubleAsterisk,    # % **
-    Caret, Pipe, Ampersand, Tilde,  # ^ | & ~
-    Equal, GreaterThan, LessThan,   # = > <
-    LessOrEqual, GreaterOrEqual, # >= <= 
-    ExclamationMark, DoubleEqual,   # ! ==
+    Dot, Semicolon, Colon, Comma, # . ; : ,
+    Plus, Minus, Slash, Asterisk, # + - / *
+    Percentage, DoubleAsterisk, # % **
+    Caret, Pipe, Ampersand, Tilde, # ^ | & ~
+    Equal, GreaterThan, LessThan, # = > <
+    LessOrEqual, GreaterOrEqual, # >= <=
+    ExclamationMark, DoubleEqual, # ! ==
     NotEqual, RightShift, LeftShift, # != >> <<
-    
+
 
     # Misc
 
@@ -63,6 +63,10 @@ type
 
 
   Token* = object
+    ## A token object
     kind*: TokenType
     lexeme*: string
     line*: int
+
+
+proc `$`*(self: Token): string = &"Token(kind={self.kind}, lexeme=\"{self.lexeme}\", line={self.line})"

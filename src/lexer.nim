@@ -14,10 +14,14 @@
 # is strictly forbidden unless prior written permission is obtained
 # from Mattia Giambirtone
 
+## A simple tokenizer implementation with arbitrary lookahead
+
 import strutils
 import strformat
 import tables
 import meta/token
+
+export `$`  # Makes $Token available when importing the lexer module
 
 
 # Table of all tokens except reserved keywords
@@ -35,7 +39,7 @@ const TOKENS = to_table({
               '&': TokenType.Ampersand, '|': TokenType.Pipe,
               '!': TokenType.ExclamationMark})
 
-# Constant table storing all the reserved keywords for JAPL
+# Constant table storing all the reserved keywords (parsed as identifiers)
 const RESERVED = to_table({
                 "fun": TokenType.Function, "struct": TokenType.Struct,
                 "if": TokenType.If, "else": TokenType.Else,
@@ -46,9 +50,10 @@ const RESERVED = to_table({
                 "continue": TokenType.Continue, "inf": TokenType.Inf,
                 "nan": TokenType.NaN, "is": TokenType.Is,
                 "lambda": TokenType.Lambda
-                })
+    })
 type
     Lexer* = ref object
+        ## A lexer object
         source*: string
         tokens*: seq[Token]
         line*: int
@@ -60,7 +65,8 @@ type
 
 func initLexer*(source: string, file: string): Lexer =
     ## Initializes the lexer
-    result = Lexer(source: source, tokens: @[], line: 1, start: 0, current: 0, errored: false, file: file)
+    result = Lexer(source: source, tokens: @[], line: 1, start: 0, current: 0,
+            errored: false, file: file)
 
 
 proc done(self: Lexer): bool =
@@ -78,15 +84,18 @@ proc step(self: Lexer): char =
     result = self.source[self.current - 1]
 
 
-proc peek(self: Lexer): char =
-    ## Returns the current character in the
-    ## source file without consuming it.
-    ## A null terminator is returned
-    ## if the lexer is at EOF
+proc peek(self: Lexer, distance: int = 0): char =
+    ## Returns the character in the source file at
+    ## the given distance without consuming it.
+    ## A null terminator is returned if the lexer
+    ## is at EOF. The distance parameter may be
+    ## negative to retrieve previously consumed
+    ## tokens, while the default distance is 0
+    ## (retrieves the next token to be consumed)
     if self.done():
         result = '\0'
     else:
-        result = self.source[self.current]
+        result = self.source[self.current + distance]
 
 
 proc match(self: Lexer, what: char): bool =
@@ -101,33 +110,22 @@ proc match(self: Lexer, what: char): bool =
     return true
 
 
-proc peekNext(self: Lexer): char =
-    ## Returns the next character
-    ## in the source file without
-    ## consuming it.
-    ## A null terminator is returned
-    ## if the lexer is at EOF
-    if self.current + 1 >= self.source.len:
-        result = '\0'
-    else:
-        result = self.source[self.current + 1]
-
-
 proc createToken(self: Lexer, tokenType: TokenType) =
-    ## Creates a token object and adds it to the token 
+    ## Creates a token object and adds it to the token
     ## list
     self.tokens.add(Token(kind: tokenType,
                    lexeme: self.source[self.start..<self.current],
                    line: self.line
-                   ))
+        ))
 
 
 proc error(self: Lexer, message: string) =
     ## Writes an error message to stdout
     ## and sets the error flag for the lexer
-    
+
     self.errored = true
     stderr.write(&"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}\n")
+
 
 proc parseString(self: Lexer, delimiter: char) =
     ## Parses string literals
@@ -136,7 +134,7 @@ proc parseString(self: Lexer, delimiter: char) =
             self.line = self.line + 1
         discard self.step()
     if self.done():
-        self.error("Unterminated string literal")
+        self.error("Unexpected EOL while parsing string literal")
     discard self.step()
     self.createToken(TokenType.String)
 
@@ -169,28 +167,22 @@ proc parseIdentifier(self: Lexer) =
 
 proc parseComment(self: Lexer) =
     ## Parses multi-line comments. They start
-    ## with /* and end with */, and can be nested.
-    ## A missing comment terminator will raise an
-    ## error
-    # TODO: Multi-line comments should be syntactically
-    # relevant for documenting modules/functions/classes
+    ## with /* and end with */
     var closed = false
     var text = ""
     while not self.done():
-        var finish = self.peek() & self.peekNext()
-        if finish == "/*":   # Nested comments
-            discard self.step()
-            discard self.step()
-            self.parseComment()   # Recursively parse any other enclosing comments
-        elif finish == "*/":
+        var finish = self.peek() & self.peek(1)
+        if finish == "*/":
             closed = true
-            discard self.step()   # Consume the two ends
+            discard self.step() # Consume the two ends
             discard self.step()
             break
-        text &= self.step()
+        else:
+            text &= self.step()
     if self.done() and not closed:
-        self.error("Unexpected EOF")
-    self.createToken(TokenType.Comment)
+        self.error("Unexpected EOF while parsing multi-line comment")
+    self.tokens.add(Token(kind: TokenType.Comment, lexeme: text,
+            line: self.line))
 
 
 proc scanToken(self: Lexer) =
@@ -198,7 +190,7 @@ proc scanToken(self: Lexer) =
     ## called iteratively until the source
     ## file reaches EOF
     var single = self.step()
-    if single in [' ', '\t', '\r']:  # We skip whitespaces, tabs and other useless characters
+    if single in [' ', '\t', '\r']: # We skip whitespaces, tabs and other useless characters
         return
     elif single == '\n':
         self.line += 1
@@ -240,5 +232,6 @@ proc lex*(self: Lexer): seq[Token] =
     while not self.done():
         self.start = self.current
         self.scanToken()
-    self.tokens.add(Token(kind: TokenType.EndOfFile, lexeme: "EOF", line: self.line))
+    self.tokens.add(Token(kind: TokenType.EndOfFile, lexeme: "EOF",
+            line: self.line))
     return self.tokens
