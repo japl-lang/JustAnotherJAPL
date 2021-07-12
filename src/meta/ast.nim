@@ -41,7 +41,7 @@
 ##   MUST match exactly y times. Omitting both x and y is the same as using *
 ## - lines end with an ASCII semicolon (character code 59) and each rule must end with one
 ## - rules are listed in descending order: the highest-precedence rule MUST come first and all others follow
-## - an "arrow" (character code 45 followed by character code 62)) MUST be used to separate rule names from their
+## - an "arrow" (character code 45 followed by character code 62) MUST be used to separate rule names from their
 ##   definition.
 ##   A rule definition then looks something like this (without quotes): "name -> rule definition here; // optional comment"
 ## - literal numbers can be expressed in their decimal form (i.e. with arabic numbers). Other supported formats are 
