@@ -85,7 +85,7 @@ continueStmt   → "continue" ";";
 whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy
 blockStmt          → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
 // Expressions (rules that produce a value, but may also have side effects)
-expression     → assignment ;
+expression     → assignment;
 assignment     → ( call "." )? IDENTIFIER "=" assignment | logic_or;  // Assignment is the highest-level expression
 logic_or       → logic_and ( "||" logic_and )*; 
 logic_and      → equality ( "&&" equality )*;
