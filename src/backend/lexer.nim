@@ -54,16 +54,16 @@ const RESERVED = to_table({
 type
     Lexer* = ref object
         ## A lexer object
-        source*: string
+        source: string
         tokens*: seq[Token]
-        line*: int
-        start*: int
-        current*: int
+        line: int
+        start: int
+        current: int
         errored*: bool
-        file*: string
+        file: string
 
 
-func initLexer*(source: string, file: string): Lexer =
+func newLexer*(source: string, file: string): Lexer =
     ## Initializes the lexer
     result = Lexer(source: source, tokens: @[], line: 1, start: 0, current: 0,
             errored: false, file: file)
@@ -181,7 +181,7 @@ proc parseComment(self: Lexer) =
             text &= self.step()
     if self.done() and not closed:
         self.error("Unexpected EOF while parsing multi-line comment")
-    self.tokens.add(Token(kind: TokenType.Comment, lexeme: text,
+    self.tokens.add(Token(kind: TokenType.Comment, lexeme: text.strip(),
             line: self.line))
 
 
@@ -220,6 +220,10 @@ proc scanToken(self: Lexer) =
             self.createToken(TokenType.NotEqual)
         elif single == '*' and self.match('*'):
             self.createToken(TokenType.DoubleAsterisk)
+        elif single == '&' and self.match('&'):
+            self.createToken(TokenType.LogicalAnd)
+        elif single == '|' and self.match('|'):
+            self.createToken(TokenType.LogicalOr)
         else:
             self.createToken(TOKENS[single])
     else:

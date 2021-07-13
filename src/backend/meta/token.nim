@@ -55,9 +55,10 @@ type
     LessOrEqual, GreaterOrEqual, # >= <=
     ExclamationMark, DoubleEqual, # ! ==
     NotEqual, RightShift, LeftShift, # != >> <<
+    LogicalAnd, LogicalOr,   # && ||
 
 
-    # Misc
+    # Miscellaneous
 
     EndOfFile, Comment
 
