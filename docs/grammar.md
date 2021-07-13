@@ -71,7 +71,8 @@ program        → declaration* EOF; // An entire program (Note: an empty progra
 declaration    → structDecl | funDecl | varDecl | statement;  // A program is composed by a list of declarations
 structDecl     → "struct" IDENTIFIER "{" (varDecl)*  "}";   // Declares a structure type similar to C's
 funDecl        → "fun" function;   // Function declarations
-varDecl        → "var" | "let" | "const" IDENTIFIER ( "=" expression )? ";"; // Constants and immutables still count as "variable" declarations in the grammar
+// Constants and immutables still count as "variable" declarations in the grammar
+varDecl        → "var" | "let" | "const" IDENTIFIER ( "=" expression )? ";";
 
 // Statements (rules that produce side effects but without binding a name)
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements
