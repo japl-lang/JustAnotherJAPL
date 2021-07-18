@@ -3,8 +3,7 @@ A basic programming language written in Nim
 
 ## Project structure
 
-The project is split into several directories and submodules to ease human inspection:
-- `README.md` -> This file here (lol)
+The project is split into several directories and submodules:
 - `docs` -> Contains markdown files with the various specifications for NimVM (bytecode, grammar, etc)
     - `docs/bytecode.md` -> Lays out the bytecode specification for NimVM as well as serialization guidelines
     - `docs/grammar.md` -> Formal grammar specification in EBNF syntax
@@ -45,9 +44,9 @@ The compilation toolchain has been designed as follows:
   - constant folding (meaning 1 + 2 will be replaced with 3 instead of producing 2 constant opcodes and 1 addition opcode)
   - global name resolution. This is possible because NimVM's syntax only allows for globals to be defined in a way that
     is statically inferrable, so "name error" exceptions can be caught before any code is even ran.
-  - throw warnings for things like unreachable code after return statements (optional)
+  - throw warnings for things like unreachable code after return statements (optional).
 
-  The optimizer also detects attempts to modify a constant's or a let's value at compile-time.
+    The optimizer also detects attempts to modify a constant's or a let's value at compile-time.
 - Once the optimizater is done, the compiler takes the AST and compiles it to bytecode for it to be later interpreted
   by our virtual machine implementation
 
