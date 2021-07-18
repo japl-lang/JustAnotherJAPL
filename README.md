@@ -46,7 +46,7 @@ The compilation toolchain has been designed as follows:
   - global name resolution. This is possible because NimVM's syntax only allows for globals to be defined in a way that
     is statically inferrable, so "name error" exceptions can be caught before any code is even ran.
   - throw warnings for things like unreachable code after return statements (optional)
-  - 
+
   The optimizer also detects attempts to modify a constant's or a let's value at compile-time.
 - Once the optimizater is done, the compiler takes the AST and compiles it to bytecode for it to be later interpreted
   by our virtual machine implementation
