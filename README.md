@@ -9,7 +9,7 @@ The project is split into several directories and submodules to ease human inspe
     - `docs/bytecode.md` -> Lays out the bytecode specification for NimVM as well as serialization guidelines
     - `docs/grammar.md` -> Formal grammar specification in EBNF syntax
 - `src` -> Contains source files
-    - `src/main.nim` -> This is the main executable for NimVM (REPL, run files, etc.)
+    - `src/main.nim` -> This is the main executable for NimVM (REPL, run files, etc.), currently not in this repo
     - `src/backend` -> Contains the backend of the language (lexer, parser and compiler)
         - `src/backend/meta` -> Contains meta-structures that are used during parsing and compilation
         - `src/backend/lexer.nim` -> Contains the tokenizer
