@@ -38,7 +38,7 @@ The compilation toolchain has been designed as follows:
     string literals and multi-line comments and invalid usage of unknown tokens (for example UTF-8 runes)
 - Then, the tokens are fed into a parser. The parser recursively traverses the list of tokens coming from the lexer
   and builds a higher-level structure called an Abstract Syntax Tree-- or AST for short-- and also catches the rest of
-  static or syntax errors such as illegal statement usage (for example return inside a function), malformed expressions
+  static or syntax errors such as illegal statement usage (for example return outside a function), malformed expressions
   and declarations and much more
 - After the AST has been built, it goes trough the optimizer. As the name suggests, this step aims to perform a few optimizations,
   namely:
