@@ -15,8 +15,11 @@
 # from Mattia Giambirtone
 
 
-import meta/ast
 import meta/token
+import meta/ast
+
+export `$`
+export ast
 
 
 type Parser* = ref object
@@ -25,7 +28,12 @@ type Parser* = ref object
     current: int
     file: string
     errored*: bool
+    errorMessage*: string
     tokens: seq[Token]
+
+
+
+
 
 
 

@@ -14,18 +14,18 @@
 # is strictly forbidden unless prior written permission is obtained
 # from Mattia Giambirtone
 
-## A simple tokenizer implementation with arbitrary lookahead
+## A simple and modular tokenizer implementation with arbitrary lookahead
 
 import strutils
 import strformat
 import tables
 import meta/token
 
-export `$`  # Makes $Token available when importing the lexer module
+export token # Makes Token available when importing the lexer module
 
 
 # Table of all tokens except reserved keywords
-const TOKENS = to_table({
+const tokens = to_table({
               '(': TokenType.LeftParen, ')': TokenType.RightParen,
               '{': TokenType.LeftBrace, '}': TokenType.RightBrace,
               '.': TokenType.Dot, ',': TokenType.Comma,
@@ -39,8 +39,20 @@ const TOKENS = to_table({
               '&': TokenType.Ampersand, '|': TokenType.Pipe,
               '!': TokenType.ExclamationMark})
 
+# Table of all double-character tokens
+const double = to_table({"**": TokenType.DoubleAsterisk,
+                         "||": TokenType.LogicalOr,
+                         "&&": TokenType.LogicalAnd,
+                         ">>": TokenType.RightShift,
+                         "<<": TokenType.LeftShift,
+                         "==": TokenType.DoubleEqual,
+                         "!=": TokenType.NotEqual,
+                         ">=": TokenType.GreaterOrEqual,
+                         "<=": TokenType.LessOrEqual,
+    })
+
 # Constant table storing all the reserved keywords (parsed as identifiers)
-const RESERVED = to_table({
+const reserved = to_table({
                 "fun": TokenType.Function, "struct": TokenType.Struct,
                 "if": TokenType.If, "else": TokenType.Else,
                 "for": TokenType.For, "while": TokenType.While,
@@ -55,36 +67,40 @@ type
     Lexer* = ref object
         ## A lexer object
         source: string
-        tokens*: seq[Token]
+        tokens: seq[Token]
         line: int
         start: int
         current: int
         errored*: bool
         file: string
+        errorMessage*: string
 
 
 func newLexer*(source: string, file: string): Lexer =
     ## Initializes the lexer
     result = Lexer(source: source, tokens: @[], line: 1, start: 0, current: 0,
-            errored: false, file: file)
+            errored: false, file: file, errorMessage: "")
 
 
-proc done(self: Lexer): bool =
+func done(self: Lexer): bool =
     ## Returns true if we reached EOF
     result = self.current >= self.source.len
 
 
-proc step(self: Lexer): char =
-    ## Steps one character forward in the
-    ## source file. A null terminator is returned
-    ## if the lexer is at EOF
+func step(self: Lexer, n: int = 1): char =
+    ## Steps n characters forward in the
+    ## source file (default = 1). A null
+    ## terminator is returned if the lexer
+    ## is at EOF. Note that only the first
+    ## consumed character token is returned,
+    ## the other ones are skipped over
     if self.done():
         return '\0'
-    self.current = self.current + 1
-    result = self.source[self.current - 1]
+    self.current = self.current + n
+    result = self.source[self.current - n]
 
 
-proc peek(self: Lexer, distance: int = 0): char =
+func peek(self: Lexer, distance: int = 0): char =
     ## Returns the character in the source file at
     ## the given distance without consuming it.
     ## A null terminator is returned if the lexer
@@ -98,19 +114,68 @@ proc peek(self: Lexer, distance: int = 0): char =
         result = self.source[self.current + distance]
 
 
-proc match(self: Lexer, what: char): bool =
+func error(self: Lexer, message: string) =
+    ## Sets the errored and errorMessage fields
+    ## for the lexer. The lex method will not
+    ## continue tokenizing if it finds out
+    ## an error occurred
+    self.errored = true
+    self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}\n"
+
+
+func check(self: Lexer, what: char, distance: int = 0): bool =
+    ## Behaves like match, without consuming the
+    ## token. False is returned if we're at EOF
+    ## regardless of what the token to check is.
+    ## The distance is passed directly to self.peek()
+    if self.done():
+        return false
+    return self.peek(distance) == what
+
+
+func check(self: Lexer, what: string): bool =
+    ## Calls self.check() in a loop with
+    ## each character from the given source
+    ## string. Useful to check multi-character
+    ## strings in one go
+    for i, chr in what:
+        # Why "i" you ask? Well, since check
+        # does not consume the tokens it checks
+        # against we need some way of keeping
+        # track where we are in the string the
+        # caller gave us, otherwise this will
+        # not behave as expected
+        if not self.check(chr, i):
+            return false
+    return true
+
+
+func match(self: Lexer, what: char): bool =
     ## Returns true if the next character matches
     ## the given character, and consumes it.
     ## Otherwise, false is returned
     if self.done():
+        self.error("Unexpected EOF")
         return false
-    elif self.peek() != what:
+    elif not self.check(what):
+        self.error(&"Expecting '{what}', got '{self.peek()}' instead")
         return false
     self.current += 1
     return true
 
 
-proc createToken(self: Lexer, tokenType: TokenType) =
+func match(self: Lexer, what: string): bool =
+    ## Calls self.match() in a loop with
+    ## each character from the given source
+    ## string. Useful to match multi-character
+    ## strings in one go
+    for chr in what:
+        if not self.match(chr):
+            return false
+    return true
+
+
+func createToken(self: Lexer, tokenType: TokenType) =
     ## Creates a token object and adds it to the token
     ## list
     self.tokens.add(Token(kind: tokenType,
@@ -119,15 +184,7 @@ proc createToken(self: Lexer, tokenType: TokenType) =
         ))
 
 
-proc error(self: Lexer, message: string) =
-    ## Writes an error message to stdout
-    ## and sets the error flag for the lexer
-
-    self.errored = true
-    stderr.write(&"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}\n")
-
-
-proc parseString(self: Lexer, delimiter: char) =
+func parseString(self: Lexer, delimiter: char) =
     ## Parses string literals
     while self.peek() != delimiter and not self.done():
         if self.peek() == '\n':
@@ -139,7 +196,7 @@ proc parseString(self: Lexer, delimiter: char) =
     self.createToken(TokenType.String)
 
 
-proc parseNumber(self: Lexer) =
+func parseNumber(self: Lexer) =
     ## Parses numeric literals
     var kind: TokenType = TokenType.Integer
     while isDigit(self.peek()):
@@ -152,45 +209,47 @@ proc parseNumber(self: Lexer) =
     self.createToken(kind)
 
 
-proc parseIdentifier(self: Lexer) =
+func parseIdentifier(self: Lexer) =
     ## Parses identifiers, note that
     ## multi-character tokens such as
     ## UTF runes are not supported
     while self.peek().isAlphaNumeric() or self.peek() in {'_', }:
         discard self.step()
     var text: string = self.source[self.start..<self.current]
-    if text in RESERVED:
-        self.createToken(RESERVED[text])
+    if text in reserved:
+        self.createToken(reserved[text])
     else:
         self.createToken(TokenType.Identifier)
 
 
-proc parseComment(self: Lexer) =
+func parseComment(self: Lexer) =
     ## Parses multi-line comments. They start
     ## with /* and end with */
     var closed = false
     var text = ""
     while not self.done():
-        var finish = self.peek() & self.peek(1)
-        if finish == "*/":
+        if self.check("*/"):
             closed = true
-            discard self.step() # Consume the two ends
-            discard self.step()
+            discard self.step(2)
             break
         else:
             text &= self.step()
-    if self.done() and not closed:
+    if not closed or self.done():
         self.error("Unexpected EOF while parsing multi-line comment")
     self.tokens.add(Token(kind: TokenType.Comment, lexeme: text.strip(),
             line: self.line))
 
 
-proc scanToken(self: Lexer) =
+func next(self: Lexer) =
     ## Scans a single token. This method is
     ## called iteratively until the source
     ## file reaches EOF
+    if self.done():
+        return
     var single = self.step()
-    if single in [' ', '\t', '\r']: # We skip whitespaces, tabs and other useless characters
+    var multi = false
+    if single in [' ', '\t', '\r', '\f',
+            '\e']: # We skip whitespaces, tabs and other useless characters
         return
     elif single == '\n':
         self.line += 1
@@ -200,42 +259,38 @@ proc scanToken(self: Lexer) =
         self.parseNumber()
     elif single.isAlphaNumeric() or single == '_':
         self.parseIdentifier()
-    elif single in TOKENS:
+    elif single in tokens:
+        # These 2 are special cases (comments)
         if single == '/' and self.match('/'):
-            while self.peek() != '\n' and not self.done():
+            while not self.check('\n'):
                 discard self.step()
+            return
         elif single == '/' and self.match('*'):
             self.parseComment()
-        elif single == '=' and self.match('='):
-            self.createToken(TokenType.DoubleEqual)
-        elif single == '>' and self.match('='):
-            self.createToken(TokenType.GreaterOrEqual)
-        elif single == '>' and self.match('>'):
-            self.createToken(TokenType.RightShift)
-        elif single == '<' and self.match('='):
-            self.createToken(TokenType.LessOrEqual)
-        elif single == '<' and self.match('<'):
-            self.createToken(TokenType.LeftShift)
-        elif single == '!' and self.match('='):
-            self.createToken(TokenType.NotEqual)
-        elif single == '*' and self.match('*'):
-            self.createToken(TokenType.DoubleAsterisk)
-        elif single == '&' and self.match('&'):
-            self.createToken(TokenType.LogicalAnd)
-        elif single == '|' and self.match('|'):
-            self.createToken(TokenType.LogicalOr)
-        else:
-            self.createToken(TOKENS[single])
+            return
+        for key in double.keys():
+            if key[0] == single and key[1] == self.peek():
+                discard self.step()
+                multi = true
+                self.createToken(double[key])
+                return
+        if not multi:
+            self.createToken(tokens[single])
     else:
         self.error(&"Unexpected token '{single}'")
 
 
-proc lex*(self: Lexer): seq[Token] =
+func lex*(self: Lexer): seq[Token] =
     ## Lexes a source file, converting a stream
-    ## of characters into a series of tokens
+    ## of characters into a series of tokens.
+    ## If an error occurs, this procedure
+    ## returns an empty sequence and the lexer's
+    ## errored and errorMessage fields will be set
     while not self.done():
+        self.next()
         self.start = self.current
-        self.scanToken()
+        if self.errored:
+            return @[]
     self.tokens.add(Token(kind: TokenType.EndOfFile, lexeme: "EOF",
             line: self.line))
     return self.tokens

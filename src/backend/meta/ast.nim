@@ -28,15 +28,15 @@ type
         ## Enumeration of the AST
         ## node types, sorted by
         ## precedence
-        
-        # "program" is implicitly a list of
-        # declarations so there's no node for
-        # that
-        structDecl = 0u8,
+
+        program = 0u8,
+        # Declarations
+        structDecl,
         funDecl,
         varDecl,
         # An expression followed by a semicolon
         exprStmt,
+        # Statements
         forStmt,
         ifStmt,
         returnStmt,
@@ -60,7 +60,7 @@ type
         # because we don't need object
         # variants or inheritance to
         # determine how many (if any)
-        # child nodes we need. The 
+        # child nodes we need/have. The 
         # functions processing the AST
         # node will take care of that
         children*: seq[ASTNode]
@@ -68,7 +68,6 @@ type
 
 proc newASTNode*(token: Token, kind: NodeKind, children: seq[ASTNode] = @[]): ASTNode =
     ## Initializes a new ASTNode object
-
     new(result)
     result.token = token
     result.kind = kind
