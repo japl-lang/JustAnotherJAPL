@@ -150,6 +150,19 @@ func check(self: Lexer, what: string): bool =
     return true
 
 
+
+func check(self: Lexer, what: openarray[char]): bool =
+    ## Calls self.check() in a loop with
+    ## each character from the given seq of
+    ## char and returns at the first match.
+    ## Useful to check multiple tokens in a situation
+    ## where only one of them may match at one time
+    for i, chr in what:
+        if self.check(chr, i):
+            return true
+    return false
+
+
 func match(self: Lexer, what: char): bool =
     ## Returns true if the next character matches
     ## the given character, and consumes it.
@@ -175,6 +188,18 @@ func match(self: Lexer, what: string): bool =
     return true
 
 
+func match(self: Lexer, what: openarray[char]): bool =
+    ## Calls self.match() in a loop with
+    ## each character from the given seq of
+    ## char and returns at the first match.
+    ## Useful to match multiple tokens in a situation
+    ## where only one of them may match at one time
+    for chr in what:
+        if self.match(chr):
+            return true
+    return false
+
+
 func createToken(self: Lexer, tokenType: TokenType) =
     ## Creates a token object and adds it to the token
     ## list
@@ -184,15 +209,56 @@ func createToken(self: Lexer, tokenType: TokenType) =
         ))
 
 
-func parseString(self: Lexer, delimiter: char) =
+func parseString(self: Lexer, delimiter: char, mode: string = "single") =
     ## Parses string literals
-    while self.peek() != delimiter and not self.done():
-        if self.peek() == '\n':
+    while not self.check(delimiter) and not self.done():
+        if self.match('\n') and mode == "multi":
             self.line = self.line + 1
-        discard self.step()
+        else:
+            self.error("Unexpected EOL while parsing string literal")
+            return
+        if mode in ["raw", "multi"]:
+            discard self.step()
+        elif self.match('\\'):
+            # Escape sequences.
+            # We currently support only the basic
+            # ones, so stuff line \nnn, \xhhh, \uhhhh and
+            # \Uhhhhhhhh are not supported
+            discard self.step()
+            case self.peek(-1):
+                of 'a':
+                    self.source[self.current] = cast[char](0x07)
+                of 'b':
+                    self.source[self.current] = cast[char](0x7f)
+                of 'e':
+                    self.source[self.current] = cast[char](0x1B)
+                of 'f':
+                    self.source[self.current] = cast[char](0x0C)
+                of 'n':
+                    self.source[self.current] = cast[char](0x0)
+                of 'r':
+                    self.source[self.current] = cast[char](0x0D)
+                of 't':
+                    self.source[self.current] = cast[char](0x09)
+                of 'v':
+                    self.source[self.current] = cast[char](0x0B)
+                of '"':
+                    self.source[self.current] = '"'
+                of '\'':
+                    self.source[self.current] = '\''
+                of '\\':
+                    self.source[self.current] = cast[char](0x5C)
+                else:
+                    self.error(&"Invalid escape sequence '\\{self.peek()}'")
+                    return
     if self.done():
-        self.error("Unexpected EOL while parsing string literal")
-    discard self.step()
+        self.error(&"Unexpected EOF while parsing string literal")
+        return
+    if mode == "multi":
+        if not self.match(delimiter.repeat(3)):
+            self.error("Unexpected EOL while parsing multi-line string literal")
+    else:
+        discard self.step()
     self.createToken(TokenType.String)
 
 
@@ -201,8 +267,8 @@ func parseNumber(self: Lexer) =
     var kind: TokenType = TokenType.Integer
     while isDigit(self.peek()):
         discard self.step()
-    if self.peek() in {'.', 'e', 'E'}:
-        discard self.step()
+    if self.match(['.', 'e', 'E']):
+        # Scientific notation is supported
         while self.peek().isDigit():
             discard self.step()
         kind = TokenType.Float
@@ -210,35 +276,18 @@ func parseNumber(self: Lexer) =
 
 
 func parseIdentifier(self: Lexer) =
-    ## Parses identifiers, note that
+    ## Parses identifiers. Note that
     ## multi-character tokens such as
     ## UTF runes are not supported
-    while self.peek().isAlphaNumeric() or self.peek() in {'_', }:
+    while self.peek().isAlphaNumeric() or self.check('_'):
         discard self.step()
     var text: string = self.source[self.start..<self.current]
     if text in reserved:
+        # It's a keyword
         self.createToken(reserved[text])
     else:
+        # Identifier!
         self.createToken(TokenType.Identifier)
-
-
-func parseComment(self: Lexer) =
-    ## Parses multi-line comments. They start
-    ## with /* and end with */
-    var closed = false
-    var text = ""
-    while not self.done():
-        if self.check("*/"):
-            closed = true
-            discard self.step(2)
-            break
-        else:
-            text &= self.step()
-    if not closed or self.done():
-        self.error("Unexpected EOF while parsing multi-line comment")
-    self.tokens.add(Token(kind: TokenType.Comment, lexeme: text.strip(),
-            line: self.line))
-
 
 func next(self: Lexer) =
     ## Scans a single token. This method is
@@ -254,19 +303,30 @@ func next(self: Lexer) =
     elif single == '\n':
         self.line += 1
     elif single in ['"', '\'']:
-        self.parseString(single)
+        if self.check(single) and self.check(single, 1):
+            # Multiline strings start with 3 apexes
+            self.parseString(single, "multi")
+        else:
+            self.parseString(single)
     elif single.isDigit():
         self.parseNumber()
+    elif single.isAlphaNumeric() and self.match(['"', '\'']):
+        # Like Python, we support bytes and raw literals
+        case single:
+            of 'r':
+                self.parseString(self.peek(-1), "raw")
+            of 'b':
+                self.parseString(self.peek(-1), "bytes")
+            else:
+                self.error(&"Unknown string prefix '{single}'")
+                return
     elif single.isAlphaNumeric() or single == '_':
         self.parseIdentifier()
     elif single in tokens:
-        # These 2 are special cases (comments)
-        if single == '/' and self.match('/'):
+        # Comments are a special case
+        if single == '#':
             while not self.check('\n'):
                 discard self.step()
-            return
-        elif single == '/' and self.match('*'):
-            self.parseComment()
             return
         for key in double.keys():
             if key[0] == single and key[1] == self.peek():
