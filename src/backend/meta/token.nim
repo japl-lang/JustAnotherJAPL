@@ -55,12 +55,12 @@ type
     LessOrEqual, GreaterOrEqual, # >= <=
     ExclamationMark, DoubleEqual, # ! ==
     NotEqual, RightShift, LeftShift, # != >> <<
-    LogicalAnd, LogicalOr,   # && ||
+    LogicalAnd, LogicalOr, FloorDiv,   # && || //
 
 
     # Miscellaneous
 
-    EndOfFile, Comment
+    EndOfFile
 
 
   Token* = object
