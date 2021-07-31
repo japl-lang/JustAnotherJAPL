@@ -49,6 +49,7 @@ const double = to_table({"**": TokenType.DoubleAsterisk,
                          "!=": TokenType.NotEqual,
                          ">=": TokenType.GreaterOrEqual,
                          "<=": TokenType.LessOrEqual,
+                         "//": TokenType.FloorDiv
     })
 
 # Constant table storing all the reserved keywords (parsed as identifiers)
@@ -212,14 +213,14 @@ func createToken(self: Lexer, tokenType: TokenType) =
 func parseString(self: Lexer, delimiter: char, mode: string = "single") =
     ## Parses string literals
     while not self.check(delimiter) and not self.done():
-        if self.match('\n') and mode == "multi":
+        if self.check('\n') and mode == "multi":
             self.line = self.line + 1
         else:
             self.error("Unexpected EOL while parsing string literal")
             return
         if mode in ["raw", "multi"]:
             discard self.step()
-        elif self.match('\\'):
+        elif self.check('\\'):
             # Escape sequences.
             # We currently support only the basic
             # ones, so stuff line \nnn, \xhhh, \uhhhh and
@@ -296,7 +297,6 @@ func next(self: Lexer) =
     if self.done():
         return
     var single = self.step()
-    var multi = false
     if single in [' ', '\t', '\r', '\f',
             '\e']: # We skip whitespaces, tabs and other useless characters
         return
@@ -328,14 +328,14 @@ func next(self: Lexer) =
             while not self.check('\n'):
                 discard self.step()
             return
+        # We start by checking for multi-character tokens
         for key in double.keys():
             if key[0] == single and key[1] == self.peek():
                 discard self.step()
-                multi = true
                 self.createToken(double[key])
                 return
-        if not multi:
-            self.createToken(tokens[single])
+        # Eventually we emit a single token
+        self.createToken(tokens[single])
     else:
         self.error(&"Unexpected token '{single}'")
 
