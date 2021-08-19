@@ -30,10 +30,3 @@ type Parser* = ref object
     errored*: bool
     errorMessage*: string
     tokens: seq[Token]
-
-
-
-
-
-
-

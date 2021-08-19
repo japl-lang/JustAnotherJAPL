@@ -4,25 +4,27 @@ A basic programming language written in Nim
 ## Project structure
 
 The project is split into several directories and submodules:
+- `build.py` -> The build script (TODO, not pushed yet)
 - `docs` -> Contains markdown files with the various specifications for NimVM (bytecode, grammar, etc)
-    - `docs/bytecode.md` -> Lays out the bytecode specification for NimVM as well as serialization guidelines
+    - `docs/bytecode.md` -> Lays out the bytecode specification for NimVM as well as serialization guidelines (TODO)
     - `docs/grammar.md` -> Formal grammar specification in EBNF syntax
 - `src` -> Contains source files
     - `src/main.nim` -> This is the main executable for NimVM (REPL, run files, etc.), currently not in this repo
     - `src/backend` -> Contains the backend of the language (lexer, parser and compiler)
         - `src/backend/meta` -> Contains meta-structures that are used during parsing and compilation
         - `src/backend/lexer.nim` -> Contains the tokenizer
-        - `src/backend/parser.nim` -> Contains the parser
-        - `src/backend/compiler.nim` -> Contains the compiler
-    - `src/frontend` -> Contains the language's frontend (runtime environment and type system)
-        - `src/frontend/types` -> Contains the implementation of the type system
+        - `src/backend/parser.nim` -> Contains the parser 
+        - `src/backend/compiler.nim` -> Contains the compiler (TODO)
+    - `src/frontend` -> Contains the language's frontend (runtime environment and type system) (TODO)
+        - `src/frontend/types` -> Contains the implementation of the type system (TODO)
         - `src/frontend/vm.nim` -> Contains the virtual machine (stack-based)
-    - `src/util` -> Contains generic utilities used troughout the project
-    - `src/util/bytecode` -> Contains the bytecode serializer/deserializer
-        - `src/util/bytecode/serializer.nim` -> Contains the bytecode serializer
-        - `src/util/bytecode/deserializer.nim` -> Contains the bytecode deserializer
-        - `src/util/bytecode/objects.nim` -> Contains object wrappers for bytecode opcodes
-    - `src/util/debug.nim` -> Contains the debugger
+    - `src/util` -> Contains generic utilities used troughout the project (TODO)
+    - `src/util/bytecode` -> Contains the bytecode serializer/deserializer (TODO)
+        - `src/util/bytecode/serializer.nim` -> Contains the bytecode serializer (TODO)
+        - `src/util/bytecode/deserializer.nim` -> Contains the bytecode deserializer (TODO)
+        - `src/util/bytecode/objects.nim` -> Contains object wrappers for bytecode opcodes (TODO)
+    - `src/util/debug.nim` -> Contains the debugger (TODO)
+    - `src/util/optimizer.nim` -> Contains the optimizer (TODO)
 
 ## Language design
 
@@ -46,7 +48,7 @@ The compilation toolchain has been designed as follows:
     is statically inferrable, so "name error" exceptions can be caught before any code is even ran.
   - throw warnings for things like unreachable code after return statements (optional).
 
-    The optimizer also detects attempts to modify a constant's or a let's value at compile-time.
+    The optimization step is entirely optional and enabled by default
 - Once the optimizater is done, the compiler takes the AST and compiles it to bytecode for it to be later interpreted
   by our virtual machine implementation
 

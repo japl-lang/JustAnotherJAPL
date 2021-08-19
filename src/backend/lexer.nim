@@ -39,6 +39,12 @@ const tokens = to_table({
               '&': TokenType.Ampersand, '|': TokenType.Pipe,
               '!': TokenType.ExclamationMark})
 
+# Table of all triple-character tokens
+const triple = to_table({"//=": TokenType.InplaceFloorDiv,
+                         "**=": TokenType.InplacePow
+    })
+
+
 # Table of all double-character tokens
 const double = to_table({"**": TokenType.DoubleAsterisk,
                          "||": TokenType.LogicalOr,
@@ -49,12 +55,21 @@ const double = to_table({"**": TokenType.DoubleAsterisk,
                          "!=": TokenType.NotEqual,
                          ">=": TokenType.GreaterOrEqual,
                          "<=": TokenType.LessOrEqual,
-                         "//": TokenType.FloorDiv
+                         "//": TokenType.FloorDiv,
+                         "+=": TokenType.InplaceAdd,
+                         "-=": TokenType.InplaceSub,
+                         "/=": TokenType.InplaceDiv,
+                         "*=": TokenType.InplaceMul,
+                         "^=": TokenType.InplaceXor,
+                         "&=": TokenType.InplaceAnd,
+                         "|=": TokenType.InplaceOr,
+                         "~=": TokenType.InplaceNot,
+                         "%=": TokenType.InplaceMod
     })
 
 # Constant table storing all the reserved keywords (parsed as identifiers)
 const reserved = to_table({
-                "fun": TokenType.Function, "struct": TokenType.Struct,
+                "fun": TokenType.Function, "raise": TokenType.Raise,
                 "if": TokenType.If, "else": TokenType.Else,
                 "for": TokenType.For, "while": TokenType.While,
                 "var": TokenType.Var, "nil": TokenType.NIL,
@@ -62,8 +77,11 @@ const reserved = to_table({
                 "return": TokenType.Return, "break": TokenType.Break,
                 "continue": TokenType.Continue, "inf": TokenType.Inf,
                 "nan": TokenType.NaN, "is": TokenType.Is,
-                "lambda": TokenType.Lambda
+                "lambda": TokenType.Lambda, "class": TokenType.Class,
+                "async": TokenType.Async, "import": TokenType.Import,
+                "isnot": TokenType.IsNot, "from": TokenType.From,
     })
+
 type
     Lexer* = ref object
         ## A lexer object
@@ -77,10 +95,22 @@ type
         errorMessage*: string
 
 
-func newLexer*(source: string, file: string): Lexer =
-    ## Initializes the lexer
-    result = Lexer(source: source, tokens: @[], line: 1, start: 0, current: 0,
-            errored: false, file: file, errorMessage: "")
+func newLexer*(self: Lexer = nil): Lexer =
+    ## Initializes the lexer or resets
+    ## the state of an existing one
+    if self == nil:
+        result = Lexer(source: "", tokens: @[], line: 1, start: 0, current: 0,
+            errored: false, file: "", errorMessage: "")
+    else:
+        self.source = ""
+        self.tokens = @[]
+        self.line = 1
+        self.start = 0
+        self.current = 0
+        self.errored = false
+        self.file = ""
+        self.errorMessage = ""
+        result = self
 
 
 func done(self: Lexer): bool =
@@ -108,8 +138,8 @@ func peek(self: Lexer, distance: int = 0): char =
     ## is at EOF. The distance parameter may be
     ## negative to retrieve previously consumed
     ## tokens, while the default distance is 0
-    ## (retrieves the next token to be consumed)
-    if self.done():
+    ## (retrieves the next token to be consumed).
+    if self.done() or self.current + distance > self.source.high():
         result = '\0'
     else:
         result = self.source[self.current + distance]
@@ -121,7 +151,7 @@ func error(self: Lexer, message: string) =
     ## continue tokenizing if it finds out
     ## an error occurred
     self.errored = true
-    self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}\n"
+    self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}"
 
 
 func check(self: Lexer, what: char, distance: int = 0): bool =
@@ -268,7 +298,7 @@ func parseNumber(self: Lexer) =
     var kind: TokenType = TokenType.Integer
     while isDigit(self.peek()):
         discard self.step()
-    if self.match(['.', 'e', 'E']):
+    if self.check(['.', 'e', 'E']):
         # Scientific notation is supported
         while self.peek().isDigit():
             discard self.step()
@@ -276,7 +306,7 @@ func parseNumber(self: Lexer) =
     self.createToken(kind)
 
 
-func parseIdentifier(self: Lexer) =
+proc parseIdentifier(self: Lexer) =
     ## Parses identifiers. Note that
     ## multi-character tokens such as
     ## UTF runes are not supported
@@ -290,7 +320,8 @@ func parseIdentifier(self: Lexer) =
         # Identifier!
         self.createToken(TokenType.Identifier)
 
-func next(self: Lexer) =
+
+proc next(self: Lexer) =
     ## Scans a single token. This method is
     ## called iteratively until the source
     ## file reaches EOF
@@ -310,7 +341,7 @@ func next(self: Lexer) =
             self.parseString(single)
     elif single.isDigit():
         self.parseNumber()
-    elif single.isAlphaNumeric() and self.match(['"', '\'']):
+    elif single.isAlphaNumeric() and self.check(['"', '\'']):
         # Like Python, we support bytes and raw literals
         case single:
             of 'r':
@@ -318,34 +349,46 @@ func next(self: Lexer) =
             of 'b':
                 self.parseString(self.peek(-1), "bytes")
             else:
+                # TODO: Format strings? (f"{hello}")
                 self.error(&"Unknown string prefix '{single}'")
                 return
     elif single.isAlphaNumeric() or single == '_':
         self.parseIdentifier()
-    elif single in tokens:
+    else:
         # Comments are a special case
         if single == '#':
             while not self.check('\n'):
                 discard self.step()
             return
-        # We start by checking for multi-character tokens
+        # We start by checking for multi-character tokens,
+        # in descending length so //= doesn't translate
+        # to the pair of tokens (//, =) for example
+        for key in triple.keys():
+            if key[0] == single and self.check(key[1..^1]):
+                discard self.step(2)  # We step 2 characters
+                self.createToken(triple[key])
+                return
         for key in double.keys():
-            if key[0] == single and key[1] == self.peek():
+            if key[0] == single and self.check(key[1]):
                 discard self.step()
                 self.createToken(double[key])
                 return
-        # Eventually we emit a single token
-        self.createToken(tokens[single])
-    else:
-        self.error(&"Unexpected token '{single}'")
+        if single in tokens:
+            # Eventually we emit a single token
+            self.createToken(tokens[single])
+        else:
+            self.error(&"Unexpected token '{single}'")
 
 
-func lex*(self: Lexer): seq[Token] =
+proc lex*(self: Lexer, source, file: string): seq[Token] =
     ## Lexes a source file, converting a stream
     ## of characters into a series of tokens.
     ## If an error occurs, this procedure
     ## returns an empty sequence and the lexer's
     ## errored and errorMessage fields will be set
+    discard self.newLexer()
+    self.source = source
+    self.file = file
     while not self.done():
         self.next()
         self.start = self.current
