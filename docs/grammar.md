@@ -106,16 +106,15 @@ function       → IDENTIFIER "(" parameters? ")" blockStmt;
 parameters     → IDENTIFIER ( "," IDENTIFIER )*;
 arguments      → expression ( "," expression )*;
 
-// Lexical grammar that defines terminals in a non-recursive (aka regular) fashion
+// Lexical grammar that defines terminals in a non-recursive (regular) fashion
 QUOTE          → "'";
 DOUBLEQUOTE    → "\"";
 SINGLESTRING   → QUOTE UNICODE* QUOTE;
 DOUBLESTRING   → DOUBLEQUOTE UNICODE* DOUBLEQUOTE;
 SINGLEMULTI    → QUOTE{3} UNICODE* QUOTE{3};   // Single quoted multi-line strings
 DOUBLEMULTI    → DOUBLEQUOTE{3} UNICODE* DOUBLEQUOTE{3};  // Single quoted multi-line string
-NUMBER         → DIGIT+ ( "." | "e" | "E" DIGIT+ )?;  // Numbers encompass integers and floats (even stuff like 1e5)
+NUMBER         → DIGIT+ ( "." | "e" | "E" )?  DIGIT+;  // Numbers encompass integers and floats (even stuff like 1e5)
 STRING         → ("r"|"b") SINGLESTRING|DOUBLESTRING|SINGLEMULTI|DOUBLEMULTI;  // Encompasses all strings
-MULTISTRING    → 
 IDENTIFIER     → ALPHA ( ALPHA | DIGIT )*;  // Valid identifiers are only alphanumeric!
 ALPHA          → "a" ... "z" | "A" ... "Z" | "_";  // Alphanumeric characters
 UNICODE        → 0x00 ... 0x10FFFD;  // This covers the whole unicode range
