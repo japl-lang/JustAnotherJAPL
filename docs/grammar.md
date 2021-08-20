@@ -72,11 +72,11 @@ Below you can find the EBNF specification of NimVM's grammar.
 program        → declaration* EOF; // An entire program (Note: an empty program is a valid program)
 
 // Declarations (rules that bind a name to an object in the current scope and produce side effects)
-declaration    → structDecl | funDecl | varDecl | statement;  // A program is composed by a list of declarations
-structDecl     → "struct" IDENTIFIER "{" (varDecl)*  "}";   // Declares a structure type similar to C's
+declaration    → classDecl | funDecl | varDecl | statement;  // A program is composed by a list of declarations
+classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )? "{" function* "}" ;   // Declares a class
 funDecl        → "fun" function;   // Function declarations
 // Constants and immutables still count as "variable" declarations in the grammar
-varDecl        → "var" | "let" | "const" IDENTIFIER ( "=" expression )? ";";
+varDecl        → ( "var" | "let" | "const" ) IDENTIFIER ( "=" expression )? ";";
 
 // Statements (rules that produce side effects but without binding a name)
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements
@@ -99,7 +99,7 @@ term           → factor ( ( "-" | "+" ) factor )*;  // Precedence for + and - 
 factor         → unary ( ( "/" | "*" | "**" | "^" | "&") unary )*;  // All other operators have the same precedence
 unary          → ( "!" | "-" | "~" ) unary | call;
 call           → primary ( "(" arguments? ")" | "." IDENTIFIER )*;
-primary        → "true" | "false" | "nil" | NUMBER | STRING | IDENTIFIER | "(" expression ")" "." IDENTIFIER;
+primary        → "nan" | "true" | "false" | "nil" | NUMBER | STRING | IDENTIFIER | "(" expression ")" "." IDENTIFIER;
 
 // Utility rules to avoid repetition
 function       → IDENTIFIER "(" parameters? ")" blockStmt;
@@ -107,8 +107,7 @@ parameters     → IDENTIFIER ( "," IDENTIFIER )*;
 arguments      → expression ( "," expression )*;
 
 // Lexical grammar that defines terminals in a non-recursive (regular) fashion
-QUOTE          → "'";
-DOUBLEQUOTE    → "\"";
+COMMENT        → "#" UNICODE* LF;
 SINGLESTRING   → QUOTE UNICODE* QUOTE;
 DOUBLESTRING   → DOUBLEQUOTE UNICODE* DOUBLEQUOTE;
 SINGLEMULTI    → QUOTE{3} UNICODE* QUOTE{3};   // Single quoted multi-line strings
@@ -116,8 +115,9 @@ DOUBLEMULTI    → DOUBLEQUOTE{3} UNICODE* DOUBLEQUOTE{3};  // Single quoted mul
 NUMBER         → DIGIT+ ( "." | "e" | "E" )?  DIGIT+;  // Numbers encompass integers and floats (even stuff like 1e5)
 STRING         → ("r"|"b") SINGLESTRING|DOUBLESTRING|SINGLEMULTI|DOUBLEMULTI;  // Encompasses all strings
 IDENTIFIER     → ALPHA ( ALPHA | DIGIT )*;  // Valid identifiers are only alphanumeric!
+QUOTE          → "'";
+DOUBLEQUOTE    → "\"";
 ALPHA          → "a" ... "z" | "A" ... "Z" | "_";  // Alphanumeric characters
 UNICODE        → 0x00 ... 0x10FFFD;  // This covers the whole unicode range
 DIGIT          → "0" ... "9";  // Arabic digits
-COMMENT        → "#" UNICODE* LF;
 ```
