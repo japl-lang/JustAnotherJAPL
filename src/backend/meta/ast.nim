@@ -29,13 +29,10 @@ type
         ## node types, sorted by
         ## precedence
 
-        program = 0u8,
         # Declarations
-        structDecl,
+        classDecl = 0u8,
         funDecl,
         varDecl,
-        # An expression followed by a semicolon
-        exprStmt,
         # Statements
         forStmt,
         ifStmt,
@@ -44,12 +41,28 @@ type
         continueStmt,
         whileStmt,
         blockStmt,
+        raiseStmt,
+        fromStmt,
+        importStmt,
+        # An expression followed by a semicolon
+        exprStmt,
         # Expressions
         assignExpr,
+        setExpr,  # Set expressions like a.b = "c"
         binaryExpr,
         unaryExpr,
         callExpr,
-        primaryExpr
+        getExpr,  # Get expressions like a.b
+        # Primary expressions
+        groupingExpr,  # Parenthesized expressions such as (true)
+        trueExpr,
+        falseExpr,
+        strExpr,
+        intExpr,
+        floatExpr,
+        nilExpr,
+        nanExpr,
+        identExpr,   # Identifier
 
 
     ASTNode* = ref object
@@ -74,4 +87,12 @@ proc newASTNode*(token: Token, kind: NodeKind, children: seq[ASTNode] = @[]): AS
     result.children = children
 
 
-proc `$`*(self: ASTNode): string = &"ASTNode(token={self.token}, kind={self.kind}, children=[{self.children.join(\", \")}])"
+proc `$`*(self: ASTNode): string = 
+    result &= "ASTNode("
+    if self.token.kind != TokenType.EndOfFile:
+        result &= &"token={self.token}, "
+    result &= &"kind={self.kind}"
+    if self.children.len() > 0:
+        result &= &", children=[{self.children.join(\", \")}]"
+    result &= ")"
+    
