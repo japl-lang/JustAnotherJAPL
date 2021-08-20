@@ -80,7 +80,9 @@ const reserved = to_table({
                 "lambda": TokenType.Lambda, "class": TokenType.Class,
                 "async": TokenType.Async, "import": TokenType.Import,
                 "isnot": TokenType.IsNot, "from": TokenType.From,
-                "let": TokenType.Let, "const": TokenType.Const
+                "let": TokenType.Let, "const": TokenType.Const,
+                "and": TokenType.And, "or": TokenType.Or,
+                "not": TokenType.Not
     })
 
 type
