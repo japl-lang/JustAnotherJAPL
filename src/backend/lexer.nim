@@ -80,6 +80,7 @@ const reserved = to_table({
                 "lambda": TokenType.Lambda, "class": TokenType.Class,
                 "async": TokenType.Async, "import": TokenType.Import,
                 "isnot": TokenType.IsNot, "from": TokenType.From,
+                "let": TokenType.Let, "const": TokenType.Const
     })
 
 type
@@ -95,22 +96,20 @@ type
         errorMessage*: string
 
 
-func newLexer*(self: Lexer = nil): Lexer =
+func initLexer*(self: Lexer = nil): Lexer =
     ## Initializes the lexer or resets
     ## the state of an existing one
-    if self == nil:
-        result = Lexer(source: "", tokens: @[], line: 1, start: 0, current: 0,
-            errored: false, file: "", errorMessage: "")
-    else:
-        self.source = ""
-        self.tokens = @[]
-        self.line = 1
-        self.start = 0
-        self.current = 0
-        self.errored = false
-        self.file = ""
-        self.errorMessage = ""
+    new(result)
+    if self != nil:
         result = self
+    result.source = ""
+    result.tokens = @[]
+    result.line = 1
+    result.start = 0
+    result.current = 0
+    result.errored = false
+    result.file = ""
+    result.errorMessage = ""
 
 
 func done(self: Lexer): bool =
@@ -150,6 +149,8 @@ func error(self: Lexer, message: string) =
     ## for the lexer. The lex method will not
     ## continue tokenizing if it finds out
     ## an error occurred
+    if self.errored:
+        return
     self.errored = true
     self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}"
 
@@ -179,7 +180,6 @@ func check(self: Lexer, what: string): bool =
         if not self.check(chr, i):
             return false
     return true
-
 
 
 func check(self: Lexer, what: openarray[char]): bool =
@@ -306,7 +306,7 @@ func parseNumber(self: Lexer) =
     self.createToken(kind)
 
 
-proc parseIdentifier(self: Lexer) =
+func parseIdentifier(self: Lexer) =
     ## Parses identifiers. Note that
     ## multi-character tokens such as
     ## UTF runes are not supported
@@ -321,7 +321,7 @@ proc parseIdentifier(self: Lexer) =
         self.createToken(TokenType.Identifier)
 
 
-proc next(self: Lexer) =
+func next(self: Lexer) =
     ## Scans a single token. This method is
     ## called iteratively until the source
     ## file reaches EOF
@@ -380,13 +380,13 @@ proc next(self: Lexer) =
             self.error(&"Unexpected token '{single}'")
 
 
-proc lex*(self: Lexer, source, file: string): seq[Token] =
+func lex*(self: Lexer, source, file: string): seq[Token] =
     ## Lexes a source file, converting a stream
     ## of characters into a series of tokens.
     ## If an error occurs, this procedure
     ## returns an empty sequence and the lexer's
     ## errored and errorMessage fields will be set
-    discard self.newLexer()
+    discard self.initLexer()
     self.source = source
     self.file = file
     while not self.done():

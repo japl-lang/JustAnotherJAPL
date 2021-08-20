@@ -56,11 +56,11 @@ type
     LessOrEqual, GreaterOrEqual, # >= <=
     ExclamationMark, DoubleEqual, # ! ==
     NotEqual, RightShift, LeftShift, # != >> <<
-    LogicalAnd, LogicalOr, FloorDiv,   # && || //
-    InplaceAdd, InplaceSub, InplaceDiv,  # += -= /=
-    InplaceMod, InplaceMul, InplaceXor,  # %= *= ^=
-    InplaceAnd, InplaceOr, InplaceNot,  # &= |= ~=
-    InplaceFloorDiv, InplacePow    # //= **=
+    LogicalAnd, LogicalOr, FloorDiv, # && || //
+    InplaceAdd, InplaceSub, InplaceDiv, # += -= /=
+    InplaceMod, InplaceMul, InplaceXor, # %= *= ^=
+    InplaceAnd, InplaceOr, InplaceNot, # &= |= ~=
+    InplaceFloorDiv, InplacePow # //= **=
 
     # Miscellaneous
 
