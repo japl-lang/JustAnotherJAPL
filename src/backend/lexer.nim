@@ -188,8 +188,8 @@ func check(self: Lexer, what: openarray[char]): bool =
     ## char and returns at the first match.
     ## Useful to check multiple tokens in a situation
     ## where only one of them may match at one time
-    for i, chr in what:
-        if self.check(chr, i):
+    for chr in what:
+        if self.check(chr):
             return true
     return false
 
@@ -299,6 +299,7 @@ func parseNumber(self: Lexer) =
     while isDigit(self.peek()):
         discard self.step()
     if self.check(['.', 'e', 'E']):
+        discard self.step()
         # Scientific notation is supported
         while self.peek().isDigit():
             discard self.step()
