@@ -85,6 +85,7 @@ forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expres
 ifStmt         → "if" "(" expression ")" statement ( "else" statement )?;  // If statements are conditional jumps
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
 breakStmt      → "break" ";";
+assertStmt     → "assert" expression ";"
 continueStmt   → "continue" ";";
 whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy
 blockStmt          → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
