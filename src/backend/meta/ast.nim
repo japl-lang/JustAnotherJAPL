@@ -42,6 +42,7 @@ type
         whileStmt,
         blockStmt,
         raiseStmt,
+        assertStmt
         fromStmt,
         importStmt,
         # An expression followed by a semicolon

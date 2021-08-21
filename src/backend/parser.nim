@@ -27,11 +27,11 @@ export token, ast
 type Parser* = ref object
     ## A recursive-descent top-down
     ## parser implementation
-    current: int
+    current*: int
     file: string
     errored*: bool
     errorMessage*: string
-    tokens: seq[Token]
+    tokens*: seq[Token]
 
 
 proc initParser*(self: Parser = nil): Parser = 
@@ -47,7 +47,7 @@ proc initParser*(self: Parser = nil): Parser =
     result.tokens = @[]
 
 
-template endOfFile: Token = Token(kind: TokenType.EndOfFile, lexeme: "EOF", line: -1)
+template endOfFile: Token = Token(kind: TokenType.EndOfFile, lexeme: "", line: -1)
 
 
 proc peek(self: Parser, distance: int = 0): Token =
@@ -56,10 +56,11 @@ proc peek(self: Parser, distance: int = 0): Token =
     ## token is returned. A negative distance may
     ## be used to retrieve previously consumed
     ## tokens
-    if self.tokens.high() == -1 or self.current + distance > self.tokens.high():
+    if self.tokens.high() == -1 or self.current + distance > self.tokens.high() or self.current + distance < 0:
         result = endOfFile
     else:
         result = self.tokens[self.current + distance]
+
 
 
 proc done(self: Parser): bool =
@@ -89,7 +90,8 @@ proc error(self: Parser, message: string) =
     if self.errored:
         return
     self.errored = true
-    self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at '{self.peek().lexeme}' -> {message}"
+    var lexeme = if not self.done(): self.peek().lexeme else: self.peek(-1).lexeme
+    self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at '{lexeme}' -> {message}"
     
 
 proc check(self: Parser, kind: TokenType, distance: int = 0): bool = 
@@ -174,9 +176,11 @@ proc primary(self: Parser): ASTNode =
             result = newASTNode(self.step(), NodeKind.identExpr)
         of TokenType.LeftParen:
             discard self.step()
-            var expression = self.expression()
+            result = self.expression()
             if self.expect(TokenType.RightParen, "Unmatched '('"):
-                result = newASTNode(self.peek(-1), NodeKind.groupingExpr, @[expression])
+                result = newASTNode(self.peek(-3), NodeKind.groupingExpr, @[result])
+        of TokenType.RightParen:
+            self.error("Unmatched ')'")
         else:
             self.error("Invalid syntax")
 
@@ -184,8 +188,7 @@ proc primary(self: Parser): ASTNode =
 proc make_call(self: Parser, callee: ASTNode): ASTNode =
     ## Utility function called iteratively by self.call()
     ## to parse a function-like call
-    var arguments: seq[ASTNode] = @[]
-    arguments.add(callee)
+    var arguments: seq[ASTNode] = @[callee]
     if not self.check(TokenType.RightParen):
         while true:
             if len(arguments) >= 255:
@@ -201,16 +204,15 @@ proc make_call(self: Parser, callee: ASTNode): ASTNode =
 proc call(self: Parser): ASTNode = 
     ## Parses call expressions and object
     ## accessing ("dot syntax")
-    var expression = self.primary()
+    result = self.primary()
     while true:
         if self.match(TokenType.LeftParen):
-            expression = self.make_call(expression)
+            result = self.make_call(result)
         elif self.match(TokenType.Dot):
             if self.expect(TokenType.Identifier, "Expecting attribute name after '.'"):
-                expression = newASTNode(self.peek(-2), NodeKind.getExpr, @[newAstNode(self.peek(-1), NodeKind.identExpr, @[expression])])
+                result = newASTNode(self.peek(-2), NodeKind.getExpr, @[result, newAstNode(self.peek(-1), NodeKind.identExpr)])
         else:
             break
-    result = expression
 
 
 proc unary(self: Parser): ASTNode = 
@@ -298,7 +300,35 @@ proc logical_or(self: Parser): ASTNode =
         result = newASTNode(operator, NodeKind.binaryExpr, @[result, right])
 
 
-proc expression(self: Parser): ASTNode = self.logical_or()
+proc binary(self: Parser): ASTNode = 
+    ## Parses binary expressions
+    result = self.logical_or()
+
+
+proc assignment(self: Parser): ASTNode =
+    ## Parses assignment, the highest-level
+    ## expression
+    result = self.binary()
+    if self.match(TokenType.Equal):
+        var tok = self.peek(-1)
+        var value = self.assignment()
+        if result.kind == NodeKind.identExpr:
+            result = newASTNode(tok, NodeKind.assignExpr, @[result, value])
+        elif result.kind == NodeKind.getExpr:
+            result = newASTNode(tok, NodeKind.setExpr, @[result.children[0], result.children[1], value])
+
+
+proc expression(self: Parser): ASTNode = 
+    ## Parses expressions
+    self.assignment()
+
+
+proc expressionStatement(self: Parser): ASTNode =
+    ## Parses expression statements, which
+    ## are expressions followed by a semicolon
+    var expression = self.expression()
+    discard self.expect(TokenType.Semicolon, "missing semicolon after expression")
+    result = newAstNode(self.peek(-1), NodeKind.exprStmt, @[expression])
 
 
 proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
@@ -308,7 +338,7 @@ proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
     self.file = file
     var program: seq[ASTNode] = @[]
     while not self.done():
-        program.add(self.expression())
+        program.add(self.expressionStatement())
         if self.errored:
             program = @[]
             break
