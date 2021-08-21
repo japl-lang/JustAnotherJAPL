@@ -7,6 +7,12 @@ The project is split into several directories and submodules:
 - `build.py` -> The build script (TODO, not pushed yet)
 - `docs` -> Contains markdown files with the various specifications for NimVM (bytecode, grammar, etc)
 - `src` -> Contains source files
+  - `src/backend` -> Contains the backend of the language such as the parser, compiler and optimizer
+    - `src/meta` -> Contains meta-structures used during compilation and parsing
+  - `src/frontend` -> Contains the runtime environment of NimVM
+    - `src/frontend/types` -> Contains the type system
+
+
 
 ## Language design
 
