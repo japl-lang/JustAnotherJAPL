@@ -11,7 +11,7 @@ The project is split into several directories and submodules:
     - `src/meta` -> Contains meta-structures used during compilation and parsing
   - `src/frontend` -> Contains the runtime environment of NimVM
     - `src/frontend/types` -> Contains the type system
-- `src/memory` -> Contains NimVM's allocator and memory manager
+  - `src/memory` -> Contains NimVM's allocator and memory manager
 
 
 
