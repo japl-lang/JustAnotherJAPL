@@ -16,6 +16,7 @@
 
 import strformat
 
+
 type
   TokenType* {.pure.} = enum
     ## Token types enumeration
@@ -36,7 +37,7 @@ type
     Function, Break, Lambda,
     Continue, Var, Let, Const, Is,
     Return, Async, Class, Import, From,
-    IsNot, Raise
+    IsNot, Raise, Assert
 
     # Basic types
 
@@ -72,6 +73,7 @@ type
     kind*: TokenType
     lexeme*: string
     line*: int
+    pos*: tuple[start, stop: int]
 
 
-proc `$`*(self: Token): string = &"Token(kind={self.kind}, lexeme=\"{self.lexeme}\", line={self.line})"
+proc `$`*(self: Token): string = &"Token(kind={self.kind}, lexeme=\"{self.lexeme}\", line={self.line}, pos=({self.pos.start}, {self.pos.stop}))"

@@ -81,6 +81,7 @@ const reserved = to_table({
                 "async": TokenType.Async, "import": TokenType.Import,
                 "isnot": TokenType.IsNot, "from": TokenType.From,
                 "let": TokenType.Let, "const": TokenType.Const,
+                "assert": TokenType.Assert
     })
 
 type
@@ -219,24 +220,13 @@ func match(self: Lexer, what: string): bool =
     return true
 
 
-func match(self: Lexer, what: openarray[char]): bool =
-    ## Calls self.match() in a loop with
-    ## each character from the given seq of
-    ## char and returns at the first match.
-    ## Useful to match multiple tokens in a situation
-    ## where only one of them may match at one time
-    for chr in what:
-        if self.match(chr):
-            return true
-    return false
-
-
 func createToken(self: Lexer, tokenType: TokenType) =
     ## Creates a token object and adds it to the token
     ## list
     self.tokens.add(Token(kind: tokenType,
                    lexeme: self.source[self.start..<self.current],
-                   line: self.line
+                   line: self.line,
+                   pos: (start: self.start, stop: self.current)
         ))
 
 
@@ -395,6 +385,6 @@ func lex*(self: Lexer, source, file: string): seq[Token] =
         self.start = self.current
         if self.errored:
             return @[]
-    self.tokens.add(Token(kind: TokenType.EndOfFile, lexeme: "EOF",
+    self.tokens.add(Token(kind: TokenType.EndOfFile, lexeme: "",
             line: self.line))
     return self.tokens
