@@ -91,7 +91,7 @@ proc error(self: Parser, message: string) =
         return
     self.errored = true
     var lexeme = if not self.done(): self.peek().lexeme else: self.peek(-1).lexeme
-    self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at '{lexeme}' -> {message}"
+    self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at {lexeme} -> {message}"
     
 
 proc check(self: Parser, kind: TokenType, distance: int = 0): bool = 
@@ -181,6 +181,12 @@ proc primary(self: Parser): ASTNode =
                 result = newASTNode(self.peek(-3), NodeKind.groupingExpr, @[result])
         of TokenType.RightParen:
             self.error("Unmatched ')'")
+        of TokenType.Hex:
+            result = newASTNode(self.step(), NodeKind.hexExpr)
+        of TokenType.Octal:
+            result = newASTNode(self.step(), NodeKind.octExpr)
+        of TokenType.Binary:
+            result = newASTNode(self.step(), NodeKind.binExpr)
         else:
             self.error("Invalid syntax")
 

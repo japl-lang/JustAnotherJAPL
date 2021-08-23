@@ -41,7 +41,8 @@ type
 
     # Basic types
 
-    Integer, Float, String, Identifier
+    Integer, Float, String, Identifier,
+    Binary, Octal, Hex
 
     # Brackets, parentheses and other
     # symbols
@@ -68,7 +69,7 @@ type
     EndOfFile
 
 
-  Token* = object
+  Token* = ref object
     ## A token object
     kind*: TokenType
     lexeme*: string

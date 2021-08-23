@@ -61,6 +61,9 @@ type
         strExpr,
         intExpr,
         floatExpr,
+        hexExpr,
+        octExpr,
+        binExpr,
         nilExpr,
         nanExpr,
         identExpr,   # Identifier
