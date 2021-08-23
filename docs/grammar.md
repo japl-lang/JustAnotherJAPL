@@ -25,6 +25,7 @@ document can be summarized with the following points:
 - A sequence of 2 slashes (character code 47) is used to mark comments. A comment lasts until the
   a CRLF or LF character (basically the end of a line) is encountered. It is RECOMMENDED to use 
   them to clarify each rule, or a group of rules, to simplify human inspection of the specification
+- The literal "LF" (without quotes) is a shorthand for "Line Feed" and is platform-independent
 - Whitespaces, tabs, newlines and form feeds (character code 32, 9, 10 and 12 respectively) are not 
   relevant to the grammar and SHOULD be ignored by automated parsers and parser generators
 - `"*"` (without quotes, character code 42) is used for repetition of a rule, meaning it MUST match 0 or more times
@@ -88,18 +89,18 @@ breakStmt      → "break" ";";
 assertStmt     → "assert" expression ";"
 continueStmt   → "continue" ";";
 whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy
-blockStmt          → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
+blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
 // Expressions (rules that produce a value, but may also have side effects)
 expression     → assignment;
-assignment     → ( call "." )? IDENTIFIER "=" assignment | logic_or;  // Assignment is the highest-level expression
-logic_or       → logic_and ( "||" logic_and )*; 
-logic_and      → equality ( "&&" equality )*;
-equality       → comparison ( ( "!=" | "==" ) comparison )*;
-comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )*;
-term           → factor ( ( "-" | "+" ) factor )*;  // Precedence for + and - in operations
-factor         → unary ( ( "/" | "*" | "**" | "^" | "&") unary )*;  // All other operators have the same precedence
-unary          → ( "!" | "-" | "~" ) unary | call;
-call           → primary ( "(" arguments? ")" | "." IDENTIFIER )*;
+assignment     → (call ".")? IDENTIFIER "=" assignment | logic_or;  // Assignment is the highest-level expression
+logic_or       → logic_and ("and" logic_and)*; 
+logic_and      → equality ("or" equality)*;
+equality       → comparison (( "!=" | "==" ) comparison )*;
+comparison     → term (( ">" | ">=" | "<" | "<=" ) term )*;
+term           → factor (( "-" | "+" ) factor )*;  // Precedence for + and - in operations
+factor         → unary (("/" | "*" | "**" | "^" | "&") unary)*;  // All other operators have the same precedence
+unary          → ("!" | "-" | "~") unary | call;
+call           → primary ("(" arguments? ")" | "." IDENTIFIER)*;
 primary        → "nan" | "true" | "false" | "nil" | NUMBER | STRING | IDENTIFIER | "(" expression ")" "." IDENTIFIER;
 
 // Utility rules to avoid repetition
@@ -113,7 +114,12 @@ SINGLESTRING   → QUOTE UNICODE* QUOTE;
 DOUBLESTRING   → DOUBLEQUOTE UNICODE* DOUBLEQUOTE;
 SINGLEMULTI    → QUOTE{3} UNICODE* QUOTE{3};   // Single quoted multi-line strings
 DOUBLEMULTI    → DOUBLEQUOTE{3} UNICODE* DOUBLEQUOTE{3};  // Single quoted multi-line string
-NUMBER         → DIGIT+ ( "." | "e" | "E" )?  DIGIT+;  // Numbers encompass integers and floats (even stuff like 1e5)
+DECIMAL        → DIGIT+;
+FLOAT          → DIGIT+ ("."  DIGIT+)? (("e"|"E") DIGIT+)?;
+BIN            → "0b" ("0" | "1")+;
+OCT            → "0o" ("0" ... "7")+;
+HEX            → "0x" ("0" ... "9" | "A" ... "F" | "a" ... "f")+;
+NUMBER         → DECIMAL | FLOAT | BIN | HEX | OCT;  // Numbers encompass integers, floats (even stuff like 1e5), binary numbers, hex numbers and octal numbers
 STRING         → ("r"|"b") SINGLESTRING|DOUBLESTRING|SINGLEMULTI|DOUBLEMULTI;  // Encompasses all strings
 IDENTIFIER     → ALPHA ( ALPHA | DIGIT )*;  // Valid identifiers are only alphanumeric!
 QUOTE          → "'";
