@@ -79,7 +79,8 @@ const reserved = to_table({
                 "let": TokenType.Let, "const": TokenType.Const,
                 "assert": TokenType.Assert, "or": TokenType.LogicalOr,
                 "and": TokenType.LogicalAnd, "del": TokenType.Del,
-                "async": TokenType.Async, "await": TokenType.Await
+                "async": TokenType.Async, "await": TokenType.Await,
+                "dynamyc": TokenType.Dynamic
     })
 
 type

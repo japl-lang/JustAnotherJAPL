@@ -390,7 +390,7 @@ proc statement(self: Parser): ASTNode =
         of TokenType.Assert:
             discard self.step()
             result = self.assertStmt()
-        of TokenType.Async, TokenType.Await:
+        of TokenType.Async, TokenType.Await, TokenType.Dynamic:
             discard  # TODO
         of TokenType.LeftBrace:
             discard self.step()
