@@ -212,6 +212,8 @@ proc call(self: Parser): ASTNode =
     ## Parses call expressions and object
     ## accessing ("dot syntax")
     result = self.primary()
+    if result == nil:
+        return
     while true:
         if self.match(TokenType.LeftParen):
             result = self.make_call(result)
@@ -225,7 +227,10 @@ proc call(self: Parser): ASTNode =
 proc unary(self: Parser): ASTNode = 
     ## Parses unary expressions
     if self.match([TokenType.Minus, TokenType.Tilde]):
-        result = newASTNode(self.peek(-1), NodeKind.unaryExpr, @[self.unary()])
+        result = self.unary()
+        if result == nil:
+            return
+        result = newASTNode(self.peek(-1), NodeKind.unaryExpr, @[result])
     else:
         result = self.call()
 
@@ -233,6 +238,8 @@ proc unary(self: Parser): ASTNode =
 proc pow(self: Parser): ASTNode =
     ## Parses exponentiation expressions
     result = self.unary()
+    if result == nil:
+        return
     var operator: Token
     var right: ASTNode
     while self.match(TokenType.DoubleAsterisk):
@@ -244,6 +251,8 @@ proc pow(self: Parser): ASTNode =
 proc mul(self: Parser): ASTNode =
     ## Parses multiplication and division expressions
     result = self.pow()
+    if result == nil:
+        return
     var operator: Token
     var right: ASTNode
     while self.match([TokenType.Slash, TokenType.Percentage, TokenType.FloorDiv]):
@@ -255,6 +264,8 @@ proc mul(self: Parser): ASTNode =
 proc add(self: Parser): ASTNode =
     ## Parses addition and subtraction expressions
     result = self.mul()
+    if result == nil:
+        return
     var operator: Token
     var right: ASTNode
     while self.match([TokenType.Plus, TokenType.Minus]):
@@ -266,6 +277,8 @@ proc add(self: Parser): ASTNode =
 proc comparison(self: Parser): ASTNode =
     ## Parses comparison expressions
     result = self.add()
+    if result == nil:
+        return
     var operator: Token
     var right: ASTNode
     while self.match([TokenType.LessThan, TokenType.GreaterThan, TokenType.LessOrEqual, TokenType.GreaterOrEqual]):
@@ -277,6 +290,8 @@ proc comparison(self: Parser): ASTNode =
 proc equality(self: Parser): ASTNode =
     ## Parses equality expressions
     result = self.comparison()
+    if result == nil:
+        return
     var operator: Token
     var right: ASTNode
     while self.match([TokenType.DoubleEqual, TokenType.NotEqual]):
@@ -288,6 +303,8 @@ proc equality(self: Parser): ASTNode =
 proc logical_and(self: Parser): ASTNode =
     ## Parses logical AND expressions
     result = self.equality()
+    if result == nil:
+        return
     var operator: Token
     var right: ASTNode
     while self.match(TokenType.LogicalAnd):
@@ -299,6 +316,8 @@ proc logical_and(self: Parser): ASTNode =
 proc logical_or(self: Parser): ASTNode =
     ## Parses logical OR expressions
     result = self.logical_and()
+    if result == nil:
+        return
     var operator: Token
     var right: ASTNode
     while self.match(TokenType.LogicalOr):
@@ -316,6 +335,8 @@ proc assignment(self: Parser): ASTNode =
     ## Parses assignment, the highest-level
     ## expression
     result = self.binary()
+    if result == nil:
+        return
     if self.match(TokenType.Equal):
         var tok = self.peek(-1)
         var value = self.assignment()
@@ -334,6 +355,8 @@ proc expressionStatement(self: Parser): ASTNode =
     ## Parses expression statements, which
     ## are expressions followed by a semicolon
     var expression = self.expression()
+    if expression == nil:
+        return
     endOfLIne("missing semicolon after expression")
     result = newAstNode(self.peek(-1), NodeKind.exprStmt, @[expression])
 
@@ -344,6 +367,8 @@ proc delStmt(self: Parser): ASTNode =
     ## value in the current scope and
     ## calls its destructor
     var expression = self.expression()
+    if expression == nil:
+        return
     var temp = expression
     endOfLIne("missing semicolon after del statement")
     if expression.kind == NodeKind.groupingExpr:
@@ -366,7 +391,7 @@ proc assertStmt(self: Parser): ASTNode =
     ## raise an error if the expression
     ## fed into them is falsey
     var expression = self.expression()
-    endOfLIne("missing semicolon after del statement")
+    endOfLine("missing semicolon after del statement")
     result = newASTNode(self.peek(), NodeKind.assertStmt, @[expression])
 
 
@@ -381,6 +406,42 @@ proc blockStmt(self: Parser): ASTNode =
     result = newASTNode(self.peek(-1), NodeKind.blockStmt, statements)
 
 
+proc breakStmt(self: Parser): ASTNode =
+    ## Parses break statements
+    endOfLine("missing semicolon after break statement")
+    result = newASTNode(self.peek(-1), NodeKind.breakStmt)
+
+
+proc continueStmt(self: Parser): ASTNode =
+    ## Parses break statements
+    endOfLine("missing semicolon after continue statement")
+    result = newASTNode(self.peek(-1), NodeKind.continueStmt)
+
+
+proc returnStmt(self: Parser): ASTNode =
+    ## Parses return statements
+    var value: seq[ASTNode] = @[]
+    if not self.check(TokenType.Semicolon):
+        # Since return can be used on its own too
+        # (in which case it implicitly returns nil),
+        # we need to check if there's an actual value
+        # to return or not
+        value.add(self.expression())
+    endOfLine("missing semicolon after return statement")
+    result = newASTNode(self.peek(-1), NodeKind.returnStmt, value)
+
+
+proc importStmt(self: Parser): ASTNode =
+    ## Parses import statements
+    var name = self.expression()
+    if name == nil:
+        return
+    if name.kind != NodeKind.identExpr:
+        self.error("expecting module name after import statement")
+    endOfLine("missing semicolon after import statement")
+    result = newASTNode(self.peek(-1), NodeKind.importStmt, @[name])
+
+
 proc statement(self: Parser): ASTNode =
     ## Parses statements
     case self.peek().kind:
@@ -390,8 +451,20 @@ proc statement(self: Parser): ASTNode =
         of TokenType.Assert:
             discard self.step()
             result = self.assertStmt()
+        of TokenType.Break:
+            discard self.step()
+            result = self.breakStmt()
+        of TokenType.Continue:
+            discard self.step()
+            result = self.continueStmt()
+        of TokenType.Return:
+            discard self.step()
+            result = self.returnStmt()
+        of TokenType.Import:
+            discard self.step()
+            result = self.importStmt()
         of TokenType.Async, TokenType.Await, TokenType.Dynamic:
-            discard  # TODO
+            discard  # TODO: Reserved for future use
         of TokenType.LeftBrace:
             discard self.step()
             result = self.blockStmt()
