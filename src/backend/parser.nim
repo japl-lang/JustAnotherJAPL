@@ -463,8 +463,8 @@ proc statement(self: Parser): ASTNode =
         of TokenType.Import:
             discard self.step()
             result = self.importStmt()
-        of TokenType.Async, TokenType.Await, TokenType.Dynamic:
-            discard  # TODO: Reserved for future use
+        of TokenType.Async, TokenType.Await, TokenType.Dynamic, TokenType.Foreach:
+            discard self.step()  # TODO: Reserved for future use
         of TokenType.LeftBrace:
             discard self.step()
             result = self.blockStmt()

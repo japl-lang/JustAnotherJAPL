@@ -30,9 +30,11 @@ type
         # Declarations
         classDecl = 0u8,
         funDecl,
+        asyncFunDecl,
         varDecl,
         # Statements
         forStmt,
+        foreachStmt,
         ifStmt,
         returnStmt,
         breakStmt,
@@ -44,6 +46,7 @@ type
         delStmt,
         fromStmt,
         importStmt,
+        awaitStmt,
         # An expression followed by a semicolon
         exprStmt,
         # Expressions
