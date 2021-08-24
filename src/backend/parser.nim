@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+## A recursive-descent top-down parser implementation
+
 import strformat
 
 
@@ -379,7 +382,7 @@ proc blockStmt(self: Parser): ASTNode =
 
 
 proc statement(self: Parser): ASTNode =
-    ## Parses statement
+    ## Parses statements
     case self.peek().kind:
         of TokenType.Del:
             discard self.step()
@@ -387,6 +390,8 @@ proc statement(self: Parser): ASTNode =
         of TokenType.Assert:
             discard self.step()
             result = self.assertStmt()
+        of TokenType.Async, TokenType.Await:
+            discard  # TODO
         of TokenType.LeftBrace:
             discard self.step()
             result = self.blockStmt()
@@ -405,10 +410,8 @@ proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
     discard self.initParser()
     self.tokens = tokens
     self.file = file
-    var program: seq[ASTNode] = @[]
     while not self.done():
-        program.add(self.declaration())
+        result.add(self.declaration())
         if self.errored:
-            program = @[]
+            result = @[]
             break
-    result = program
