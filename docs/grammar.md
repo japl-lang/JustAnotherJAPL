@@ -87,6 +87,7 @@ ifStmt         → "if" "(" expression ")" statement ( "else" statement )?;  // 
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
 breakStmt      → "break" ";";
 assertStmt     → "assert" expression ";"
+delStmt        → "del" expression ";"
 continueStmt   → "continue" ";";
 whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed

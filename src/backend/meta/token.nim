@@ -35,7 +35,7 @@ type
     Function, Break, Lambda,
     Continue, Var, Let, Const, Is,
     Return, Async, Class, Import, From,
-    IsNot, Raise, Assert
+    IsNot, Raise, Assert, Del
 
     # Basic types
 

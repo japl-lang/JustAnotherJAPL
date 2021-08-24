@@ -20,8 +20,6 @@ import meta/ast
 export token, ast
 
 
-
-
 type Parser* = ref object
     ## A recursive-descent top-down
     ## parser implementation
@@ -46,6 +44,7 @@ proc initParser*(self: Parser = nil): Parser =
 
 
 template endOfFile: Token = Token(kind: TokenType.EndOfFile, lexeme: "", line: -1)
+template endOfLine(msg: string) = discard self.expect(TokenType.Semicolon, msg)
 
 
 proc peek(self: Parser, distance: int = 0): Token =
@@ -144,7 +143,7 @@ proc expect(self: Parser, kind: TokenType, message: string = ""): bool =
     else:
         result = false
         if message.len() == 0:
-            self.error(&"Expecting token of kind {kind}, found {self.peek().kind} instead")
+            self.error(&"expecting token of kind {kind}, found {self.peek().kind} instead")
         else:
             self.error(message)
 
@@ -175,10 +174,10 @@ proc primary(self: Parser): ASTNode =
         of TokenType.LeftParen:
             discard self.step()
             result = self.expression()
-            if self.expect(TokenType.RightParen, "Unmatched '('"):
+            if self.expect(TokenType.RightParen, "unmatched '('"):
                 result = newASTNode(self.peek(-3), NodeKind.groupingExpr, @[result])
         of TokenType.RightParen:
-            self.error("Unmatched ')'")
+            self.error("unmatched ')'")
         of TokenType.Hex:
             result = newASTNode(self.step(), NodeKind.hexExpr)
         of TokenType.Octal:
@@ -186,7 +185,7 @@ proc primary(self: Parser): ASTNode =
         of TokenType.Binary:
             result = newASTNode(self.step(), NodeKind.binExpr)
         else:
-            self.error("Invalid syntax")
+            self.error("invalid syntax")
 
 
 proc make_call(self: Parser, callee: ASTNode): ASTNode =
@@ -196,7 +195,7 @@ proc make_call(self: Parser, callee: ASTNode): ASTNode =
     if not self.check(TokenType.RightParen):
         while true:
             if len(arguments) >= 255:
-                self.error("Cannot have more than 255 arguments")
+                self.error("cannot have more than 255 arguments")
                 break
             arguments.add(self.expression())
             if not self.match(TokenType.Comma):
@@ -213,7 +212,7 @@ proc call(self: Parser): ASTNode =
         if self.match(TokenType.LeftParen):
             result = self.make_call(result)
         elif self.match(TokenType.Dot):
-            if self.expect(TokenType.Identifier, "Expecting attribute name after '.'"):
+            if self.expect(TokenType.Identifier, "expecting attribute name after '.'"):
                 result = newASTNode(self.peek(-2), NodeKind.getExpr, @[result, newAstNode(self.peek(-1), NodeKind.identExpr)])
         else:
             break
@@ -324,15 +323,57 @@ proc assignment(self: Parser): ASTNode =
 
 proc expression(self: Parser): ASTNode = 
     ## Parses expressions
-    self.assignment()
+    result = self.assignment()
 
 
 proc expressionStatement(self: Parser): ASTNode =
     ## Parses expression statements, which
     ## are expressions followed by a semicolon
     var expression = self.expression()
-    discard self.expect(TokenType.Semicolon, "missing semicolon after expression")
+    endOfLIne("missing semicolon after expression")
     result = newAstNode(self.peek(-1), NodeKind.exprStmt, @[expression])
+
+
+proc delStmt(self: Parser): ASTNode =
+    ## Parses "del" statements,
+    ## which unbind a name from its
+    ## value in the current scope and
+    ## calls its destructor
+    var expression = self.expression()
+    endOfLIne("missing semicolon after del statement")
+    if expression.kind != NodeKind.identExpr:
+        self.error("cannot delete a literal")
+    else:
+        result = newASTNode(self.peek(-1), NodeKind.delStmt, @[expression])
+
+
+proc assertStmt(self: Parser): ASTNode =
+    ## Parses "assert" statements,
+    ## raise an error if the expression
+    ## fed into them is falsey
+    var expression = self.expression()
+    endOfLIne("missing semicolon after del statement")
+    result = newASTNode(self.peek(), NodeKind.assertStmt, @[expression])
+
+
+proc statement(self: Parser): ASTNode =
+    ## Parses statement
+    # TODO
+    case self.peek().kind:
+        of TokenType.Del:
+            discard self.step()
+            result = self.delStmt()
+        of TokenType.Assert:
+            discard self.step()
+            result = self.assertStmt()
+        else:
+            result = self.expressionStatement()
+
+
+proc declaration(self: Parser): ASTNode =
+    ## Parses declarations
+    # TODO
+    result = self.statement()
 
 
 proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
@@ -342,7 +383,7 @@ proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
     self.file = file
     var program: seq[ASTNode] = @[]
     while not self.done():
-        program.add(self.expressionStatement())
+        program.add(self.declaration())
         if self.errored:
             program = @[]
             break

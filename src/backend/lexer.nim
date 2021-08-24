@@ -78,7 +78,7 @@ const reserved = to_table({
                 "isnot": TokenType.IsNot, "from": TokenType.From,
                 "let": TokenType.Let, "const": TokenType.Const,
                 "assert": TokenType.Assert, "or": TokenType.LogicalOr,
-                "and": TokenType.LogicalAnd
+                "and": TokenType.LogicalAnd, "del": TokenType.Del
     })
 
 type
@@ -197,10 +197,10 @@ proc match(self: Lexer, what: char): bool =
     ## the given character, and consumes it.
     ## Otherwise, false is returned
     if self.done():
-        self.error("Unexpected EOF")
+        self.error("unexpected EOF")
         return false
     elif not self.check(what):
-        self.error(&"Expecting '{what}', got '{self.peek()}' instead")
+        self.error(&"expecting '{what}', got '{self.peek()}' instead")
         return false
     self.current += 1
     return true
@@ -246,7 +246,7 @@ proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
         if self.check('\n') and mode == "multi":
             self.line = self.line + 1
         else:
-            self.error("Unexpected EOL while parsing string literal")
+            self.error("unexpected EOL while parsing string literal")
             return
         if mode in ["raw", "multi"]:
             discard self.step()
@@ -290,14 +290,14 @@ proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
                 of '\\':
                     self.source[self.current] = cast[char](0x5C)
                 else:
-                    self.error(&"Invalid escape sequence '\\{self.peek()}'")
+                    self.error(&"invalid escape sequence '\\{self.peek()}'")
                     return
     if self.done():
-        self.error(&"Unexpected EOF while parsing string literal")
+        self.error(&"inexpected EOF while parsing string literal")
         return
     if mode == "multi":
         if not self.match(delimiter.repeat(3)):
-            self.error("Unexpected EOL while parsing multi-line string literal")
+            self.error("unexpected EOL while parsing multi-line string literal")
     else:
         discard self.step()
     self.createToken(TokenType.String)
@@ -307,7 +307,7 @@ proc parseBinary(self: Lexer) =
     ## Parses binary numbers
     while self.peek().isDigit():
         if not self.check(['0', '1']):
-            self.error(&"Invalid digit '{self.peek()}' in binary literal")
+            self.error(&"invalid digit '{self.peek()}' in binary literal")
             return
         discard self.step()
     self.createToken(TokenType.Binary)
@@ -321,7 +321,7 @@ proc parseOctal(self: Lexer) =
     ## Parses octal numbers
     while self.peek().isDigit():
         if self.peek() notin '0'..'7':
-            self.error(&"Invalid digit '{self.peek()}' in octal literal")
+            self.error(&"invalid digit '{self.peek()}' in octal literal")
             return
         discard self.step()
     self.createToken(TokenType.Octal)
@@ -331,7 +331,7 @@ proc parseHex(self: Lexer) =
     ## Parses hexadecimal numbers
     while self.peek().isAlphaNumeric():
         if not self.peek().isDigit() and self.peek().toLowerAscii() notin 'a'..'f':
-            self.error(&"Invalid hexadecimal literal")
+            self.error(&"invalid hexadecimal literal")
             return
         discard self.step()
     self.createToken(TokenType.Hex)
@@ -373,7 +373,7 @@ proc parseNumber(self: Lexer) =
                 # TODO: Is there a better way?
                 discard self.step()
                 if not isDigit(self.peek()):
-                    self.error("Invalid float number literal")
+                    self.error("invalid float number literal")
                     return
                 kind = TokenType.Float
                 while isDigit(self.peek()):
@@ -429,7 +429,7 @@ proc next(self: Lexer) =
                 self.parseString(self.peek(-1), "bytes")
             else:
                 # TODO: Format strings? (f"{hello}")
-                self.error(&"Unknown string prefix '{single}'")
+                self.error(&"unknown string prefix '{single}'")
                 return
     elif single.isAlphaNumeric() or single == '_':
         self.parseIdentifier()
@@ -456,7 +456,7 @@ proc next(self: Lexer) =
             # Eventually we emit a single token
             self.createToken(tokens[single])
         else:
-            self.error(&"Unexpected token '{single}'")
+            self.error(&"unexpected token '{single}'")
 
 
 proc lex*(self: Lexer, source, file: string): seq[Token] =
