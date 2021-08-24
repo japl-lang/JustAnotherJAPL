@@ -147,8 +147,9 @@ proc expect(self: Parser, kind: TokenType, message: string = ""): bool =
         else:
             self.error(message)
 
-# Forward declaration
+# Forward declarations
 proc expression(self: Parser): ASTNode
+proc statement(self: Parser): ASTNode
 
 
 proc primary(self: Parser): ASTNode = 
@@ -340,9 +341,19 @@ proc delStmt(self: Parser): ASTNode =
     ## value in the current scope and
     ## calls its destructor
     var expression = self.expression()
+    var temp = expression
     endOfLIne("missing semicolon after del statement")
-    if expression.kind != NodeKind.identExpr:
+    if expression.kind == NodeKind.groupingExpr:
+        # We unpack grouping expressions
+        while temp.kind == NodeKind.groupingExpr and temp.children.len() > 0:
+            temp = temp.children[0]
+    if temp.kind in {NodeKind.falseExpr, NodeKind.trueExpr, NodeKind.intExpr, 
+                           NodeKind.binExpr, NodeKind.hexExpr, NodeKind.octExpr,
+                           NodeKind.floatExpr, NodeKind.strExpr, NodeKind.nilExpr,
+                           NodeKind.nanExpr, }:
         self.error("cannot delete a literal")
+    elif temp.kind in {NodeKind.binaryExpr, NodeKind.unaryExpr}:
+        self.error("cannot delete operator")
     else:
         result = newASTNode(self.peek(-1), NodeKind.delStmt, @[expression])
 
@@ -356,9 +367,19 @@ proc assertStmt(self: Parser): ASTNode =
     result = newASTNode(self.peek(), NodeKind.assertStmt, @[expression])
 
 
+proc blockStmt(self: Parser): ASTNode =
+    ## Parses block statements. A block
+    ## statement simply opens a new local
+    ## scope
+    var statements: seq[ASTNode] = @[]
+    while not self.check(TokenType.RightBrace) and not self.done():
+        statements.add(self.statement())
+    discard self.expect(TokenType.RightBrace)
+    result = newASTNode(self.peek(-1), NodeKind.blockStmt, statements)
+
+
 proc statement(self: Parser): ASTNode =
     ## Parses statement
-    # TODO
     case self.peek().kind:
         of TokenType.Del:
             discard self.step()
@@ -366,6 +387,9 @@ proc statement(self: Parser): ASTNode =
         of TokenType.Assert:
             discard self.step()
             result = self.assertStmt()
+        of TokenType.LeftBrace:
+            discard self.step()
+            result = self.blockStmt()
         else:
             result = self.expressionStatement()
 
