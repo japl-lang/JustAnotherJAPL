@@ -15,6 +15,7 @@
 ## A simple and modular tokenizer implementation with arbitrary lookahead
 
 import strutils
+import parseutils
 import strformat
 import tables
 import meta/token
@@ -91,9 +92,8 @@ type
         line: int
         start: int
         current: int
-        errored*: bool
         file: string
-        errorMessage*: string
+    LexingError* = object of CatchableError
 
 
 proc initLexer*(self: Lexer = nil): Lexer =
@@ -107,9 +107,7 @@ proc initLexer*(self: Lexer = nil): Lexer =
     result.line = 1
     result.start = 0
     result.current = 0
-    result.errored = false
     result.file = ""
-    result.errorMessage = ""
 
 
 proc done(self: Lexer): bool =
@@ -149,10 +147,7 @@ proc error(self: Lexer, message: string) =
     ## for the lexer. The lex method will not
     ## continue tokenizing if it finds out
     ## an error occurred
-    if self.errored:
-        return
-    self.errored = true
-    self.errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}"
+    raise newException(LexingError, &"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}")
 
 
 proc check(self: Lexer, what: char, distance: int = 0): bool =
@@ -230,6 +225,75 @@ proc createToken(self: Lexer, tokenType: TokenType) =
     self.tokens.add(tok)
 
 
+proc parseEscape(self: Lexer) =
+    # Boring escape sequence parsing. For more info check out
+    # https://en.wikipedia.org/wiki/Escape_sequences_in_C.
+    # As of now, \u and \U are not supported, but they'll
+    # likely be soon. Another notable limitation is that
+    # \xhhh and \nnn are limited to the size of a char
+    # (i.e. uint8, or 256 values)
+    case self.peek():
+        of 'a':
+            self.source[self.current] = cast[char](0x07)
+        of 'b':
+            self.source[self.current] = cast[char](0x7f)
+        of 'e':
+            self.source[self.current] = cast[char](0x1B)
+        of 'f':
+            self.source[self.current] = cast[char](0x0C)
+        of 'n':
+            when defined(windows):
+                # We natively convert LF to CRLF on Windows, and
+                # gotta thank Microsoft for the extra boilerplate!
+                self.source[self.current] = cast[char](0x0D)
+                if not self.done():
+                    self.source[self.current + 1] = cast[char](0x0A)
+            else:
+                # Every other platform is kind enough to use
+                # the agreed upon LF standard, but again thanks
+                # to microsoft we need to convert \r\n back to \n
+                # under actually sensible operating systems
+                if self.source[self.current - 1] == cast[char](0x0D):
+                    self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
+                self.source[self.current] = cast[char](0x0A)
+        of 'r':
+            self.source[self.current] = cast[char](0x0D)
+        of 't':
+            self.source[self.current] = cast[char](0x09)
+        of 'v':
+            self.source[self.current] = cast[char](0x0B)
+        of '"':
+            self.source[self.current] = '"'
+        of '\'':
+            self.source[self.current] = '\''
+        of '\\':
+            self.source[self.current] = cast[char](0x5C)
+        of '0'..'9':
+            var code = ""
+            var value = 0
+            var i = self.current
+            while i < self.source.high() and (let c = self.source[i].toLowerAscii(); c in '0'..'7') and len(code) < 3:
+                code &= self.source[i]
+                i += 1
+            assert parseOct(code, value) == code.len()
+            self.source[self.current] = cast[char](value)
+        of 'u':
+            self.error("unicode escape sequences are not supported (yet)")
+        of 'U':
+            self.error("unicode escape sequences are not supported (yet)")
+        of 'x':
+            var code = ""
+            var value = 0
+            var i = self.current
+            while i < self.source.high() and (let c = self.source[i].toLowerAscii(); c in 'a'..'f' or c in '0'..'9'):
+                code &= self.source[i]
+                i += 1
+            assert parseHex(code, value) == code.len()
+            self.source[self.current] = cast[char](value)
+        else:
+            self.error(&"invalid escape sequence '\\{self.peek()}'")
+
+
 proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
     ## Parses string literals. They can be expressed using matching pairs
     ## of either single or double quotes. Most escape sequences are
@@ -239,63 +303,45 @@ proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
     ##     interpreted as an integer instead of a character
     ## - r -> declares a raw string literal, where escape sequences
     ##     are not parsed and stay as-is
+    ## - f -> declares a format string, where variables may be
+    ##     interpolated using curly braces like f"Hello, {name}!".
+    ##     Braces may be escaped using a pair of them, so to represent
+    ##     a literal "{" in an f-string, one would use {{ instead
     ## Multi-line strings can be declared using matching triplets of
     ## either single or double quotes. They can span across multiple
     ## lines and escape sequences in them are not parsed, like in raw
     ## strings, so a multi-line string prefixed with the "r" modifier
     ## is redundant, although multi-line byte strings are supported
-    while not self.check(delimiter) and not self.done():
-        if self.check('\n') and mode == "multi":
-            self.line = self.line + 1
-        else:
-            self.error("unexpected EOL while parsing string literal")
-            return
+    while not self.check(delimiter):
+        if self.check('\n'):
+            if mode == "multi":
+                self.line = self.line + 1
+            else:
+                self.error("unexpected EOL while parsing string literal")
         if mode in ["raw", "multi"]:
             discard self.step()
-        elif self.check('\\'):
-            # Escape sequences.
-            # We currently support only the basic
-            # ones, so stuff line \nnn, \xhhh, \uhhhh and
-            # \Uhhhhhhhh are not supported. For more info
-            # check https://en.wikipedia.org/wiki/Escape_sequences_in_C
+        if self.check('\\'):
+            # This madness here serves to get rid of the slash, since \x is mapped
+            # to a one-byte sequence but is actually 2 bytes
+            self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
+            self.parseEscape()
+        if mode == "format" and self.check('{'):
             discard self.step()
-            case self.peek(-1):
-                of 'a':
-                    self.source[self.current] = cast[char](0x07)
-                of 'b':
-                    self.source[self.current] = cast[char](0x7f)
-                of 'e':
-                    self.source[self.current] = cast[char](0x1B)
-                of 'f':
-                    self.source[self.current] = cast[char](0x0C)
-                of 'n':
-                    when defined(windows):
-                        # We natively convert LF to CRLF on Windows, and
-                        # gotta thank Microsoft for the extra boilerplate!
-                        self.source[self.current] = cast[char](0x09)
-                        if not self.done():
-                            self.source[self.current + 1] = cast[char](0x0)
-                    else:
-                        # Because every other platform is sensible
-                        # enough to use the agreed upon LF standard!
-                        self.source[self.current] = cast[char](0x0)
-                of 'r':
-                    self.source[self.current] = cast[char](0x0D)
-                of 't':
-                    self.source[self.current] = cast[char](0x09)
-                of 'v':
-                    self.source[self.current] = cast[char](0x0B)
-                of '"':
-                    self.source[self.current] = '"'
-                of '\'':
-                    self.source[self.current] = '\''
-                of '\\':
-                    self.source[self.current] = cast[char](0x5C)
-                else:
-                    self.error(&"invalid escape sequence '\\{self.peek()}'")
-                    return
+            if self.check('{'):
+                self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
+                continue
+            while not self.check(['}', '"']):
+                discard self.step()
+            if self.check('"'):
+                self.error("unclosed '{' in format string")
+        elif mode == "format" and self.check('}'):
+            if not self.check('}', 1):
+                self.error("unmatched '}' in format string")
+            else:
+                self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
+        discard self.step()
     if self.done():
-        self.error(&"inexpected EOF while parsing string literal")
+        self.error("unexpected EOF while parsing string literal")
         return
     if mode == "multi":
         if not self.match(delimiter.repeat(3)):
@@ -310,7 +356,6 @@ proc parseBinary(self: Lexer) =
     while self.peek().isDigit():
         if not self.check(['0', '1']):
             self.error(&"invalid digit '{self.peek()}' in binary literal")
-            return
         discard self.step()
     self.createToken(TokenType.Binary)
     # To make our life easier, we pad the binary number in here already
@@ -324,7 +369,6 @@ proc parseOctal(self: Lexer) =
     while self.peek().isDigit():
         if self.peek() notin '0'..'7':
             self.error(&"invalid digit '{self.peek()}' in octal literal")
-            return
         discard self.step()
     self.createToken(TokenType.Octal)
 
@@ -334,7 +378,6 @@ proc parseHex(self: Lexer) =
     while self.peek().isAlphaNumeric():
         if not self.peek().isDigit() and self.peek().toLowerAscii() notin 'a'..'f':
             self.error(&"invalid hexadecimal literal")
-            return
         discard self.step()
     self.createToken(TokenType.Hex)
 
@@ -376,7 +419,6 @@ proc parseNumber(self: Lexer) =
                 discard self.step()
                 if not isDigit(self.peek()):
                     self.error("invalid float number literal")
-                    return
                 kind = TokenType.Float
                 while isDigit(self.peek()):
                     discard self.step()
@@ -426,13 +468,13 @@ proc next(self: Lexer) =
         # Like Python, we support bytes and raw literals
         case single:
             of 'r':
-                self.parseString(self.peek(-1), "raw")
+                self.parseString(self.step(), "raw")
             of 'b':
-                self.parseString(self.peek(-1), "bytes")
+                self.parseString(self.step(), "bytes")
+            of 'f':
+                self.parseString(self.step(), "format")
             else:
-                # TODO: Format strings? (f"{hello}")
                 self.error(&"unknown string prefix '{single}'")
-                return
     elif single.isAlphaNumeric() or single == '_':
         self.parseIdentifier()
     else:
@@ -473,8 +515,6 @@ proc lex*(self: Lexer, source, file: string): seq[Token] =
     while not self.done():
         self.next()
         self.start = self.current
-        if self.errored:
-            return @[]
     self.tokens.add(Token(kind: TokenType.EndOfFile, lexeme: "",
             line: self.line))
     return self.tokens

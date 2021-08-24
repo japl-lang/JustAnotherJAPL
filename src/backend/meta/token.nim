@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import strformat
+import strutils
 
 
 type
@@ -76,4 +77,4 @@ type
     pos*: tuple[start, stop: int]
 
 
-proc `$`*(self: Token): string = &"Token(kind={self.kind}, lexeme=\"{self.lexeme}\", line={self.line}, pos=({self.pos.start}, {self.pos.stop}))"
+proc `$`*(self: Token): string = &"Token(kind={self.kind}, lexeme={$(self.lexeme).escape()}, line={self.line}, pos=({self.pos.start}, {self.pos.stop}))"
