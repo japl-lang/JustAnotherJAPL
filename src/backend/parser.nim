@@ -149,6 +149,7 @@ proc expect(self: Parser, kind: TokenType, message: string = ""): bool =
 # Forward declarations
 proc expression(self: Parser): ASTNode
 proc statement(self: Parser): ASTNode
+proc varDecl(self: Parser): ASTNode
 
 
 proc primary(self: Parser): ASTNode = 
@@ -415,11 +416,45 @@ proc importStmt(self: Parser): ASTNode =
 
 proc whileStmt(self: Parser): ASTNode =
     ## Parses a C-style while loop statement
-    discard self.expect(TokenType.LeftParen, "expecting '(' before loop condition")
+    discard self.expect(TokenType.LeftParen, "expecting '(' before while loop condition")
     var condition = self.expression()
     var body = self.statement()
-    discard self.expect(TokenType.LeftParen, "unterminated loop condition")
+    discard self.expect(TokenType.LeftParen, "unterminated while loop condition")
     result = newASTNode(self.peek(-1), NodeKind.whileStmt, @[condition, body])
+
+
+proc forStmt(self: Parser): ASTNode = 
+    ## Parses a C-style for loop
+    discard self.expect(TokenType.LeftParen, "expecting '(' before for loop condition")
+    var initializer: ASTNode = nil
+    var condition: ASTNode = nil
+    var increment: ASTNode = nil
+    if self.match(TokenType.Var):
+        initializer = self.varDecl()
+    else:
+        initializer = self.expressionStatement()
+    if not self.check(TokenType.Semicolon):
+        condition = self.expression()
+    discard self.expect(TokenType.Semicolon, "expecting ';' after for loop condition")
+    if not self.check(TokenType.RightParen):
+        increment = self.expression()
+    discard self.expect(TokenType.RightParen, "unterminated for loop condition")
+    var body = self.statement()
+    if increment != nil:
+        # The increment runs at each iteration, so we
+        # inject it into the block as the first statement
+        body = newASTNode(self.peek(-1), NodeKind.blockStmt, @[body, increment])
+    if condition == nil:
+        ## An empty condition is functionally
+        ## equivalent to "true"
+        condition = newASTNode(self.peek(-1), NodeKind.trueExpr)
+    # We can use a while loop, which in this case works just as well
+    body = newASTNode(body.token, NodeKind.whileStmt, @[condition, body])
+    if initializer != nil:
+        # Nested blocks, so the initializer is
+        # only executed once
+        body = newASTNode(body.token, NodeKind.blockStmt, @[initializer, body])
+    result = body
 
 
 proc statement(self: Parser): ASTNode =
@@ -446,6 +481,9 @@ proc statement(self: Parser): ASTNode =
         of TokenType.While:
             discard self.step()
             result = self.whileStmt()
+        of TokenType.For:
+            discard self.step()
+            result = self.forStmt()
         of TokenType.Async, TokenType.Await, TokenType.Dynamic, TokenType.Foreach:
             discard self.step()  # TODO: Reserved for future use
         of TokenType.LeftBrace:
@@ -453,6 +491,11 @@ proc statement(self: Parser): ASTNode =
             result = self.blockStmt()
         else:
             result = self.expressionStatement()
+
+
+proc varDecl(self: Parser): ASTNode =
+    ## Parses variable declarations
+    # TODO
 
 
 proc declaration(self: Parser): ASTNode =

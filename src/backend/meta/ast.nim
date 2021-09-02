@@ -33,7 +33,7 @@ type
         asyncFunDecl,
         varDecl,
         # Statements
-        forStmt,
+        forStmt,  # Unused for now (for loops are compiled to while loops)
         foreachStmt,
         ifStmt,
         returnStmt,
@@ -57,7 +57,7 @@ type
         callExpr,
         getExpr,  # Get expressions like a.b
         # Primary expressions
-        groupingExpr,  # Parenthesized expressions such as (true)
+        groupingExpr,  # Parenthesized expressions such as (true) and (3 + 4)
         trueExpr,
         falseExpr,
         strExpr,
