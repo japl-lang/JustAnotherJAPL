@@ -44,9 +44,10 @@ proc initParser*(self: Parser = nil): Parser =
     result.file = ""
     result.tokens = @[]
 
+
 # Handy templates to make our life easier, thanks nim!
 template endOfFile: Token = Token(kind: TokenType.EndOfFile, lexeme: "", line: -1)
-template endOfLine(msg: string) = discard self.expect(TokenType.Semicolon, msg)
+template endOfLine(msg: string) = self.expect(TokenType.Semicolon, msg)
 
 
 
@@ -60,7 +61,6 @@ proc peek(self: Parser, distance: int = 0): Token =
         result = endOfFile
     else:
         result = self.tokens[self.current + distance]
-
 
 
 proc done(self: Parser): bool =
@@ -86,9 +86,10 @@ proc step(self: Parser, n: int = 1): Token =
 proc error(self: Parser, message: string) =
     ## Raises a formatted ParseError exception to
     ## be catched at self.parse()
-    var lexeme = if not self.done(): self.peek().lexeme else: self.peek(-1).lexeme
-    raise newException(ParseError, &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at {lexeme} -> {message}")
-    
+    var lexeme = if not self.done(): self.peek().lexeme else: self.step().lexeme
+    var errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at {lexeme} -> {message}"
+    raise newException(ParseError, errorMessage)
+
 
 proc check(self: Parser, kind: TokenType, distance: int = 0): bool = 
     ## Checks if the given token at the given distance
@@ -132,15 +133,12 @@ proc match(self: Parser, kind: openarray[TokenType]): bool =
     result = false
 
 
-proc expect(self: Parser, kind: TokenType, message: string = ""): bool = 
+proc expect(self: Parser, kind: TokenType, message: string = "") = 
     ## Behaves like self.match(), except that
     ## when a token doesn't match an error
     ## is "raised". If no error message is
     ## given, a default one is used
-    if self.match(kind):
-        result = true
-    else:
-        result = false
+    if not self.match(kind):
         if message.len() == 0:
             self.error(&"expecting token of kind {kind}, found {self.peek().kind} instead")
         else:
@@ -155,7 +153,7 @@ proc varDecl(self: Parser): ASTNode
 proc primary(self: Parser): ASTNode = 
     ## Parses primary expressions such
     ## as integer literals and keywords
-    ## that map to types (true, false, etc)
+    ## that map to builtin types (true, false, etc)
     
     case self.peek().kind:
         of TokenType.True:
@@ -175,9 +173,12 @@ proc primary(self: Parser): ASTNode =
         of TokenType.LeftParen:
             discard self.step()
             result = self.expression()
-            if self.expect(TokenType.RightParen, "unmatched '('"):
-                result = newASTNode(self.peek(-3), NodeKind.groupingExpr, @[result])
+            self.expect(TokenType.RightParen, "unmatched '('")
+            result = newASTNode(self.peek(-3), NodeKind.groupingExpr, @[result])
         of TokenType.RightParen:
+            # This is *technically* unnecessary: the parser would
+            # throw an error regardless, but it's a little bit nicer
+            # when the error message is more specific
             self.error("unmatched ')'")
         of TokenType.Hex:
             result = newASTNode(self.step(), NodeKind.hexExpr)
@@ -187,6 +188,8 @@ proc primary(self: Parser): ASTNode =
             result = newASTNode(self.step(), NodeKind.binExpr)
         of TokenType.String:
             result = newASTNode(self.step(), NodeKind.strExpr)
+        of TokenType.Infinity:
+            result = newASTNode(self.step(), NodeKind.infExpr)
         else:
             self.error("invalid syntax")
 
@@ -203,8 +206,8 @@ proc make_call(self: Parser, callee: ASTNode): ASTNode =
             arguments.add(self.expression())
             if not self.match(TokenType.Comma):
                 break
-    if self.expect(TokenType.RightParen):
-        result = newASTNode(self.peek(-1), NodeKind.callExpr, arguments)
+    self.expect(TokenType.RightParen)
+    result = newASTNode(self.peek(-1), NodeKind.callExpr, arguments)
 
 
 proc call(self: Parser): ASTNode = 
@@ -215,8 +218,8 @@ proc call(self: Parser): ASTNode =
         if self.match(TokenType.LeftParen):
             result = self.make_call(result)
         elif self.match(TokenType.Dot):
-            if self.expect(TokenType.Identifier, "expecting attribute name after '.'"):
-                result = newASTNode(self.peek(-2), NodeKind.getExpr, @[result, newAstNode(self.peek(-1), NodeKind.identExpr)])
+            self.expect(TokenType.Identifier, "expecting attribute name after '.'")
+            result = newASTNode(self.peek(-2), NodeKind.getExpr, @[result, newAstNode(self.peek(-1), NodeKind.identExpr)])
         else:
             break
 
@@ -306,15 +309,24 @@ proc logical_or(self: Parser): ASTNode =
         result = newASTNode(operator, NodeKind.binaryExpr, @[result, right])
 
 
+
 proc binary(self: Parser): ASTNode = 
     ## Parses binary expressions
     result = self.logical_or()
 
 
+proc awaitExpr(self: Parser): ASTNode =
+    ## Parses await expressions
+    if self.match(TokenType.Await):
+        result = newASTNode(self.peek(-1), NodeKind.awaitExpr, @[self.binary()])
+    else:
+        result = self.binary()
+
+
 proc assignment(self: Parser): ASTNode =
     ## Parses assignment, the highest-level
     ## expression
-    result = self.binary()
+    result = self.awaitExpr()
     if self.match(TokenType.Equal):
         var tok = self.peek(-1)
         var value = self.assignment()
@@ -352,7 +364,7 @@ proc delStmt(self: Parser): ASTNode =
     if temp.kind in {NodeKind.falseExpr, NodeKind.trueExpr, NodeKind.intExpr, 
                            NodeKind.binExpr, NodeKind.hexExpr, NodeKind.octExpr,
                            NodeKind.floatExpr, NodeKind.strExpr, NodeKind.nilExpr,
-                           NodeKind.nanExpr, }:
+                           NodeKind.nanExpr, NodeKind.infExpr}:
         self.error("cannot delete a literal")
     elif temp.kind in {NodeKind.binaryExpr, NodeKind.unaryExpr}:
         self.error("cannot delete operator")
@@ -376,7 +388,7 @@ proc blockStmt(self: Parser): ASTNode =
     var statements: seq[ASTNode] = @[]
     while not self.check(TokenType.RightBrace) and not self.done():
         statements.add(self.statement())
-    discard self.expect(TokenType.RightBrace)
+    self.expect(TokenType.RightBrace)
     result = newASTNode(self.peek(-1), NodeKind.blockStmt, statements)
 
 
@@ -414,18 +426,19 @@ proc importStmt(self: Parser): ASTNode =
     result = newASTNode(self.peek(-1), NodeKind.importStmt, @[result])
 
 
+
 proc whileStmt(self: Parser): ASTNode =
     ## Parses a C-style while loop statement
-    discard self.expect(TokenType.LeftParen, "expecting '(' before while loop condition")
+    self.expect(TokenType.LeftParen, "expecting '(' before while loop condition")
     var condition = self.expression()
+    self.expect(TokenType.RightParen, "unterminated while loop condition")
     var body = self.statement()
-    discard self.expect(TokenType.LeftParen, "unterminated while loop condition")
     result = newASTNode(self.peek(-1), NodeKind.whileStmt, @[condition, body])
 
 
 proc forStmt(self: Parser): ASTNode = 
     ## Parses a C-style for loop
-    discard self.expect(TokenType.LeftParen, "expecting '(' before for loop condition")
+    self.expect(TokenType.LeftParen, "expecting '(' before for loop condition")
     var initializer: ASTNode = nil
     var condition: ASTNode = nil
     var increment: ASTNode = nil
@@ -435,10 +448,10 @@ proc forStmt(self: Parser): ASTNode =
         initializer = self.expressionStatement()
     if not self.check(TokenType.Semicolon):
         condition = self.expression()
-    discard self.expect(TokenType.Semicolon, "expecting ';' after for loop condition")
+    self.expect(TokenType.Semicolon, "expecting ';' after for loop condition")
     if not self.check(TokenType.RightParen):
         increment = self.expression()
-    discard self.expect(TokenType.RightParen, "unterminated for loop condition")
+    self.expect(TokenType.RightParen, "unterminated for loop condition")
     var body = self.statement()
     if increment != nil:
         # The increment runs at each iteration, so we
@@ -457,9 +470,24 @@ proc forStmt(self: Parser): ASTNode =
     result = body
 
 
+proc ifStmt(self: Parser): ASTNode =
+    ## Parses if statements
+    self.expect(TokenType.LeftParen, "expecting '(' before if condition")
+    var condition = self.expression()
+    self.expect(TokenType.RightParen, "expecting ')' after if condition")
+    var then = self.statement()
+    var else_branch: ASTNode = nil
+    if self.match(TokenType.Else):
+        else_branch = self.statement()
+    result = newASTNode(condition.token, NodeKind.ifStmt, @[condition, then, else_branch])
+
+
 proc statement(self: Parser): ASTNode =
     ## Parses statements
     case self.peek().kind:
+        of TokenType.If:
+            discard self.step()
+            result = self.ifStmt()
         of TokenType.Del:
             discard self.step()
             result = self.delStmt()
@@ -484,7 +512,7 @@ proc statement(self: Parser): ASTNode =
         of TokenType.For:
             discard self.step()
             result = self.forStmt()
-        of TokenType.Async, TokenType.Await, TokenType.Dynamic, TokenType.Foreach:
+        of TokenType.Await, TokenType.Foreach:
             discard self.step()  # TODO: Reserved for future use
         of TokenType.LeftBrace:
             discard self.step()
@@ -495,13 +523,55 @@ proc statement(self: Parser): ASTNode =
 
 proc varDecl(self: Parser): ASTNode =
     ## Parses variable declarations
-    # TODO
+    var tok = self.peek(-1)
+    var keyword = ""
+    if tok.kind == TokenType.Let:
+        keyword = "let"
+    elif tok.kind == TokenType.Const:
+        keyword = "const"
+    else:
+        keyword = "var"
+    self.expect(TokenType.Identifier, &"expecting variable name after '{keyword}'")
+    var name = newASTNode(self.peek(-1), NodeKind.identExpr)
+    result = newASTNode(tok, NodeKind.varDecl, @[name])
+    if self.match(TokenType.Equal):
+        result.children.add(self.expression())
+    self.expect(TokenType.Semicolon, &"expecting ';' after {keyword} declaration")
+
+
+proc funDecl(self: Parser): ASTNode =
+    ## Parses function declarations
+
+
+proc lambdaDecl(self: Parser): ASTNode =
+    ## Parses lambda (aka anonymous functions)
+    ## declarations
+
+
+proc classDecl(self: Parser): ASTNode =
+    ## Parses class declarations
 
 
 proc declaration(self: Parser): ASTNode =
     ## Parses declarations
-    # TODO
-    result = self.statement()
+    case self.peek().kind:
+        of TokenType.Var, TokenType.Let, TokenType.Const:
+            discard self.step()
+            result = self.varDecl()
+        of TokenType.Class:
+            discard self.step()
+            result = self.classDecl()
+        of TokenType.Fun:
+            discard self.step()
+            result = self.funDecl()
+        of TokenType.Lambda:
+            discard self.step()
+            result = self.lambdaDecl()
+        of TokenType.Dynamic, TokenType.Async:
+            # Reserved for future use
+            discard self.step()
+        else:
+            result = self.statement()
 
 
 proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =

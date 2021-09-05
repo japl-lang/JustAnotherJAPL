@@ -33,11 +33,11 @@ type
     While, For,
 
     # Keywords
-    Function, Break, Lambda,
+    Fun, Break, Lambda,
     Continue, Var, Let, Const, Is,
     Return, Async, Class, Import, From,
     IsNot, Raise, Assert, Del, Await,
-    Dynamic, Foreach
+    Dynamic, Foreach, Infinity
 
     # Basic types
 

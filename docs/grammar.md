@@ -22,13 +22,14 @@ may be formatted in monospace to make them stand out more in the document.
 ----------------------------------------------
 As a refresher to experienced users as well as to facilitate reading to newcomers, the variation of EBNF used in this
 document can be summarized with the following points:
-- A sequence of 2 slashes (character code 47) is used to mark comments. A comment lasts until the
+- A pair of 2 forward-slashes (character code 47) is used to mark comments. A comment lasts until the
   a CRLF or LF character (basically the end of a line) is encountered. It is RECOMMENDED to use 
   them to clarify each rule, or a group of rules, to simplify human inspection of the specification
 - The literal "LF" (without quotes) is a shorthand for "Line Feed" and is platform-independent
 - Whitespaces, tabs, newlines and form feeds (character code 32, 9, 10 and 12 respectively) are not 
-  relevant to the grammar and SHOULD be ignored by automated parsers and parser generators
+  relevant to the grammar and MUST be ignored by automated parsers and parser generators
 - `"*"` (without quotes, character code 42) is used for repetition of a rule, meaning it MUST match 0 or more times
+- `"?"` (without quotes, character code 63) means a rule can match 0 or 1 times
 - `"+"` (character code 43) is used for repetition of a rule, meaning it MUST 1 or more times
 - `"|"` (without quotes, character code 123) is used to indicate alternatives and means a rule may match either the first or
   the second rule. This operator can be chained to obtain something like "foo | bar | baz", meaning that either
@@ -40,7 +41,7 @@ document can be summarized with the following points:
 - Rules are listed in descending order: the last rule is the highest-precedence one. Think of it as a "more complex rules
   come first"
 - An "arrow" (character code 8594) MUST be used to separate rule names from their definition.
-  A rule definition then looks something like this (without quotes): "name → rule definition here; // optional comment"
+  A rule definition, then, looks something like this (without quotes): "name → rule definition here; // optional comment"
 - Literal numbers can be expressed in their decimal form (i.e. with arabic numbers). Other supported formats are 
   hexadecimal using the prefix 0x, octal using the prefix 0o, and binary using the prefix 0b. For example,
   the literals 0x7F, 0b1111111 and 0o177 all represent the decimal number 127 in hexadecimal, binary and
@@ -75,14 +76,16 @@ program        → declaration* EOF; // An entire program (Note: an empty progra
 // Declarations (rules that bind a name to an object in the current scope and produce side effects)
 declaration    → classDecl | funDecl | varDecl | statement;  // A program is composed by a list of declarations
 classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )? "{" function* "}" ;   // Declares a class
-funDecl        → "fun" function;   // Function declarations
+funDecl        → "async"? "fun" function;   // Function declarations
+lambdaDecl     → "async"? "lambda" lambda;  // Lambdas are anonymous functions
 // Constants and immutables still count as "variable" declarations in the grammar
-varDecl        → ( "var" | "let" | "const" ) IDENTIFIER ( "=" expression )? ";";
+varDecl        → ( "dynamic"? "var" | "let" | "const" ) IDENTIFIER ( "=" expression )? ";";
 
 // Statements (rules that produce side effects but without binding a name)
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements
 exprStmt       → expression ";";  // Any expression followed by a semicolon is technically a statement
 forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement;  // C-style for loops
+foreachStmt    → "foreach" "(" (IDENTIFIER ":" logic_or) ")" statement;
 ifStmt         → "if" "(" expression ")" statement ( "else" statement )?;  // If statements are conditional jumps
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
 breakStmt      → "break" ";";
@@ -93,7 +96,8 @@ whileStmt      → "while" "(" expression ")" statement;  // While loops run unt
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
 // Expressions (rules that produce a value, but may also have side effects)
 expression     → assignment;
-assignment     → (call ".")? IDENTIFIER "=" assignment | logic_or;  // Assignment is the highest-level expression
+assignment     → (call ".")? IDENTIFIER "=" awaitExpr;  // Assignment is the highest-level expression
+awaitExpr      → "await" logic_or ";"
 logic_or       → logic_and ("and" logic_and)*; 
 logic_and      → equality ("or" equality)*;
 equality       → comparison (( "!=" | "==" ) comparison )*;
@@ -102,10 +106,11 @@ term           → factor (( "-" | "+" ) factor )*;  // Precedence for + and - i
 factor         → unary (("/" | "*" | "**" | "^" | "&") unary)*;  // All other operators have the same precedence
 unary          → ("!" | "-" | "~") unary | call;
 call           → primary ("(" arguments? ")" | "." IDENTIFIER)*;
-primary        → "nan" | "true" | "false" | "nil" | NUMBER | STRING | IDENTIFIER | "(" expression ")" "." IDENTIFIER;
+primary        → "nan" | "true" | "false" | "nil" | "inf" | NUMBER | STRING | IDENTIFIER | "(" expression ")" "." IDENTIFIER;
 
 // Utility rules to avoid repetition
-function       → IDENTIFIER "(" parameters? ")" blockStmt;
+function       → IDENTIFIER ("(" parameters? ")")? blockStmt;
+lambda         → ("(" parameters? ")")? blockStmt
 parameters     → IDENTIFIER ( "," IDENTIFIER )*;
 arguments      → expression ( "," expression )*;
 

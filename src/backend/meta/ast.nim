@@ -46,12 +46,12 @@ type
         delStmt,
         fromStmt,
         importStmt,
-        awaitStmt,
         # An expression followed by a semicolon
         exprStmt,
         # Expressions
         assignExpr,
         setExpr,  # Set expressions like a.b = "c"
+        awaitExpr,
         binaryExpr,
         unaryExpr,
         callExpr,
@@ -68,6 +68,7 @@ type
         binExpr,
         nilExpr,
         nanExpr,
+        infExpr,
         identExpr,   # Identifier
 
 
@@ -83,14 +84,16 @@ type
         # functions processing the AST
         # node will take care of that
         children*: seq[ASTNode]
+        pos*: tuple[start, stop: int]
     
 
-proc newASTNode*(token: Token, kind: NodeKind, children: seq[ASTNode] = @[]): ASTNode =
+proc newASTNode*(token: Token, kind: NodeKind, children: seq[ASTNode] = @[], pos: tuple[start, stop: int] = (-1, -1)): ASTNode =
     ## Initializes a new ASTNode object
     new(result)
     result.token = token
     result.kind = kind
     result.children = children
+    result.pos = pos
 
 
 proc `$`*(self: ASTNode): string = 
