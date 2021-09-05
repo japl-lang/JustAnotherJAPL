@@ -66,7 +66,7 @@ const double = to_table({"**": TokenType.DoubleAsterisk,
 
 # Constant table storing all the reserved keywords (parsed as identifiers)
 const reserved = to_table({
-                "fun": TokenType.Function, "raise": TokenType.Raise,
+                "fun": TokenType.Fun, "raise": TokenType.Raise,
                 "if": TokenType.If, "else": TokenType.Else,
                 "for": TokenType.For, "while": TokenType.While,
                 "var": TokenType.Var, "nil": TokenType.NIL,
