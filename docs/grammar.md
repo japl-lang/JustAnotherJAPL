@@ -75,11 +75,11 @@ program        → declaration* EOF; // An entire program (Note: an empty progra
 
 // Declarations (rules that bind a name to an object in the current scope and produce side effects)
 declaration    → classDecl | funDecl | varDecl | statement;  // A program is composed by a list of declarations
-classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )? "{" function* "}" ;   // Declares a class
+classDecl      → "class" IDENTIFIER ("<" IDENTIFIER ("," IDENTIFIER)*)? "{" function* "}" ;   // Declares a class
 funDecl        → "async"? "fun" function;   // Function declarations
 lambdaDecl     → "async"? "lambda" lambda;  // Lambdas are anonymous functions
 // Constants and immutables still count as "variable" declarations in the grammar
-varDecl        → ( "dynamic"? "var" | "let" | "const" ) IDENTIFIER ( "=" expression )? ";";
+varDecl        → ("var" | "let" | "const") IDENTIFIER ( "=" expression )? ";";
 
 // Statements (rules that produce side effects but without binding a name)
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements
