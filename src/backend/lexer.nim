@@ -81,8 +81,7 @@ const reserved = to_table({
                 "assert": Assert, "or": LogicalOr,
                 "and": LogicalAnd, "del": Del,
                 "async": Async, "await": Await,
-                "dynamyc": Dynamic, "foreach": Foreach,
-                "inf": Infinity
+                "foreach": Foreach, "inf": Infinity
     })
 
 type

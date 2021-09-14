@@ -37,7 +37,7 @@ type
     Continue, Var, Let, Const, Is,
     Return, Async, Class, Import, From,
     IsNot, Raise, Assert, Del, Await,
-    Dynamic, Foreach, Infinity
+    Foreach, Infinity
 
     # Basic types
 
