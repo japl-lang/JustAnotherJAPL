@@ -15,10 +15,11 @@
 ## An Abstract Syntax Tree (AST) structure for our recursive-descent
 ## top-down parser. For more info, check out docs/grammar.md
 
-import token
 
 import strformat
-import strutils
+
+
+import token
 
 
 type
@@ -30,11 +31,9 @@ type
         # Declarations
         classDecl = 0u8,
         funDecl,
-        asyncFunDecl,
         varDecl,
         # Statements
         forStmt,  # Unused for now (for loops are compiled to while loops)
-        foreachStmt,
         ifStmt,
         returnStmt,
         breakStmt,
@@ -74,34 +73,110 @@ type
 
     ASTNode* = ref object
         ## An AST node
-        token*: Token
-        kind*: NodeKind
-        # This makes our life easier
-        # because we don't need object
-        # variants or inheritance to
-        # determine how many (if any)
-        # child nodes we need/have. The 
-        # functions processing the AST
-        # node will take care of that
-        children*: seq[ASTNode]
         pos*: tuple[start, stop: int]
+        case kind*: NodeKind
+            of intExpr, floatExpr, hexExpr, binExpr, octExpr, strExpr:
+                # This makes it much easier to handle numeric types, as
+                # there is no overflow/underflow or precision to deal with.
+                # Numbers are just serialized as strings and then converted
+                # before being passed to the VM, which also makes it easier
+                # to implement a potential bignum arithmetic that is compatible
+                # with machine types, i.e. if a type fits into 8, 16, 32 or 64 bits
+                # then it is stored in such a type to save space, else it will be
+                # converted to a bigint. Bigfloats with arbitrary-precision arithmetic
+                # would also be nice, although arguably less useful
+                literal*: Token
+            of identExpr:
+                name*: Token
+            of groupingExpr:
+                wrapped*: ASTNode
+            # Sadly nim doesn't allow to re-declare
+            # a field in a case statement yet, even if it
+            # is of the same type. 
+            # Check out https://github.com/nim-lang/RFCs/issues/368 
+            # for more info, but currently this is the least
+            # ugly workaround
+            of getExpr:
+                getObj*: ASTNode
+                getName*: ASTNode
+            of setExpr:
+                setObj*: ASTNode
+                setName*: ASTNode
+                setValue*: ASTNode
+            of callExpr:
+                callee*: ASTNode  # The identifier being called
+                args*: tuple[positionals: seq[ASTNode], keyword: seq[ASTNode]]
+                # Due to how our bytecode is represented, functions can't have
+                # more than 255 arguments, so why bother using a full int for
+                # that? And plus, if your functions need more than arguments, you've
+                # got far bigger problems to deal with in your code, trust me.
+                # Oh and btw, arity is the number of arguments the function takes:
+                # see it as len(self.args.positionals) + len(self.args.keyword)
+                # (because it's what it is)
+                arity*: int8
+            of unaryExpr:
+                unOp*: Token
+                operand*: ASTNode
+            of binaryExpr:
+                binOp*: Token
+                a*: ASTNode
+                b*: ASTNode 
+            of awaitExpr:
+                # The awaited object (well, in this
+                # case an AST node representing it)
+                awaitee*: ASTNode
+            of assignExpr:
+                assignName*: ASTNode
+                assignValue*: ASTNode
+            of exprStmt:
+                expression*: ASTNode
+            of importStmt:
+                moduleName*: ASTNode
+            of fromStmt:
+                fromModule*: ASTNode
+                fromAttributes*: seq[ASTNode]
+            of delStmt:
+                delName*: ASTNode
+            of assertStmt:
+                assertExpr*: ASTNode
+            of raiseStmt:
+                exception*: ASTNode
+            of blockStmt:
+                statements*: seq[ASTNode]
+            of whileStmt:
+                whileCondition*: ASTNode
+                loopBody*: seq[ASTNode]
+            of returnStmt:
+                retValue*: ASTNode
+            of ifStmt:
+                ifCondition*: ASTNode
+                thenBranch*: ASTNode
+                elseBranch*: ASTNode
+            of funDecl:
+                funcName*: ASTNode
+                funcBody*: ASTNode
+                arguments*: tuple[positionals: seq[ASTNode], keyword: seq[ASTNode], defaults: seq[ASTNode]]
+                isAsync*: bool
+                isGenerator*: bool
+            of classDecl:
+                className*: ASTNode
+                classBody*: ASTNode
+                parents*: seq[ASTNode]
+            else:
+                # Types such as booleans and singletons
+                # in general don't need any extra metadata.
+                # This branch is also used for extra types
+                # that don't have a use yet
+                discard
     
 
-proc newASTNode*(token: Token, kind: NodeKind, children: seq[ASTNode] = @[], pos: tuple[start, stop: int] = (-1, -1)): ASTNode =
+proc newASTNode*(kind: NodeKind, pos: tuple[start, stop: int] = (-1, -1)): ASTNode =
     ## Initializes a new ASTNode object
     new(result)
-    result.token = token
     result.kind = kind
-    result.children = children
     result.pos = pos
 
 
 proc `$`*(self: ASTNode): string = 
-    result &= "ASTNode("
-    if self.token.kind != TokenType.EndOfFile:
-        result &= &"token={self.token}, "
-    result &= &"kind={self.kind}"
-    if self.children.len() > 0:
-        result &= &", children=[{self.children.join(\", \")}]"
-    result &= ")"
+    result = &"ASTNode(kind={self.kind})"
     
