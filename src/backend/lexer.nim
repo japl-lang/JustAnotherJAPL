@@ -25,64 +25,64 @@ export token # Makes Token available when importing the lexer module
 
 # Table of all tokens except reserved keywords
 const tokens = to_table({
-              '(': TokenType.LeftParen, ')': TokenType.RightParen,
-              '{': TokenType.LeftBrace, '}': TokenType.RightBrace,
-              '.': TokenType.Dot, ',': TokenType.Comma,
-              '-': TokenType.Minus, '+': TokenType.Plus,
-              ';': TokenType.Semicolon, '*': TokenType.Asterisk,
-              '>': TokenType.GreaterThan, '<': TokenType.LessThan,
-              '=': TokenType.Equal, '~': TokenType.Tilde,
-              '/': TokenType.Slash, '%': TokenType.Percentage,
-              '[': TokenType.LeftBracket, ']': TokenType.RightBracket,
-              ':': TokenType.Colon, '^': TokenType.Caret,
-              '&': TokenType.Ampersand, '|': TokenType.Pipe,
-              '!': TokenType.ExclamationMark})
+              '(': LeftParen, ')': RightParen,
+              '{': LeftBrace, '}': RightBrace,
+              '.': Dot, ',': Comma,
+              '-': Minus, '+': Plus,
+              ';': Semicolon, '*': Asterisk,
+              '>': GreaterThan, '<': LessThan,
+              '=': Equal, '~': Tilde,
+              '/': Slash, '%': Percentage,
+              '[': LeftBracket, ']': RightBracket,
+              ':': Colon, '^': Caret,
+              '&': Ampersand, '|': Pipe,
+              '!': ExclamationMark})
 
 # Table of all triple-character tokens
-const triple = to_table({"//=": TokenType.InplaceFloorDiv,
-                         "**=": TokenType.InplacePow
+const triple = to_table({"//=": InplaceFloorDiv,
+                         "**=": InplacePow
     })
 
 
 # Table of all double-character tokens
-const double = to_table({"**": TokenType.DoubleAsterisk,
-                         ">>": TokenType.RightShift,
-                         "<<": TokenType.LeftShift,
-                         "==": TokenType.DoubleEqual,
-                         "!=": TokenType.NotEqual,
-                         ">=": TokenType.GreaterOrEqual,
-                         "<=": TokenType.LessOrEqual,
-                         "//": TokenType.FloorDiv,
-                         "+=": TokenType.InplaceAdd,
-                         "-=": TokenType.InplaceSub,
-                         "/=": TokenType.InplaceDiv,
-                         "*=": TokenType.InplaceMul,
-                         "^=": TokenType.InplaceXor,
-                         "&=": TokenType.InplaceAnd,
-                         "|=": TokenType.InplaceOr,
-                         "~=": TokenType.InplaceNot,
-                         "%=": TokenType.InplaceMod
+const double = to_table({"**": DoubleAsterisk,
+                         ">>": RightShift,
+                         "<<": LeftShift,
+                         "==": DoubleEqual,
+                         "!=": NotEqual,
+                         ">=": GreaterOrEqual,
+                         "<=": LessOrEqual,
+                         "//": FloorDiv,
+                         "+=": InplaceAdd,
+                         "-=": InplaceSub,
+                         "/=": InplaceDiv,
+                         "*=": InplaceMul,
+                         "^=": InplaceXor,
+                         "&=": InplaceAnd,
+                         "|=": InplaceOr,
+                         "~=": InplaceNot,
+                         "%=": InplaceMod
     })
 
 # Constant table storing all the reserved keywords (parsed as identifiers)
 const reserved = to_table({
-                "fun": TokenType.Fun, "raise": TokenType.Raise,
-                "if": TokenType.If, "else": TokenType.Else,
-                "for": TokenType.For, "while": TokenType.While,
-                "var": TokenType.Var, "nil": TokenType.NIL,
-                "true": TokenType.True, "false": TokenType.False,
-                "return": TokenType.Return, "break": TokenType.Break,
-                "continue": TokenType.Continue, "inf": TokenType.Inf,
-                "nan": TokenType.NaN, "is": TokenType.Is,
-                "lambda": TokenType.Lambda, "class": TokenType.Class,
-                "async": TokenType.Async, "import": TokenType.Import,
-                "isnot": TokenType.IsNot, "from": TokenType.From,
-                "let": TokenType.Let, "const": TokenType.Const,
-                "assert": TokenType.Assert, "or": TokenType.LogicalOr,
-                "and": TokenType.LogicalAnd, "del": TokenType.Del,
-                "async": TokenType.Async, "await": TokenType.Await,
-                "dynamyc": TokenType.Dynamic, "foreach": TokenType.Foreach,
-                "inf": TokenType.Infinity
+                "fun": Fun, "raise": Raise,
+                "if": If, "else": Else,
+                "for": For, "while": While,
+                "var": Var, "nil": NIL,
+                "true": True, "false": False,
+                "return": Return, "break": Break,
+                "continue": Continue, "inf": TokenType.Inf,
+                "nan": TokenType.NaN, "is": Is,
+                "lambda": Lambda, "class": Class,
+                "async": Async, "import": Import,
+                "isnot": IsNot, "from": From,
+                "let": Let, "const": Const,
+                "assert": Assert, "or": LogicalOr,
+                "and": LogicalAnd, "del": Del,
+                "async": Async, "await": Await,
+                "dynamyc": Dynamic, "foreach": Foreach,
+                "inf": Infinity
     })
 
 type
@@ -349,7 +349,7 @@ proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
             self.error("unexpected EOL while parsing multi-line string literal")
     else:
         discard self.step()
-    self.createToken(TokenType.String)
+    self.createToken(String)
 
 
 proc parseBinary(self: Lexer) =
@@ -358,7 +358,7 @@ proc parseBinary(self: Lexer) =
         if not self.check(['0', '1']):
             self.error(&"invalid digit '{self.peek()}' in binary literal")
         discard self.step()
-    self.createToken(TokenType.Binary)
+    self.createToken(Binary)
     # To make our life easier, we pad the binary number in here already
     while (self.tokens[^1].lexeme.len() - 2) mod 8 != 0:
         self.tokens[^1].lexeme = "0b" & "0" & self.tokens[^1].lexeme[2..^1]
@@ -371,7 +371,7 @@ proc parseOctal(self: Lexer) =
         if self.peek() notin '0'..'7':
             self.error(&"invalid digit '{self.peek()}' in octal literal")
         discard self.step()
-    self.createToken(TokenType.Octal)
+    self.createToken(Octal)
 
 
 proc parseHex(self: Lexer) =
@@ -380,7 +380,7 @@ proc parseHex(self: Lexer) =
         if not self.peek().isDigit() and self.peek().toLowerAscii() notin 'a'..'f':
             self.error(&"invalid hexadecimal literal")
         discard self.step()
-    self.createToken(TokenType.Hex)
+    self.createToken(Hex)
 
 
 proc parseNumber(self: Lexer) =
@@ -407,11 +407,11 @@ proc parseNumber(self: Lexer) =
             discard self.step()
             self.parseOctal()
         else:
-            var kind: TokenType = TokenType.Integer
+            var kind: TokenType = Integer
             while isDigit(self.peek()):
                 discard self.step()
             if self.check(['e', 'E']):
-                kind = TokenType.Float
+                kind = Float
                 discard self.step()
                 while self.peek().isDigit():
                     discard self.step()
@@ -420,7 +420,7 @@ proc parseNumber(self: Lexer) =
                 discard self.step()
                 if not isDigit(self.peek()):
                     self.error("invalid float number literal")
-                kind = TokenType.Float
+                kind = Float
                 while isDigit(self.peek()):
                     discard self.step()
                 if self.check(['e', 'E']):
@@ -442,7 +442,7 @@ proc parseIdentifier(self: Lexer) =
         self.createToken(reserved[text])
     else:
         # Identifier!
-        self.createToken(TokenType.Identifier)
+        self.createToken(Identifier)
 
 
 proc next(self: Lexer) =
@@ -516,6 +516,6 @@ proc lex*(self: Lexer, source, file: string): seq[Token] =
     while not self.done():
         self.next()
         self.start = self.current
-    self.tokens.add(Token(kind: TokenType.EndOfFile, lexeme: "",
+    self.tokens.add(Token(kind: EndOfFile, lexeme: "",
             line: self.line))
     return self.tokens
