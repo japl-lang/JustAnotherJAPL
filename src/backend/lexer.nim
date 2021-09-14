@@ -23,23 +23,19 @@ import meta/token
 export token # Makes Token available when importing the lexer module
 
 
-# Table of all tokens except reserved keywords
+# Tables of all character tokens that are not keywords
+
+# Table of all single-character tokens
 const tokens = to_table({
               '(': LeftParen, ')': RightParen,
               '{': LeftBrace, '}': RightBrace,
               '.': Dot, ',': Comma, '-': Minus, 
-              '+': Plus, ';': Semicolon, '*': Asterisk,
+              '+': Plus, '*': Asterisk,
               '>': GreaterThan, '<': LessThan, '=': Equal,
               '~': Tilde, '/': Slash, '%': Percentage,
               '[': LeftBracket, ']': RightBracket,
               ':': Colon, '^': Caret, '&': Ampersand,
-              '|': Pipe})
-
-# Table of all triple-character tokens
-const triple = to_table({"//=": InplaceFloorDiv,
-                         "**=": InplacePow
-    })
-
+              '|': Pipe, ';': Semicolon})
 
 # Table of all double-character tokens
 const double = to_table({"**": DoubleAsterisk,
@@ -61,8 +57,14 @@ const double = to_table({"**": DoubleAsterisk,
                          "%=": InplaceMod,
     })
 
-# Constant table storing all the reserved keywords (parsed as identifiers)
-const reserved = to_table({
+# Table of all triple-character tokens
+const triple = to_table({"//=": InplaceFloorDiv,
+                         "**=": InplacePow
+    })
+
+
+# Constant table storing all the reserved keywords (which are parsed as identifiers)
+const keywords = to_table({
                 "fun": Fun, "raise": Raise,
                 "if": If, "else": Else,
                 "for": For, "while": While,
@@ -78,7 +80,7 @@ const reserved = to_table({
                 "assert": Assert, "or": LogicalOr,
                 "and": LogicalAnd, "del": Del,
                 "async": Async, "await": Await,
-                "foreach": Foreach
+                "foreach": Foreach, "yield": Yield
     })
 
 type
@@ -293,8 +295,8 @@ proc parseEscape(self: Lexer) =
 
 proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
     ## Parses string literals. They can be expressed using matching pairs
-    ## of either single or double quotes. Most escape sequences are
-    ## supported; Moreover, a specific prefix may be prepended
+    ## of either single or double quotes. Most C-style escape sequences are
+    ## supported, moreover, a specific prefix may be prepended
     ## to the string to instruct the lexer on how to parse it:
     ## - b -> declares a byte string, where each character is
     ##     interpreted as an integer instead of a character
@@ -319,7 +321,8 @@ proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
             discard self.step()
         if self.check('\\'):
             # This madness here serves to get rid of the slash, since \x is mapped
-            # to a one-byte sequence but is actually 2 bytes
+            # to a one-byte sequence but the string '\x' actually 2 bytes (or more, 
+            # depending on the specific escape sequence)
             self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
             self.parseEscape()
         if mode == "format" and self.check('{'):
@@ -359,8 +362,6 @@ proc parseBinary(self: Lexer) =
     while (self.tokens[^1].lexeme.len() - 2) mod 8 != 0:
         self.tokens[^1].lexeme = "0b" & "0" & self.tokens[^1].lexeme[2..^1]
 
-
-
 proc parseOctal(self: Lexer) =
     ## Parses octal numbers
     while self.peek().isDigit():
@@ -385,11 +386,11 @@ proc parseNumber(self: Lexer) =
     ## Floats also support scientific notation
     ## (i.e. 3e14), while the fractional part
     ## must be separated from the decimal one
-    ## using a dot (which acts as a "comma" of sorts).
+    ## using a dot (which acts as a "comma").
     ## Literals such as 32.5e3 are also supported.
     ## The "e" for the scientific notation of floats
     ## is case-insensitive. Binary number literals are
-    ## expressed using the 0b prefix, hexadecimal
+    ## expressed using the prefix 0b, hexadecimal
     ## numbers with the prefix 0x and octal numbers
     ## with the prefix 0o 
     case self.peek():
@@ -427,15 +428,15 @@ proc parseNumber(self: Lexer) =
 
 
 proc parseIdentifier(self: Lexer) =
-    ## Parses identifiers. Note that
-    ## multi-character tokens such as
-    ## UTF runes are not supported
+    ## Parses identifiers and keywords.
+    ## Note that multi-character tokens
+    ## such as UTF runes are not supported
     while self.peek().isAlphaNumeric() or self.check('_'):
         discard self.step()
-    var text: string = self.source[self.start..<self.current]
-    if text in reserved:
+    var name: string = self.source[self.start..<self.current]
+    if name in keywords:
         # It's a keyword
-        self.createToken(reserved[text])
+        self.createToken(keywords[name])
     else:
         # Identifier!
         self.createToken(Identifier)

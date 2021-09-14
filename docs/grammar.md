@@ -84,19 +84,20 @@ varDecl        → ("var" | "let" | "const") IDENTIFIER ( "=" expression )? ";";
 // Statements (rules that produce side effects but without binding a name)
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements
 exprStmt       → expression ";";  // Any expression followed by a semicolon is technically a statement
-forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement;  // C-style for loops
-foreachStmt    → "foreach" "(" (IDENTIFIER ":" logic_or) ")" statement;
-ifStmt         → "if" "(" expression ")" statement ( "else" statement )?;  // If statements are conditional jumps
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
 breakStmt      → "break" ";";
 assertStmt     → "assert" expression ";"
 delStmt        → "del" expression ";"
 continueStmt   → "continue" ";";
-whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
+ifStmt         → "if" "(" expression ")" blockStmt ( "else" blockStmt )?;  // If statements are conditional jumps
+whileStmt      → "while" "(" expression ")" blockStmt;  // While loops run until their condition is truthy
+forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" blockStmt;  // C-style for loops
+foreachStmt    → "foreach" "(" (IDENTIFIER ":" logic_or) ")" blockStmt;
 // Expressions (rules that produce a value, but may also have side effects)
 expression     → assignment;
-assignment     → (call ".")? IDENTIFIER "=" awaitExpr;  // Assignment is the highest-level expression
+assignment     → (call ".")? IDENTIFIER "=" yieldExpr;  // Assignment is the highest-level expression
+yieldExpr      → "yield" awaitExpr ";"
 awaitExpr      → "await" logic_or ";"
 logic_or       → logic_and ("and" logic_and)*; 
 logic_and      → equality ("or" equality)*;
