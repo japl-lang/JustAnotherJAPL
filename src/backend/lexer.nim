@@ -27,16 +27,13 @@ export token # Makes Token available when importing the lexer module
 const tokens = to_table({
               '(': LeftParen, ')': RightParen,
               '{': LeftBrace, '}': RightBrace,
-              '.': Dot, ',': Comma,
-              '-': Minus, '+': Plus,
-              ';': Semicolon, '*': Asterisk,
-              '>': GreaterThan, '<': LessThan,
-              '=': Equal, '~': Tilde,
-              '/': Slash, '%': Percentage,
+              '.': Dot, ',': Comma, '-': Minus, 
+              '+': Plus, ';': Semicolon, '*': Asterisk,
+              '>': GreaterThan, '<': LessThan, '=': Equal,
+              '~': Tilde, '/': Slash, '%': Percentage,
               '[': LeftBracket, ']': RightBracket,
-              ':': Colon, '^': Caret,
-              '&': Ampersand, '|': Pipe,
-              '!': ExclamationMark})
+              ':': Colon, '^': Caret, '&': Ampersand,
+              '|': Pipe})
 
 # Table of all triple-character tokens
 const triple = to_table({"//=": InplaceFloorDiv,
@@ -61,7 +58,7 @@ const double = to_table({"**": DoubleAsterisk,
                          "&=": InplaceAnd,
                          "|=": InplaceOr,
                          "~=": InplaceNot,
-                         "%=": InplaceMod
+                         "%=": InplaceMod,
     })
 
 # Constant table storing all the reserved keywords (parsed as identifiers)
@@ -69,11 +66,11 @@ const reserved = to_table({
                 "fun": Fun, "raise": Raise,
                 "if": If, "else": Else,
                 "for": For, "while": While,
-                "var": Var, "nil": NIL,
+                "var": Var, "nil": Nil,
                 "true": True, "false": False,
                 "return": Return, "break": Break,
-                "continue": Continue, "inf": TokenType.Inf,
-                "nan": TokenType.NaN, "is": Is,
+                "continue": Continue, "inf": Infinity,
+                "nan": NotANumber, "is": Is,
                 "lambda": Lambda, "class": Class,
                 "async": Async, "import": Import,
                 "isnot": IsNot, "from": From,
@@ -81,7 +78,7 @@ const reserved = to_table({
                 "assert": Assert, "or": LogicalOr,
                 "and": LogicalAnd, "del": Del,
                 "async": Async, "await": Await,
-                "foreach": Foreach, "inf": Infinity
+                "foreach": Foreach
     })
 
 type

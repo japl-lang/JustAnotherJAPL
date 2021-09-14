@@ -24,7 +24,7 @@ type
     True, False,
 
     # Other singleton types
-    Inf, NaN, Nil
+    Infinity, NotANumber, Nil
 
     # Control-flow statements
     If, Else,
@@ -37,7 +37,7 @@ type
     Continue, Var, Let, Const, Is,
     Return, Async, Class, Import, From,
     IsNot, Raise, Assert, Del, Await,
-    Foreach, Infinity
+    Foreach
 
     # Basic types
 
@@ -56,13 +56,12 @@ type
     Caret, Pipe, Ampersand, Tilde, # ^ | & ~
     Equal, GreaterThan, LessThan, # = > <
     LessOrEqual, GreaterOrEqual, # >= <=
-    ExclamationMark, DoubleEqual, # ! ==
     NotEqual, RightShift, LeftShift, # != >> <<
     LogicalAnd, LogicalOr, FloorDiv, # && || //
     InplaceAdd, InplaceSub, InplaceDiv, # += -= /=
     InplaceMod, InplaceMul, InplaceXor, # %= *= ^=
     InplaceAnd, InplaceOr, InplaceNot, # &= |= ~=
-    InplaceFloorDiv, InplacePow # //= **=
+    DoubleEqual, InplaceFloorDiv, InplacePow, # == //= **=
 
     # Miscellaneous
 
