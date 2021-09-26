@@ -80,7 +80,9 @@ const keywords = to_table({
                 "assert": Assert, "or": LogicalOr,
                 "and": LogicalAnd, "del": Del,
                 "async": Async, "await": Await,
-                "foreach": Foreach, "yield": Yield
+                "foreach": Foreach, "yield": Yield,
+                "private": Private, "public": Public,
+                "static": Static, "dynamic": Dynamic
     })
 
 type

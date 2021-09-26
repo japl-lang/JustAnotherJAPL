@@ -55,7 +55,7 @@ document can be summarized with the following points:
   or equal to the last one: backwards ranges are illegal. In addition to this, although numerical ranges can use any 
   combination of the supported number representation (meaning `'0 ... 0x10'` is a valid range encompassing all decimal
   numbers from 0 to 16) it is RECOMMENDED that the representation used is consistent across the start and end of the range.
-  Finally, ranges can have a character and a number as either start or end of them, in which case the character is to be
+  Finally, ranges can have a character and a number as either "{" function* "}"start or end of them, in which case the character is to be
   interpreted as its character code in decimal
  - For readability purposes, it is RECOMMENTED that the grammar text be left aligned and that spaces are used between
    operators
@@ -75,45 +75,52 @@ program        → declaration* EOF; // An entire program (Note: an empty progra
 
 // Declarations (rules that bind a name to an object in the current scope and produce side effects)
 declaration    → classDecl | funDecl | varDecl | statement;  // A program is composed by a list of declarations
-classDecl      → "class" IDENTIFIER ("<" IDENTIFIER ("," IDENTIFIER)*)? "{" function* "}" ;   // Declares a class
-funDecl        → "async"? "fun" function;   // Function declarations
-lambdaDecl     → "async"? "lambda" lambda;  // Lambdas are anonymous functions
+classDecl      → declModifiers? "class" IDENTIFIER ("<" IDENTIFIER ("," IDENTIFIER)*)? blockStmt;   // Declares a class
+funDecl        → declModifiers? "async"? "fun" function;   // Function declarations
+lambdaDecl     → declModifiers? "async"? "lambda" lambda;  // Lambdas are anonymous functions
 // Constants and immutables still count as "variable" declarations in the grammar
-varDecl        → ("var" | "let" | "const") IDENTIFIER ( "=" expression )? ";";
+varDecl        → declModifiers? ("var" | "let" | "const") IDENTIFIER ( "=" expression )? ";";
 
-// Statements (rules that produce side effects but without binding a name)
+// Statements (rules that produce side effects but without binding a name. Well, mostly: import, for and foreach do, but w/e)
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements
 exprStmt       → expression ";";  // Any expression followed by a semicolon is technically a statement
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
 breakStmt      → "break" ";";
-assertStmt     → "assert" expression ";"
+importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ",") ";";
+assertStmt     → "assert" expression ";";
 delStmt        → "del" expression ";"
 continueStmt   → "continue" ";";
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
-ifStmt         → "if" "(" expression ")" blockStmt ( "else" blockStmt )?;  // If statements are conditional jumps
-whileStmt      → "while" "(" expression ")" blockStmt;  // While loops run until their condition is truthy
-forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" blockStmt;  // C-style for loops
-foreachStmt    → "foreach" "(" (IDENTIFIER ":" logic_or) ")" blockStmt;
-// Expressions (rules that produce a value, but may also have side effects)
+ifStmt         → "if" "(" expression ")" statement ("else" statement)?;  // If statements are conditional jumps
+whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy
+forStmt        → "for" "(" (varDecl | exprStmt | ";") expression? ";" expression? ")" statement;  // C-style for loops
+// For-each loops iterate over a collection type
+foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement;
+// Expressions (rules that produce a value, but also have side effects)
 expression     → assignment;
-assignment     → (call ".")? IDENTIFIER "=" yieldExpr;  // Assignment is the highest-level expression
-yieldExpr      → "yield" awaitExpr ";"
-awaitExpr      → "await" logic_or ";"
-logic_or       → logic_and ("and" logic_and)*; 
+assignment     → (call ".")? IDENTIFIER "=" yield;  // Assignment is the highest-level expression
+yield          → "yield" expression;
+logic_or       → logic_and ("and" logic_and)*;
 logic_and      → equality ("or" equality)*;
 equality       → comparison (( "!=" | "==" ) comparison )*;
 comparison     → term (( ">" | ">=" | "<" | "<=" ) term )*;
 term           → factor (( "-" | "+" ) factor )*;  // Precedence for + and - in operations
-factor         → unary (("/" | "*" | "**" | "^" | "&") unary)*;  // All other operators have the same precedence
-unary          → ("!" | "-" | "~") unary | call;
+factor         → unary (("/" | "*" | "**" | "^" | "&") unary)*;  // All other binary operators have the same precedence
+unary          → ("!" | "-" | "~" | "await") unary | call;
 call           → primary ("(" arguments? ")" | "." IDENTIFIER)*;
+// Below are some collection literals: lists, sets, dictionaries and tuples
+listExpr       → "[" arguments? "]"
+setExpr        → "{" arguments? "}"
+dictExpr       → "{" (expression ":" expression ("," expression ":" expression)*)? "}"  // {key: value, ...}
+tupleExpr      → "(" arguments? ")"
 primary        → "nan" | "true" | "false" | "nil" | "inf" | NUMBER | STRING | IDENTIFIER | "(" expression ")" "." IDENTIFIER;
 
 // Utility rules to avoid repetition
 function       → IDENTIFIER ("(" parameters? ")")? blockStmt;
 lambda         → ("(" parameters? ")")? blockStmt
-parameters     → IDENTIFIER ( "," IDENTIFIER )*;
-arguments      → expression ( "," expression )*;
+parameters     → IDENTIFIER ("," IDENTIFIER)*;
+arguments      → expression ("," expression)*;
+declModifiers  → ("private" | "public")? ("static" | dynamic)?
 
 // Lexical grammar that defines terminals in a non-recursive (regular) fashion
 COMMENT        → "#" UNICODE* LF;
@@ -122,13 +129,13 @@ DOUBLESTRING   → DOUBLEQUOTE UNICODE* DOUBLEQUOTE;
 SINGLEMULTI    → QUOTE{3} UNICODE* QUOTE{3};   // Single quoted multi-line strings
 DOUBLEMULTI    → DOUBLEQUOTE{3} UNICODE* DOUBLEQUOTE{3};  // Single quoted multi-line string
 DECIMAL        → DIGIT+;
-FLOAT          → DIGIT+ ("."  DIGIT+)? (("e"|"E") DIGIT+)?;
+FLOAT          → DIGIT+ ("." DIGIT+)? (("e" | "E") DIGIT+)?;
 BIN            → "0b" ("0" | "1")+;
 OCT            → "0o" ("0" ... "7")+;
 HEX            → "0x" ("0" ... "9" | "A" ... "F" | "a" ... "f")+;
 NUMBER         → DECIMAL | FLOAT | BIN | HEX | OCT;  // Numbers encompass integers, floats (even stuff like 1e5), binary numbers, hex numbers and octal numbers
-STRING         → ("r"|"b") SINGLESTRING|DOUBLESTRING|SINGLEMULTI|DOUBLEMULTI;  // Encompasses all strings
-IDENTIFIER     → ALPHA ( ALPHA | DIGIT )*;  // Valid identifiers are only alphanumeric!
+STRING         → ("r"|"b"|"f") SINGLESTRING | DOUBLESTRING | SINGLEMULTI | DOUBLEMULTI;  // Encompasses all strings
+IDENTIFIER     → ALPHA (ALPHA | DIGIT)*;  // Valid identifiers are only alphanumeric!
 QUOTE          → "'";
 DOUBLEQUOTE    → "\"";
 ALPHA          → "a" ... "z" | "A" ... "Z" | "_";  // Alphanumeric characters
