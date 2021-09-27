@@ -55,7 +55,7 @@ document can be summarized with the following points:
   or equal to the last one: backwards ranges are illegal. In addition to this, although numerical ranges can use any 
   combination of the supported number representation (meaning `'0 ... 0x10'` is a valid range encompassing all decimal
   numbers from 0 to 16) it is RECOMMENDED that the representation used is consistent across the start and end of the range.
-  Finally, ranges can have a character and a number as either "{" function* "}"start or end of them, in which case the character is to be
+  Finally, ranges can have a character and a number as either start or end of them, in which case the character is to be
   interpreted as its character code in decimal
  - For readability purposes, it is RECOMMENTED that the grammar text be left aligned and that spaces are used between
    operators
