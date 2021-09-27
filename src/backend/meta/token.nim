@@ -58,7 +58,7 @@ type
     Equal, GreaterThan, LessThan, # = > <
     LessOrEqual, GreaterOrEqual, # >= <=
     NotEqual, RightShift, LeftShift, # != >> <<
-    LogicalAnd, LogicalOr, FloorDiv, # && || //
+    LogicalAnd, LogicalOr, FloorDiv, # and or //
     InplaceAdd, InplaceSub, InplaceDiv, # += -= /=
     InplaceMod, InplaceMul, InplaceXor, # %= *= ^=
     InplaceAnd, InplaceOr, InplaceNot, # &= |= ~=

@@ -16,6 +16,8 @@ import meta/token
 
 
 import parseutils
+import strformat
+import math
 
 
 type
@@ -25,7 +27,6 @@ type
         isWithALiteral,
         equalityWithSingleton,
         valueOverflow,
-        valueUnderflow,
         implicitConversion
 
     Warning* = ref object
@@ -54,6 +55,12 @@ proc newWarning(self: Optimizer, kind: WarningKind, node: ASTNode) =
     self.warnings.add(Warning(kind: kind, node: node))
 
 
+proc `$`*(self: Warning): string = &"Warning(kind={self.kind}, node={self.node})"
+
+
+proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode
+
+
 proc checkConstants(self: Optimizer, node: ASTNode): ASTNode =
     ## Performs some checks on constant AST nodes such as
     ## integers. This method converts all of the different
@@ -63,28 +70,43 @@ proc checkConstants(self: Optimizer, node: ASTNode): ASTNode =
         of intExpr:
             var x: int
             var y = IntExpr(node)
-            assert parseInt(y.literal.lexeme, x) == len(y.literal.lexeme)
+            try:
+                assert parseInt(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.newWarning(valueOverflow, node)
             result = node
         of hexExpr:
             var x: int
             var y = HexExpr(node)
-            assert parseHex(y.literal.lexeme, x) == len(y.literal.lexeme)
-            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: y.literal.pos.start, stop: len($x)))))
+            try:
+                assert parseHex(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.newWarning(valueOverflow, node)
+            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1))))
         of binExpr:
             var x: int
             var y = BinExpr(node)
-            assert parseBin(y.literal.lexeme, x) == len(y.literal.lexeme)
-            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: y.literal.pos.start, stop: len($x)))))
+            try:
+                assert parseBin(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.newWarning(valueOverflow, node)
+            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1))))
         of octExpr:
             var x: int
             var y = OctExpr(node)
-            assert parseOct(y.literal.lexeme, x) == len(y.literal.lexeme)
-            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: y.literal.pos.start, stop: len($x)))))
+            try:
+                assert parseOct(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.newWarning(valueOverflow, node)
+            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1))))
         of floatExpr:
             var x: float
             var y = FloatExpr(node)
-            assert parseFloat(y.literal.lexeme, x) == len(y.literal.lexeme)
-            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: y.literal.pos.start, stop: len($x)))))
+            try:
+                assert parseFloat(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.newWarning(valueOverflow, node)
+            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1))))
         else:
             result = node
 
@@ -102,14 +124,50 @@ proc optimizeUnary(self: Optimizer, node: UnaryExpr): ASTNode =
     result = node
 
 
+
 proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
     ## Attempts to optimize binary expressions
     var a, b: ASTNode
-    a = self.checkConstants(node.a)
-    b = self.checkConstants(node.b)
+    a = self.optimizeNode(node.a)
+    b = self.optimizeNode(node.b)
     if a.kind == intExpr and b.kind == intExpr:
-        result = ASTNode(BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator))
-    result = node
+        # Optimizes integer operations
+        if self.warnings.len() > 0 and self.warnings[^1].kind == valueOverflow and (self.warnings[^1].node == a or self.warnings[^1].node == b):
+            # We can't optimize further, the overflow will be caught in the compiler
+            return ASTNode(BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator))
+        var x, y, z: int
+        discard parseInt(IntExpr(a).literal.lexeme, x)
+        discard parseInt(IntExpr(b).literal.lexeme, y)
+        case node.operator.kind:
+            of Plus:
+                z = x + y
+            of Minus:
+                z = x - y
+            of Asterisk:
+                z = x * y
+            of FloorDiv:
+                z = int(x / y)
+            of DoubleAsterisk:
+                z = x ^ y
+            of Percentage:
+                z = x mod y
+            of Caret:
+                z = x xor y
+            of Ampersand:
+                z = x and y
+            of Pipe:
+                z = x or y
+            of Slash:
+                # Special case, yields a float
+                return ASTNode(FloatExpr(kind: intExpr, literal: Token(kind: Float, lexeme: $(x / y), line: IntExpr(a).literal.line, pos: (start: -1, stop: -1))))
+            else:
+                discard
+        result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $z, line: IntExpr(a).literal.line, pos: (start: -1, stop: -1))))
+    elif a.kind == floatExpr or b.kind == floatExpr:
+        # Optimizes float operations
+        result = node
+    else:
+        result = node
 
 
 proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
@@ -126,6 +184,7 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
         of binaryExpr:
             result = self.optimizeBinary(BinaryExpr(node))
         of groupingExpr:
+            # Recursively unnests groups
             result = self.optimizeNode(GroupingExpr(node).expression)
         else:
             result = node

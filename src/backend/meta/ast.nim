@@ -450,78 +450,75 @@ proc newClassDecl*(name: ASTNode, body: ASTNode,
 
 
 proc `$`*(self: ASTNode): string = 
-    result = &"{($self.kind)[0].toUpperAscii() & ($self.kind)[1..^1]}("
     case self.kind:
         of intExpr, floatExpr, hexExpr, binExpr, octExpr, strExpr:
-            result &= &"literal={LiteralExpr(self).literal}"
+            result &= &"Literal({LiteralExpr(self).literal.lexeme})"
         of identExpr:
-            result &= &"name={IdentExpr(self).name}"
+            result &= &"Identifier({IdentExpr(self).name})"
         of groupingExpr:
-            result &= &"expression={GroupingExpr(self).expression}"
+            result &= &"Grouping({GroupingExpr(self).expression})"
         of getItemExpr:
             var self = GetItemExpr(self)
-            result &= &"obj={self.obj}, name={self.name}"
+            result &= &"GetItem(obj={self.obj}, name={self.name})"
         of setItemExpr:
             var self = SetItemExpr(self)
-            result &= &"obj={self.obj}, name={self.value}, value={self.value}"
+            result &= &"SetItem(obj={self.obj}, name={self.value}, value={self.value})"
         of callExpr:
             var self = CallExpr(self)
-            result &= &"callee={self.callee}, arguments=(positionals=[{self.arguments.positionals.join(\", \")}], keyword=[{self.arguments.keyword.join(\", \")}])"
+            result &= &"Call(callee={self.callee}, arguments=(positionals=[{self.arguments.positionals.join(\", \")}], keyword=[{self.arguments.keyword.join(\", \")}]))"
         of unaryExpr:
             var self = UnaryExpr(self)
-            result &= &"operator={self.operator}, a={self.a}"
+            result &= &"Unary({self.operator}, {self.a})"
         of binaryExpr:
             var self = BinaryExpr(self)
-            result &= &"a={self.a}, operator={self.operator}, b={self.b}"
+            result &= &"Binary({self.a}, {self.operator.lexeme}, {self.b})"
         of assignExpr:
             var self = AssignExpr(self)
-            result &= &"name={self.name}, value={self.value}"
+            result &= &"Assign(name={self.name}, value={self.value})"
         of exprStmt:
             var self = ExprStmt(self)
-            result &= &"expression={self.expression}"
+            result &= &"ExpressionStatement({self.expression})"
         of importStmt:
             var self = ImportStmt(self)
-            result &= &"moduleName={self.moduleName}"
+            result &= &"Import({self.moduleName})"
         of fromImportStmt:
             var self = FromImportStmt(self)
-            result &= &"fromModule={self.fromModule}, fromAttributes=[{self.fromAttributes.join(\", \")}]"
+            result &= &"FromImport(fromModule={self.fromModule}, fromAttributes=[{self.fromAttributes.join(\", \")}])"
         of delStmt:
             var self = DelStmt(self)
-            result &= &"name={self.name}"
+            result &= &"Del({self.name})"
         of assertStmt:
             var self = AssertStmt(self)
-            result &= &"expression={self.expression}"
+            result &= &"Assert({self.expression})"
         of raiseStmt:
             var self = RaiseStmt(self)
-            result &= &"exception={self.exception}"
+            result &= &"Raise({self.exception})"
         of blockStmt:
             var self = BlockStmt(self)
-            result &= &"code=[{self.code.join(\", \")}]"
+            result &= &"Block([{self.code.join(\", \")}])"
         of whileStmt:
             var self = WhileStmt(self)
-            result &= &"condition={self.condition}, body={self.body}"
+            result &= &"While(condition={self.condition}, body={self.body})"
         of forEachStmt:
             var self = ForEachStmt(self)
-            result &= &"identifier={self.identifier}, expression={self.expression}, body={self.body}"
+            result &= &"ForEach(identifier={self.identifier}, expression={self.expression}, body={self.body})"
         of returnStmt:
             var self = ReturnStmt(self)
-            result &= &"value={self.value}"
+            result &= &"Return({self.value})"
         of ifStmt:
             var self = IfStmt(self)
             if self.elseBranch == nil:
-                result &= &"condition={self.condition}, thenBranch={self.thenBranch}, elseBranch=nil"
+                result &= &"If(condition={self.condition}, thenBranch={self.thenBranch}, elseBranch=nil)"
             else:
-                result &= &"condition={self.condition}, thenBranch={self.thenBranch}, elseBranch={self.elseBranch}"
+                result &= &"If(condition={self.condition}, thenBranch={self.thenBranch}, elseBranch={self.elseBranch})"
         of varDecl:
             var self = VarDecl(self)
-            result &= &"name={self.name}, value={self.value}, isConst={self.isConst}, isLet={self.isLet}, isStatic={self.isStatic}, isPrivate={self.isPrivate}"
+            result &= &"Var(name={self.name}, value={self.value}, const={self.isConst}, let={self.isLet}, static={self.isStatic}, private={self.isPrivate})"
         of funDecl:
             var self = FunDecl(self)
-            result &= &"name={self.name}, body={self.body}, arguments=[{self.arguments.join(\", \")}], isAsync={self.isAsync}, isGenerator={self.isGenerator}, isStatic={self.isStatic}, isPrivate={self.isPrivate}"
+            result &= &"name={self.name}, body={self.body}, arguments=[{self.arguments.join(\", \")}], async={self.isAsync}, generator={self.isGenerator}, static={self.isStatic}, isPrivate={self.isPrivate})"
         of classDecl:
             var self = ClassDecl(self)
-            result &= &"name={self.name}, body={self.body}, parents=[{self.parents.join(\", \")}], isStatic={self.isStatic}, isPrivate={self.isPrivate}"
+            result &= &"Class(name={self.name}, body={self.body}, parents=[{self.parents.join(\", \")}], static={self.isStatic}, private={self.isPrivate})"
         else:
-            discard
-    result &= ")"
-    
+            discard    
