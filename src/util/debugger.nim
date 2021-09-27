@@ -11,20 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import meta/ast
-
-
-type
-    IdentifierKind = enum
-        Static, Dynamic
-
-    IdentifierWrapper = ref object
-        kind: IdentifierKind
-        node: ASTNode
-        isPrivate: bool
-    
-    Compiler* = ref object
-        ast: seq[ASTNode]
-        current: int
-        file: string
-        names: seq[IdentifierWrapper]

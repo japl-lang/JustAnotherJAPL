@@ -40,6 +40,7 @@ type
         breakStmt,
         continueStmt,
         whileStmt,
+        forEachStmt,
         blockStmt,
         raiseStmt,
         assertStmt,
@@ -79,7 +80,7 @@ type
     ASTNode* = ref object of RootObj
         ## An AST node
         kind*: NodeKind
-    
+
     # Here I would've rather used object variants, and in fact that's what was in
     # place before, but not being able to re-declare a field of the same type in
     # another case branch is kind of a deal breaker long-term, so until that is
@@ -188,11 +189,17 @@ type
     ForStmt* = ref object of ASTNode
         discard   # Unused
     
+    ForEachStmt* = ref object of ASTNode
+        identifier*: ASTNode
+        expression*: ASTNode
+        body*: ASTNode
+
     WhileStmt* = ref object of ASTNode
         condition*: ASTNode
         body*: ASTNode
     
     BreakStmt* = ref object of ASTNode
+    
     ContinueStmt* = ref object of ASTNode
 
     ReturnStmt* = ref object of ASTNode
@@ -243,17 +250,6 @@ type
     Declaration* = VarDecl | FunDecl | ClassDecl
 
 
-template convert*(input: untyped): untyped =
-    ## Converts a generic AST node into its
-    ## specialized subtype
-    
-    # FIXME: Broken
-    case input.kind:
-        of intExpr, binExpr, octExpr, hexExpr, strExpr, floatExpr:
-            LiteralExpr(input)
-        else:
-            discard
-
 
 proc newASTNode*(kind: NodeKind): ASTNode =
     ## Initializes a new generic ASTNode object
@@ -267,22 +263,22 @@ proc newIntExpr*(literal: Token): LiteralExpr =
 
 
 proc newOctExpr*(literal: Token): LiteralExpr =
-    result = LiteralExpr(kind: octExpr)
+    result = OctExpr(kind: octExpr)
     result.literal = literal
 
 
 proc newHexExpr*(literal: Token): LiteralExpr =
-    result = LiteralExpr(kind: hexExpr)
+    result = HexExpr(kind: hexExpr)
     result.literal = literal
 
 
 proc newBinExpr*(literal: Token): LiteralExpr =
-    result = LiteralExpr(kind: binExpr)
+    result = BinExpr(kind: binExpr)
     result.literal = literal
 
 
 proc newFloatExpr*(literal: Token): LiteralExpr =
-    result = LiteralExpr(kind: floatExpr)
+    result = BinExpr(kind: floatExpr)
     result.literal = literal
 
 
@@ -356,7 +352,6 @@ proc newExprStmt*(expression: ASTNode): ExprStmt =
     result.expression = expression
 
 
-
 proc newImportStmt*(moduleName: ASTNode): ImportStmt =
     result = ImportStmt(kind: importStmt)
     result.moduleName = moduleName
@@ -391,6 +386,13 @@ proc newBlockStmt*(code: seq[ASTNode]): BlockStmt =
 proc newWhileStmt*(condition: ASTNode, body: ASTNode): WhileStmt =
     result = WhileStmt(kind: whileStmt)
     result.condition = condition
+    result.body = body
+
+
+proc newForEachStmt*(identifier: ASTNode, expression, body: ASTNode): ForEachStmt =
+    result = ForEachStmt(kind: forEachStmt)
+    result.identifier = identifier
+    result.expression = expression
     result.body = body
 
 
@@ -498,6 +500,9 @@ proc `$`*(self: ASTNode): string =
         of whileStmt:
             var self = WhileStmt(self)
             result &= &"condition={self.condition}, body={self.body}"
+        of forEachStmt:
+            var self = ForEachStmt(self)
+            result &= &"identifier={self.identifier}, expression={self.expression}, body={self.body}"
         of returnStmt:
             var self = ReturnStmt(self)
             result &= &"value={self.value}"

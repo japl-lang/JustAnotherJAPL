@@ -426,6 +426,8 @@ proc continueStmt(self: Parser): ASTNode =
 
 proc returnStmt(self: Parser): ASTNode =
     ## Parses return statements
+    if self.context != Function:
+        self.error("'return' cannot be used outside functions")
     var value: ASTNode
     if not self.check(Semicolon):
         # Since return can be used on its own too
@@ -456,8 +458,7 @@ proc forEachStmt(self: Parser): ASTNode =
     var expression = self.expression()
     self.expect(RightParen)
     var body = self.statement()
-    # TODO: FIXME
-    # FIXME
+    result = newForEachStmt(identifier, expression, body)
 
 
 proc importStmt(self: Parser): ASTNode =
