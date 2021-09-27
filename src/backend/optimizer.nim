@@ -138,30 +138,34 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
         var x, y, z: int
         discard parseInt(IntExpr(a).literal.lexeme, x)
         discard parseInt(IntExpr(b).literal.lexeme, y)
-        case node.operator.kind:
-            of Plus:
-                z = x + y
-            of Minus:
-                z = x - y
-            of Asterisk:
-                z = x * y
-            of FloorDiv:
-                z = int(x / y)
-            of DoubleAsterisk:
-                z = x ^ y
-            of Percentage:
-                z = x mod y
-            of Caret:
-                z = x xor y
-            of Ampersand:
-                z = x and y
-            of Pipe:
-                z = x or y
-            of Slash:
-                # Special case, yields a float
-                return ASTNode(FloatExpr(kind: intExpr, literal: Token(kind: Float, lexeme: $(x / y), line: IntExpr(a).literal.line, pos: (start: -1, stop: -1))))
-            else:
-                discard
+        try:
+            case node.operator.kind:
+                of Plus:
+                    z = x + y
+                of Minus:
+                    z = x - y
+                of Asterisk:
+                    z = x * y
+                of FloorDiv:
+                    z = int(x / y)
+                of DoubleAsterisk:
+                    z = x ^ y
+                of Percentage:
+                    z = x mod y
+                of Caret:
+                    z = x xor y
+                of Ampersand:
+                    z = x and y
+                of Pipe:
+                    z = x or y
+                of Slash:
+                    # Special case, yields a float
+                    return ASTNode(FloatExpr(kind: intExpr, literal: Token(kind: Float, lexeme: $(x / y), line: IntExpr(a).literal.line, pos: (start: -1, stop: -1))))
+                else:
+                    discard  # Unreachable
+        except OverflowDefect:
+            self.newWarning(valueOverflow, node)
+            return ASTNode(BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator))
         result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $z, line: IntExpr(a).literal.line, pos: (start: -1, stop: -1))))
     elif a.kind == floatExpr or b.kind == floatExpr:
         # Optimizes float operations
