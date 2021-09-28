@@ -39,7 +39,7 @@ while true:
         tree = initParser().parse(tokens, filename)
         optimized = initOptimizer().optimize(tree)
     except:
-        echo getCurrentExceptionMsg()
+        echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
         continue
 
     echo "Tokenization step: "

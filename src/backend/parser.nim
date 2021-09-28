@@ -305,7 +305,7 @@ proc comparison(self: Parser): ASTNode =
     result = self.add()
     var operator: Token
     var right: ASTNode
-    while self.match([LessThan, GreaterThan, LessOrEqual, GreaterOrEqual]):
+    while self.match([LessThan, GreaterThan, LessOrEqual, GreaterOrEqual, Is]):
         operator = self.peek(-1)
         right = self.add()
         result = newBinaryExpr(result, operator, right)
@@ -340,7 +340,29 @@ proc logicalOr(self: Parser): ASTNode =
     var right: ASTNode
     while self.match(LogicalOr):
         operator = self.peek(-1)
-        right = self.logical_and()
+        right = self.logicalAnd()
+        result = newBinaryExpr(result, operator, right)
+
+
+proc bitwiseAnd(self: Parser): ASTNode =
+    ## Parser a & b expressions
+    result = self.logicalOr()
+    var operator: Token
+    var right: ASTNode
+    while self.match(Pipe):
+        operator = self.peek(-1)
+        right = self.logicalOr()
+        result = newBinaryExpr(result, operator, right)
+
+
+proc bitwiseOr(self: Parser): ASTNode =
+    ## Parser a | b expressions
+    result = self.bitwiseAnd()
+    var operator: Token
+    var right: ASTNode
+    while self.match(Ampersand):
+        operator = self.peek(-1)
+        right = self.bitwiseAnd()
         result = newBinaryExpr(result, operator, right)
 
 
@@ -353,7 +375,7 @@ proc yieldExpr(self: Parser): ASTNode =
         else:
             result = newYieldExpr(self.expression)
     else:
-        result = self.logicalOr()
+        result = self.bitwiseOr()
 
 
 proc assignment(self: Parser): ASTNode =

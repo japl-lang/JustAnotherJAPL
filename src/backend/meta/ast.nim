@@ -278,7 +278,7 @@ proc newBinExpr*(literal: Token): LiteralExpr =
 
 
 proc newFloatExpr*(literal: Token): LiteralExpr =
-    result = BinExpr(kind: floatExpr)
+    result = FloatExpr(kind: floatExpr)
     result.literal = literal
 
 
@@ -451,8 +451,11 @@ proc newClassDecl*(name: ASTNode, body: ASTNode,
 
 proc `$`*(self: ASTNode): string = 
     case self.kind:
-        of intExpr, floatExpr, hexExpr, binExpr, octExpr, strExpr:
-            result &= &"Literal({LiteralExpr(self).literal.lexeme})"
+        of intExpr, floatExpr, hexExpr, binExpr, octExpr, strExpr, trueExpr, falseExpr, nanExpr, nilExpr, infExpr:
+            if self.kind in {trueExpr, falseExpr, nanExpr, nilExpr, infExpr}:
+                result &= &"Literal({($self.kind)[0..^5]})"
+            else:
+                result &= &"Literal({LiteralExpr(self).literal.lexeme})"
         of identExpr:
             result &= &"Identifier({IdentExpr(self).name})"
         of groupingExpr:

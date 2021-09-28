@@ -23,7 +23,7 @@ import math
 type
     WarningKind* = enum
         unreachableCode,
-        localShadowsGlobal,
+        nameShadowedInOuterScope,
         isWithALiteral,
         equalityWithSingleton,
         valueOverflow,
@@ -34,21 +34,16 @@ type
         node*: ASTNode
 
     Optimizer* = ref object
-        constantFolding: bool
-        emitWarnings: bool
         warnings: seq[Warning]
         dryRun: bool
 
 
-proc initOptimizer*(self: Optimizer = nil, constantFolding = true, emitWarnings = true, dryRun = false): Optimizer =
+proc initOptimizer*(self: Optimizer = nil): Optimizer =
     ## Initializes a new optimizer object
     ## or resets the state of an existing one
     if self != nil:
         result = self
     new(result)
-    result.constantFolding = constantFolding
-    result.emitWarnings = emitWarnings
-    result.dryRun = dryRun
 
 
 proc newWarning(self: Optimizer, kind: WarningKind, node: ASTNode) =
@@ -56,8 +51,6 @@ proc newWarning(self: Optimizer, kind: WarningKind, node: ASTNode) =
 
 
 proc `$`*(self: Warning): string = &"Warning(kind={self.kind}, node={self.node})"
-
-
 proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode
 
 
@@ -82,7 +75,8 @@ proc checkConstants(self: Optimizer, node: ASTNode): ASTNode =
                 assert parseHex(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.newWarning(valueOverflow, node)
-            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1))))
+                return node
+            result = IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1)))
         of binExpr:
             var x: int
             var y = BinExpr(node)
@@ -90,7 +84,8 @@ proc checkConstants(self: Optimizer, node: ASTNode): ASTNode =
                 assert parseBin(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.newWarning(valueOverflow, node)
-            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1))))
+                return node
+            result = IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1)))
         of octExpr:
             var x: int
             var y = OctExpr(node)
@@ -98,7 +93,8 @@ proc checkConstants(self: Optimizer, node: ASTNode): ASTNode =
                 assert parseOct(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.newWarning(valueOverflow, node)
-            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1))))
+                return node
+            result = IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1)))
         of floatExpr:
             var x: float
             var y = FloatExpr(node)
@@ -106,23 +102,41 @@ proc checkConstants(self: Optimizer, node: ASTNode): ASTNode =
                 assert parseFloat(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.newWarning(valueOverflow, node)
-            result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1))))
+                return node
+            result = FloatExpr(kind: floatExpr, literal: Token(kind: Float, lexeme: $x, line: y.literal.line, pos: (start: -1, stop: -1)))
         else:
             result = node
 
 
-proc foldConstants(self: Optimizer, node: ASTNode): ASTNode =
-    ## Attempts to perform constant folding if it is feasible
-    ## and if the self.constantFolding field is set to true.
-    
-    if not self.constantFolding:
-        return node
-
-
 proc optimizeUnary(self: Optimizer, node: UnaryExpr): ASTNode =
     ## Attempts to optimize unary expressions
-    result = node
-
+    var a = self.optimizeNode(node.a)
+    if self.warnings.len() > 0 and self.warnings[^1].kind == valueOverflow and self.warnings[^1].node == a:
+        # We can't optimize further, the overflow will be caught in the compiler
+        return UnaryExpr(kind: unaryExpr, a: a, operator: node.operator)
+    case a.kind:
+        of intExpr:
+            var x: int
+            discard parseInt(IntExpr(a).literal.lexeme, x)
+            case node.operator.kind:
+                of Tilde:
+                    x = not x
+                of Minus:
+                    x = -x
+                else:
+                    discard  # Unreachable
+            result = IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $x, line: node.operator.line, pos: (start: -1, stop: -1)))
+        of floatExpr:
+            var x: float
+            discard parseFloat(FloatExpr(a).literal.lexeme, x)
+            case node.operator.kind:
+                of Minus:
+                    x = -x
+                else:
+                    discard
+            result = FloatExpr(kind: floatExpr, literal: Token(kind: Float, lexeme: $x, line: node.operator.line, pos: (start: -1, stop: -1)))
+        else:
+            discard  # Unreachable
 
 
 proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
@@ -130,11 +144,22 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
     var a, b: ASTNode
     a = self.optimizeNode(node.a)
     b = self.optimizeNode(node.b)
+    if self.warnings.len() > 0 and self.warnings[^1].kind == valueOverflow and (self.warnings[^1].node == a or self.warnings[^1].node == b):
+        # We can't optimize further, the overflow will be caught in the compiler. We don't return the same node
+        # because optimizeNode might've been able to optimize one of the two operands and we don't know which
+        return BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
+    if node.operator.kind == DoubleEqual:
+        if a.kind in {trueExpr, falseExpr, nilExpr, nanExpr, infExpr}:
+            self.newWarning(equalityWithSingleton, a)
+        elif b.kind in {trueExpr, falseExpr, nilExpr, nanExpr, infExpr}:
+            self.newWarning(equalityWithSingleton, b)
+    elif node.operator.kind == Is:
+        if a.kind in {strExpr, intExpr, tupleExpr, dictExpr, listExpr, setExpr}:
+            self.newWarning(isWithALiteral, a)
+        elif b.kind in {strExpr, intExpr, tupleExpr, dictExpr, listExpr, setExpr}:
+            self.newWarning(isWithALiteral, b)
     if a.kind == intExpr and b.kind == intExpr:
         # Optimizes integer operations
-        if self.warnings.len() > 0 and self.warnings[^1].kind == valueOverflow and (self.warnings[^1].node == a or self.warnings[^1].node == b):
-            # We can't optimize further, the overflow will be caught in the compiler
-            return ASTNode(BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator))
         var x, y, z: int
         discard parseInt(IntExpr(a).literal.lexeme, x)
         discard parseInt(IntExpr(b).literal.lexeme, y)
@@ -160,17 +185,54 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
                     z = x or y
                 of Slash:
                     # Special case, yields a float
-                    return ASTNode(FloatExpr(kind: intExpr, literal: Token(kind: Float, lexeme: $(x / y), line: IntExpr(a).literal.line, pos: (start: -1, stop: -1))))
+                    return FloatExpr(kind: intExpr, literal: Token(kind: Float, lexeme: $(x / y), line: IntExpr(a).literal.line, pos: (start: -1, stop: -1)))
                 else:
                     discard  # Unreachable
         except OverflowDefect:
             self.newWarning(valueOverflow, node)
-            return ASTNode(BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator))
-        result = ASTNode(IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $z, line: IntExpr(a).literal.line, pos: (start: -1, stop: -1))))
+            return BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
+        result = IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $z, line: IntExpr(a).literal.line, pos: (start: -1, stop: -1)))
     elif a.kind == floatExpr or b.kind == floatExpr:
+        var x, y, z: float
+        if a.kind == intExpr:
+            var temp: int
+            discard parseInt(IntExpr(a).literal.lexeme, temp)
+            x = float(temp)
+            self.newWarning(implicitConversion, a)
+        else:
+            discard parseFloat(FloatExpr(a).literal.lexeme, x)
+        if b.kind == intExpr:
+            var temp: int
+            discard parseInt(IntExpr(b).literal.lexeme, temp)
+            y = float(temp)
+            self.newWarning(implicitConversion, b)
+        else:
+            discard parseFloat(FloatExpr(b).literal.lexeme, y)
         # Optimizes float operations
-        result = node
+        try:
+            case node.operator.kind:
+                of Plus:
+                    z = x + y
+                of Minus:
+                    z = x - y
+                of Asterisk:
+                    z = x * y
+                of FloorDiv:
+                    z = x / y
+                of DoubleAsterisk:
+                    z = pow(x, y)
+                of Percentage:
+                    z = x mod y
+                of Slash:
+                    z = x / y
+                else:
+                    discard  # Unreachable
+        except OverflowDefect:
+            self.newWarning(valueOverflow, node)
+            return BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
+        result = FloatExpr(kind: floatExpr, literal: Token(kind: Float, lexeme: $z, line: LiteralExpr(a).literal.line, pos: (start: -1, stop: -1)))
     else:
+        # There's no constant folding we can do!
         result = node
 
 
@@ -198,12 +260,9 @@ proc optimize*(self: Optimizer, tree: seq[ASTNode]): tuple[tree: seq[ASTNode], w
     ## Runs the optimizer on the given source
     ## tree and returns a new optimized tree
     ## as well as a list of warnings that may
-    ## be of interest. Depending on whether any
-    ## optimization could be performed, the output
-    ## may be identical to the input. If self.dryRun
-    ## is set to true, no optimization is performed,
-    ## but warnings and log messages are still
-    ## generated
+    ## be of interest. The input tree may be
+    ## identical to the output tree if no optimization
+    ## could be performed
     var newTree: seq[ASTNode] = @[]
     for node in tree:
         newTree.add(self.optimizeNode(node))
