@@ -34,9 +34,11 @@ The compilation toolchain has been designed as follows:
 - After the AST has been built, it goes trough the optimizer. As the name suggests, this step aims to perform a few optimizations,
   namely:
   - constant folding (meaning 1 + 2 will be replaced with 3 instead of producing 2 constant opcodes and 1 addition opcode)
-  - Name resolution checks. This is possible because NimVM's syntax only allows for variables to be defined in a way that
-    is statically inferrable, so "name error" exceptions can be caught before any code is ran or even compiled. This means
-    that NimVM, like many others, enforces block scoping
+  - name resolution checks. This is possible because NimVM's syntax only allows for named to be defined in a way that
+    is statically inferrable (sorta), so (most) "name error" exceptions can be caught before any code is ran or even compiled.
+    Note that this only applies to names defined as static (which means all of them unless they are explicitly marked as `dynamic`).
+    This is a tradeoff to avoid enforcing block scoping while still retaining the performance of static name resolution (yes, even
+    globally) most of the time
   - throw warnings for things like unreachable code after return statements (optional).
 
     The optimization step is entirely optional and enabled by default
