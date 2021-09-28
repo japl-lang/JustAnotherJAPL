@@ -30,11 +30,12 @@ The compilation toolchain has been designed as follows:
     string literals, invalid usage of unknown tokens (for example UTF-8 runes) and incorrect number literals
 - Then, the tokens are fed into a parser. The parser recursively traverses the list of tokens coming from the lexer
   and builds a higher-level structure called an Abstract Syntax Tree-- or AST for short-- and also catches the rest of
-  static or syntax errors such as illegal expressions or precedence errors
+  static or syntax errors such as illegal expressions, precedence or context errors (return outside functions, await outside
+  coroutines, break/continue outside loops, etc.) and many others
 - After the AST has been built, it goes trough the optimizer. As the name suggests, this step aims to perform a few optimizations,
   namely:
-  - constant folding (meaning 1 + 2 will be replaced with 3 instead of producing 2 constant opcodes and 1 addition opcode)
-  - name resolution checks. This is possible because NimVM's syntax only allows for named to be defined in a way that
+  - constant folding (meaning the expression 1 + 2 will be replaced with 3 instead of producing 2 constant opcodes and 1 addition opcode)
+  - name resolution checks. This is possible because NimVM's syntax only allows for names to be defined in a way that
     is statically inferrable (sorta), so (most) "name error" exceptions can be caught before any code is ran or even compiled.
     Note that this only applies to names defined as static (which means all of them unless they are explicitly marked as `dynamic`).
     This is a tradeoff to avoid enforcing block scoping while still retaining the performance of static name resolution (yes, even
