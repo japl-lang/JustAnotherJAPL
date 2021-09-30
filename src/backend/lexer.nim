@@ -250,13 +250,17 @@ proc parseEscape(self: Lexer) =
                 if not self.done():
                     self.source[self.current + 1] = cast[char](0x0A)
             else:
-                # Every other platform is kind enough to use
-                # the agreed upon LF standard, but again thanks
-                # to microsoft we need to convert \r\n back to \n
-                # under actually sensible operating systems
+                # Every other platform (except macos, thanks apple)
+                # is kind enough to use the agreed upon LF standard, 
+                # but again thanks to microsoft we need to convert 
+                # \r\n back to \n under actually sensible operating systems
                 if self.source[self.current - 1] == cast[char](0x0D):
                     self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
-                self.source[self.current] = cast[char](0x0A)
+                when defined(darwin):
+                    # Thanks apple, lol
+                    self.source[self.current] = cast[char](0x0A)
+                else:
+                    self.source[self.current] = cast[char](0X0D)
         of 'r':
             self.source[self.current] = cast[char](0x0D)
         of 't':
