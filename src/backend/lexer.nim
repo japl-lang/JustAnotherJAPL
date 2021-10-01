@@ -247,15 +247,8 @@ proc parseEscape(self: Lexer) =
                 # We natively convert LF to CRLF on Windows, and
                 # gotta thank Microsoft for the extra boilerplate!
                 self.source[self.current] = cast[char](0x0D)
-                if not self.done():
-                    self.source[self.current + 1] = cast[char](0x0A)
+                self.source &= cast[char](0X0A)
             else:
-                # Every other platform (except macos, thanks apple)
-                # is kind enough to use the agreed upon LF standard, 
-                # but again thanks to microsoft we need to convert 
-                # \r\n back to \n under actually sensible operating systems
-                if self.source[self.current - 1] == cast[char](0x0D):
-                    self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
                 when defined(darwin):
                     # Thanks apple, lol
                     self.source[self.current] = cast[char](0x0A)
