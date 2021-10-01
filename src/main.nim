@@ -40,7 +40,7 @@ while true:
         optimized = initOptimizer().optimize(tree)
     except:
         echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
-        continue
+        raise
 
     echo "Tokenization step: "
     for token in tokens:

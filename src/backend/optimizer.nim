@@ -23,7 +23,7 @@ import math
 type
     WarningKind* = enum
         unreachableCode,
-        nameShadowedInOuterScope,
+        nameShadowing,
         isWithALiteral,
         equalityWithSingleton,
         valueOverflow,
@@ -54,7 +54,7 @@ proc `$`*(self: Warning): string = &"Warning(kind={self.kind}, node={self.node})
 proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode
 
 
-proc checkConstants(self: Optimizer, node: ASTNode): ASTNode =
+proc optimizeConstant(self: Optimizer, node: ASTNode): ASTNode =
     ## Performs some checks on constant AST nodes such as
     ## integers. This method converts all of the different
     ## integer forms (binary, octal and hexadecimal) to
@@ -187,7 +187,7 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
                     # Special case, yields a float
                     return FloatExpr(kind: intExpr, literal: Token(kind: Float, lexeme: $(x / y), line: IntExpr(a).literal.line, pos: (start: -1, stop: -1)))
                 else:
-                    discard  # Unreachable
+                    result = BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
         except OverflowDefect:
             self.newWarning(valueOverflow, node)
             return BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
@@ -226,11 +226,19 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
                 of Slash:
                     z = x / y
                 else:
-                    discard  # Unreachable
+                    result = BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
         except OverflowDefect:
             self.newWarning(valueOverflow, node)
             return BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
         result = FloatExpr(kind: floatExpr, literal: Token(kind: Float, lexeme: $z, line: LiteralExpr(a).literal.line, pos: (start: -1, stop: -1)))
+    elif a.kind == strExpr and b.kind == strExpr:
+        var a = StrExpr(a)
+        var b = StrExpr(b)
+        case node.operator.kind:
+            of Plus:
+                result = StrExpr(kind: strExpr, literal: Token(kind: String, lexeme: "'" & a.literal.lexeme[1..<(^1)] & b.literal.lexeme[1..<(^1)] & "'", pos: (start: -1, stop: -1)))
+            else:
+                result = node
     else:
         # There's no constant folding we can do!
         result = node
@@ -244,7 +252,7 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
         of exprStmt:
             result = self.optimizeNode(ExprStmt(node).expression)
         of intExpr, hexExpr, octExpr, binExpr, floatExpr, strExpr:
-            result = self.checkConstants(node)
+            result = self.optimizeConstant(node)
         of unaryExpr:
             result = self.optimizeUnary(UnaryExpr(node))
         of binaryExpr:
@@ -252,6 +260,14 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
         of groupingExpr:
             # Recursively unnests groups
             result = self.optimizeNode(GroupingExpr(node).expression)
+        of callExpr:
+            var newArgs: tuple[positionals: seq[ASTNode], keyword: seq[tuple[name: ASTNode, value: ASTNode]]] = (positionals: @[], keyword: @[])
+            var node = CallExpr(node)
+            for positional in node.arguments.positionals:
+                newArgs.positionals.add(self.optimizeNode(positional))
+            for keyword in node.arguments.keyword:
+                newArgs.keyword.add((name: keyword.name, value: self.optimizeNode(keyword.value)))
+            result = CallExpr(kind: callExpr, callee: node.callee, arguments: newArgs)
         else:
             result = node
 

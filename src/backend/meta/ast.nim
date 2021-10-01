@@ -289,8 +289,8 @@ proc newNilExpr*: LiteralExpr = LiteralExpr(kind: nilExpr)
 proc newInfExpr*: LiteralExpr = LiteralExpr(kind: infExpr)
 
 
-proc newStrExpr*(literal: Token): LiteralExpr =
-    result = LiteralExpr(kind: strExpr)
+proc newStrExpr*(literal: Token): StrExpr =
+    result = StrExpr(kind: strExpr)
     result.literal = literal
 
 
