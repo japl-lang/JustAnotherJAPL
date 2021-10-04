@@ -180,6 +180,7 @@ proc primary(self: Parser): ASTNode =
             discard self.step()
             result = newNanExpr()
         of Nil:
+            discard self.step()
             result = newNilExpr()
         of Float:
             result = newFloatExpr(self.step())
@@ -188,6 +189,7 @@ proc primary(self: Parser): ASTNode =
         of Identifier:
             result = newIdentExpr(self.step())
         of LeftParen:
+            # TODO: Tuples
             discard self.step()
             result = self.expression()
             self.expect(RightParen, "unmatched '('")
@@ -367,8 +369,12 @@ proc bitwiseOr(self: Parser): ASTNode =
 
 
 proc yieldExpr(self: Parser): ASTNode =
-    ## Parses yield expressions
+    ## Parses yield expressions. They need
+    ## to be expressions so that stuff like 
+    ## var a = yield; is valid
     if self.match(Yield):
+        if self.context != Function:
+            self.error("'yield' outside function")
         if self.check([Semicolon, RightBrace, RightParen, RightBracket]):
             # Ugly hack to allow empty yield expressions (which yield nil)
             result = newYieldExpr(newNilExpr())
@@ -567,7 +573,7 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
     ## Parses variable declarations
     var varKind = self.peek(-1)
     var keyword = ""
-    var value: ASTNode = newNilExpr()
+    var value: ASTNode
     case varKind.kind:
         of Let:
             keyword = "let"
@@ -579,6 +585,8 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
     var name = newIdentExpr(self.peek(-1))
     if self.match(Equal):
         value = self.expression()
+    else:
+        value = newNilExpr()
     self.expect(Semicolon, &"expecting semicolon after {keyword} declaration")
     case varKind.kind:
         of Let:
@@ -586,14 +594,16 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
         of Var:
             result = newVarDecl(name, value, isStatic=isStatic, isPrivate=isPrivate)
         of Const:
-            result = newVarDecl(name, value, isConst=true, isPrivate=isPrivate)
+            # Note that isStatic is ignored here, because constants are resolved differently,
+            # but we leave it so the optimizer can issue a warning about it
+            result = newVarDecl(name, value, isConst=true, isPrivate=isPrivate, isStatic=isStatic)
         else:
             discard  # Unreachable
 
 
 proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true): FunDecl =
     ## Parses function declarations
-    self.expect(Identifier, "expecting function name after 'function'")
+    self.expect(Identifier, "expecting function name after 'fun'")
     var ident = newIdentExpr(self.peek(-1))
     result = newFunDecl(ident, @[], @[], nil, isStatic=isStatic, isAsync=isAsync, isGenerator=false, isPrivate=isPrivate)
     if self.match(LeftBrace):
@@ -612,10 +622,8 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
             result.arguments.add(parameter)
             if self.match(Equal):
                 result.defaults.add(self.expression())
-                if result.defaults[^1].kind == NodeKind.yieldExpr:
-                    self.error("yield can't be used in function declaration context")
             elif result.defaults.len() > 0:
-                self.error("positional argument cannot follow default argument in function declaration")
+                self.error("positional argument(s) cannot follow default argument(s) in function declaration")
             if not self.match(Comma):
                 break
         self.expect(RightParen)
@@ -624,7 +632,7 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
     # We do some analysis on the code of the function. Namely we check
     # if the user used 'await' in a non-async function and if the
     # function has any yield expressions in them, making it a 
-    # generator. Async generators are also supported, by the way
+    # generator. Async generators are also (syntactically) supported
     for line in BlockStmt(result.body).code:
         if line.kind == exprStmt:
             if ExprStmt(line).expression.kind == unaryExpr:
@@ -633,7 +641,14 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
                     # is redundant
                     result.isGenerator = true
                 elif UnaryExpr(ExprStmt(line).expression).operator.kind == Await and not result.isAsync:
-                    self.error("'await' cannot be used outside async functions")
+                    self.error("'await' outside async function")
+        elif not result.isGenerator and line.kind == NodeKind.funDecl:
+            # Nested function declarations with yield expressions as
+            # default arguments are valid, but for them to work we
+            # need to make the containing function a generator!
+            for default in FunDecl(line).defaults:
+                if default.kind == NodeKind.yieldExpr:
+                    result.isGenerator = true
 
 
 proc classDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNode =

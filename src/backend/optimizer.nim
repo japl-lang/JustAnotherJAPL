@@ -27,7 +27,8 @@ type
         isWithALiteral,
         equalityWithSingleton,
         valueOverflow,
-        implicitConversion
+        implicitConversion,
+        dynamicConstIgnored
 
     Warning* = ref object
         kind*: WarningKind
@@ -268,6 +269,16 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
             for keyword in node.arguments.keyword:
                 newArgs.keyword.add((name: keyword.name, value: self.optimizeNode(keyword.value)))
             result = CallExpr(kind: callExpr, callee: node.callee, arguments: newArgs)
+        of blockStmt:
+            var newBlock = newBlockStmt(@[])
+            for node in BlockStmt(node).code:
+                newBlock.code.add(self.optimizeNode(node))
+            result = newBlock
+        of varDecl:
+            var decl = VarDecl(node)
+            if decl.isConst and not decl.isStatic:
+                self.newWarning(dynamicConstIgnored, decl)
+            result = decl
         else:
             result = node
 
