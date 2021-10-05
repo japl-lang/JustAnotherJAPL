@@ -144,10 +144,8 @@ proc peek(self: Lexer, distance: int = 0): char =
 
 
 proc error(self: Lexer, message: string) =
-    ## Sets the errored and errorMessage fields
-    ## for the lexer. The lex method will not
-    ## continue tokenizing if it finds out
-    ## an error occurred
+    ## Raises a lexing error with a formatted
+    ## error message
     raise newException(LexingError, &"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}")
 
 
