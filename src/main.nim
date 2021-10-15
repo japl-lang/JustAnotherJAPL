@@ -24,6 +24,7 @@ var tokens: seq[Token]
 var tree: seq[ASTNode]
 var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
 
+
 echo "NimVM REPL\n"
 while true:
     try:

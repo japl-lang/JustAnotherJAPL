@@ -17,6 +17,7 @@ import meta/token
 
 import parseutils
 import strformat
+import strutils
 import math
 
 
@@ -238,6 +239,26 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
         case node.operator.kind:
             of Plus:
                 result = StrExpr(kind: strExpr, literal: Token(kind: String, lexeme: "'" & a.literal.lexeme[1..<(^1)] & b.literal.lexeme[1..<(^1)] & "'", pos: (start: -1, stop: -1)))
+            else:
+                result = node
+    elif a.kind == strExpr and self.optimizeNode(b).kind == intExpr and not (self.warnings.len() > 0 and self.warnings[^1].kind == valueOverflow and self.warnings[^1].node == b):
+        var a = StrExpr(a)
+        var b = IntExpr(b)
+        var bb: int
+        discard parseInt(b.literal.lexeme, bb)
+        case node.operator.kind:
+            of Asterisk:
+                result = StrExpr(kind: strExpr, literal: Token(kind: String, lexeme: "'" & a.literal.lexeme[1..<(^1)].repeat(bb) & "'"))
+            else:
+                result = node
+    elif b.kind == strExpr and self.optimizeNode(a).kind == intExpr and not (self.warnings.len() > 0 and self.warnings[^1].kind == valueOverflow and self.warnings[^1].node == a):
+        var b = StrExpr(b)
+        var a = IntExpr(a)
+        var aa: int
+        discard parseInt(a.literal.lexeme, aa)
+        case node.operator.kind:
+            of Asterisk:
+                result = StrExpr(kind: strExpr, literal: Token(kind: String, lexeme: "'" & b.literal.lexeme[1..<(^1)].repeat(aa) & "'"))
             else:
                 result = node
     else:
