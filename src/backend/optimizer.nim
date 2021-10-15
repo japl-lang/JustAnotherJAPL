@@ -296,10 +296,10 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
                 decl.defaults[i] = self.optimizeNode(node)
             result = decl
         of blockStmt:
-            var newBlock = newBlockStmt(@[])
-            for node in BlockStmt(node).code:
-                newBlock.code.add(self.optimizeNode(node))
-            result = newBlock
+            var node = BlockStmt(node)
+            for i, n in node.code:
+                node.code[i] = self.optimizeNode(n)
+            result = node
         of varDecl:
             var decl = VarDecl(node)
             if decl.isConst and not decl.isStatic:
