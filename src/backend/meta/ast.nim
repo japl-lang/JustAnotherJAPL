@@ -519,7 +519,7 @@ proc `$`*(self: ASTNode): string =
             result &= &"Var(name={self.name}, value={self.value}, const={self.isConst}, let={self.isLet}, static={self.isStatic}, private={self.isPrivate})"
         of funDecl:
             var self = FunDecl(self)
-            result &= &"FunDecl(name={self.name}, body={self.body}, arguments=[{self.arguments.join(\", \")}], async={self.isAsync}, generator={self.isGenerator}, static={self.isStatic}, private={self.isPrivate})"
+            result &= &"FunDecl(name={self.name}, body={self.body}, arguments=[{self.arguments.join(\", \")}], defaults=[{self.defaults.join(\", \")}], async={self.isAsync}, generator={self.isGenerator}, static={self.isStatic}, private={self.isPrivate})"
         of classDecl:
             var self = ClassDecl(self)
             result &= &"Class(name={self.name}, body={self.body}, parents=[{self.parents.join(\", \")}], static={self.isStatic}, private={self.isPrivate})"

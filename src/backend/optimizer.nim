@@ -290,6 +290,11 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
             for keyword in node.arguments.keyword:
                 newArgs.keyword.add((name: keyword.name, value: self.optimizeNode(keyword.value)))
             result = CallExpr(kind: callExpr, callee: node.callee, arguments: newArgs)
+        of funDecl:
+            var decl = FunDecl(node)
+            for i, node in decl.defaults:
+                decl.defaults[i] = self.optimizeNode(node)
+            result = decl
         of blockStmt:
             var newBlock = newBlockStmt(@[])
             for node in BlockStmt(node).code:
