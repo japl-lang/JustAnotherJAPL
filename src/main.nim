@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import backend/lexer
-import backend/parser
-import backend/optimizer
+import backend/lexer as lx
+import backend/parser as ps
+import backend/optimizer as op
 
 
 import strformat
@@ -23,6 +23,9 @@ var filename = "test.jpl"
 var tokens: seq[Token]
 var tree: seq[ASTNode]
 var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
+var lexer = initLexer()
+var parser = initParser()
+var optimizer = initOptimizer()
 
 
 echo "NimVM REPL\n"
@@ -36,32 +39,37 @@ while true:
 
     echo &"Processing: '{source}'\n"
     try:
-        tokens = initLexer().lex(source, filename)
-        tree = initParser().parse(tokens, filename)
-        optimized = initOptimizer().optimize(tree)
+        tokens = lexer.lex(source, filename)
+        echo "Tokenization step: "
+        for token in tokens:
+            echo "\t", token
+        echo ""
+
+        tree = parser.parse(tokens, filename)
+
+        # We run this now because the optimizer
+        # acts in-place on the AST so if we printed
+        # it later the parsed tree would equal the
+        # optimized one!
+        echo &"Parsing step: "
+        for node in tree:
+            echo "\t", node
+        echo ""
+
+        optimized = optimizer.optimize(tree)
+
+        echo &"Optimization step:"
+        for node in optimized.tree:
+            echo "\t", node
+        echo ""
+
+        stdout.write(&"Produced warnings: ")
+        if optimized.warnings.len() > 0:
+            echo ""
+            for warning in optimized.warnings:
+                echo "\t", warning
+        else:
+            stdout.write("No warnings produced\n")
     except:
         echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
         continue
-
-    echo "Tokenization step: "
-    for token in tokens:
-        echo "\t", token
-    echo ""
-
-    echo &"Parsing step: "
-    for node in tree:
-        echo "\t", node
-    echo ""
-
-    echo &"Optimization step:"
-    for node in optimized.tree:
-        echo "\t", node
-    echo ""
-
-    stdout.write(&"Produced warnings: ")
-    if optimized.warnings.len() > 0:
-        echo ""
-        for warning in optimized.warnings:
-            echo "\t", warning
-    else:
-        stdout.write("No warnings produced\n")

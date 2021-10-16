@@ -34,7 +34,7 @@ type
 
     # Keywords
     Fun, Break, Lambda,
-    Continue, Var, Let, Const, Is,
+    Continue, Var, Const, Is,
     Return, Async, Class, Import, From,
     IsNot, Raise, Assert, Del, Await,
     Foreach, Yield, Static, Dynamic,

@@ -53,6 +53,8 @@ proc newWarning(self: Optimizer, kind: WarningKind, node: ASTNode) =
 
 
 proc `$`*(self: Warning): string = &"Warning(kind={self.kind}, node={self.node})"
+
+# Forward declaration
 proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode
 
 
@@ -272,7 +274,7 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
     ## applied, the same node is returned
     case node.kind:
         of exprStmt:
-            result = self.optimizeNode(ExprStmt(node).expression)
+            result = newExprStmt(self.optimizeNode(ExprStmt(node).expression))
         of intExpr, hexExpr, octExpr, binExpr, floatExpr, strExpr:
             result = self.optimizeConstant(node)
         of unaryExpr:
@@ -283,13 +285,12 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
             # Recursively unnests groups
             result = self.optimizeNode(GroupingExpr(node).expression)
         of callExpr:
-            var newArgs: tuple[positionals: seq[ASTNode], keyword: seq[tuple[name: ASTNode, value: ASTNode]]] = (positionals: @[], keyword: @[])
             var node = CallExpr(node)
-            for positional in node.arguments.positionals:
-                newArgs.positionals.add(self.optimizeNode(positional))
-            for keyword in node.arguments.keyword:
-                newArgs.keyword.add((name: keyword.name, value: self.optimizeNode(keyword.value)))
-            result = CallExpr(kind: callExpr, callee: node.callee, arguments: newArgs)
+            for i, positional in node.arguments.positionals:
+                node.arguments.positionals[i] = self.optimizeNode(positional)
+            for i, (key, value) in node.arguments.keyword:
+                node.arguments.keyword[i].value = self.optimizeNode(value)
+            result = node
         of funDecl:
             var decl = FunDecl(node)
             for i, node in decl.defaults:

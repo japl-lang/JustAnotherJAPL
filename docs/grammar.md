@@ -78,8 +78,8 @@ declaration    → classDecl | funDecl | varDecl | statement;  // A program is c
 classDecl      → declModifiers? "class" IDENTIFIER ("<" IDENTIFIER ("," IDENTIFIER)*)? blockStmt;   // Declares a class
 funDecl        → declModifiers? "async"? "fun" function;   // Function declarations
 lambdaDecl     → declModifiers? "async"? "lambda" lambda;  // Lambdas are anonymous functions
-// Constants and immutables still count as "variable" declarations in the grammar
-varDecl        → declModifiers? ("var" | "let" | "const") IDENTIFIER ( "=" expression )? ";";
+// Constants still count as "variable" declarations in the grammar
+varDecl        → declModifiers? ("var" | | "const") IDENTIFIER ( "=" expression )? ";";
 
 // Statements (rules that produce side effects but without binding a name. Well, mostly: import, for and foreach do, but w/e)
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements

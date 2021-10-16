@@ -76,7 +76,7 @@ const keywords = to_table({
                 "lambda": Lambda, "class": Class,
                 "async": Async, "import": Import,
                 "isnot": IsNot, "from": From,
-                "let": Let, "const": Const,
+                "const": Const,
                 "assert": Assert, "or": LogicalOr,
                 "and": LogicalAnd, "del": Del,
                 "async": Async, "await": Await,
@@ -84,6 +84,7 @@ const keywords = to_table({
                 "private": Private, "public": Public,
                 "static": Static, "dynamic": Dynamic
     })
+
 
 type
     Lexer* = ref object

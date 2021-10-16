@@ -214,7 +214,6 @@ type
         name*: ASTNode
         value*: ASTNode
         isConst*: bool
-        isLet*: bool
         isStatic*: bool
         isPrivate*: bool
 
@@ -413,13 +412,12 @@ proc newIfStmt*(condition: ASTNode, thenBranch, elseBranch: ASTNode): IfStmt =
 
 
 proc newVarDecl*(name: ASTNode, value: ASTNode = newNilExpr(),
-                 isStatic: bool = true, isConst, isLet: bool = false,
+                 isStatic: bool = true, isConst,
                  isPrivate: bool = true): VarDecl =
     result = VarDecl(kind: varDecl)
     result.name = name
     result.value = value
     result.isConst = isConst
-    result.isLet = isLet
     result.isStatic = isStatic
     result.isPrivate = isPrivate
 
@@ -471,10 +469,10 @@ proc `$`*(self: ASTNode): string =
             result &= &"Call(callee={self.callee}, arguments=(positionals=[{self.arguments.positionals.join(\", \")}], keyword=[{self.arguments.keyword.join(\", \")}]))"
         of unaryExpr:
             var self = UnaryExpr(self)
-            result &= &"Unary({self.operator}, {self.a})"
+            result &= &"Unary(Operator('{self.operator}'), {self.a})"
         of binaryExpr:
             var self = BinaryExpr(self)
-            result &= &"Binary({self.a}, {self.operator.lexeme}, {self.b})"
+            result &= &"Binary({self.a}, Operator('{self.operator.lexeme}'), {self.b})"
         of assignExpr:
             var self = AssignExpr(self)
             result &= &"Assign(name={self.name}, value={self.value})"
@@ -516,7 +514,7 @@ proc `$`*(self: ASTNode): string =
                 result &= &"If(condition={self.condition}, thenBranch={self.thenBranch}, elseBranch={self.elseBranch})"
         of varDecl:
             var self = VarDecl(self)
-            result &= &"Var(name={self.name}, value={self.value}, const={self.isConst}, let={self.isLet}, static={self.isStatic}, private={self.isPrivate})"
+            result &= &"Var(name={self.name}, value={self.value}, const={self.isConst}, static={self.isStatic}, private={self.isPrivate})"
         of funDecl:
             var self = FunDecl(self)
             result &= &"FunDecl(name={self.name}, body={self.body}, arguments=[{self.arguments.join(\", \")}], defaults=[{self.defaults.join(\", \")}], async={self.isAsync}, generator={self.isGenerator}, static={self.isStatic}, private={self.isPrivate})"

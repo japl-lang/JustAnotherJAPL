@@ -575,8 +575,6 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
     var keyword = ""
     var value: ASTNode
     case varKind.kind:
-        of Let:
-            keyword = "let"
         of Const:
             keyword = "constant"
         else:
@@ -586,11 +584,11 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
     if self.match(Equal):
         value = self.expression()
     else:
+        if varKind.kind == Const:
+            self.error(&"constant declaration requires a value")
         value = newNilExpr()
     self.expect(Semicolon, &"expecting semicolon after {keyword} declaration")
     case varKind.kind:
-        of Let:
-            result = newVarDecl(name, value, isStatic=isStatic, isLet=true, isPrivate=isPrivate)
         of Var:
             result = newVarDecl(name, value, isStatic=isStatic, isPrivate=isPrivate)
         of Const:
@@ -728,7 +726,7 @@ proc statement(self: Parser): ASTNode =
 proc declaration(self: Parser): ASTNode =
     ## Parses declarations
     case self.peek().kind:
-        of Var, Let, Const:
+        of Var, Const:
             discard self.step()
             result = self.varDecl()
         of Class:
@@ -754,7 +752,7 @@ proc declaration(self: Parser): ASTNode =
                 self.context = Script
             else:
                 case self.peek().kind:
-                    of Var, Let, Const:
+                    of Var, Const:
                         discard self.step()
                         result = self.varDecl(isStatic=isStatic, isPrivate=isPrivate)
                     of Class:
@@ -775,7 +773,7 @@ proc declaration(self: Parser): ASTNode =
                 result = self.funDecl(isStatic=isStatic, isPrivate=true, isAsync=true)
             else:
                 case self.peek().kind:
-                    of Var, Let, Const:
+                    of Var, Const:
                         discard self.step()
                         result = self.varDecl(isStatic=isStatic, isPrivate=true)
                     of Class:
