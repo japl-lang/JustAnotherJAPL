@@ -120,7 +120,7 @@ function       → IDENTIFIER ("(" parameters? ")")? blockStmt;
 lambda         → ("(" parameters? ")")? blockStmt
 parameters     → IDENTIFIER ("," IDENTIFIER)*;
 arguments      → expression ("," expression)*;
-declModifiers  → ("private" | "public")? ("static" | dynamic)?
+declModifiers  → ("private" | "public")? ("static" | "dynamic")?
 
 // Lexical grammar that defines terminals in a non-recursive (regular) fashion
 COMMENT        → "#" UNICODE* LF;
