@@ -24,7 +24,7 @@ Once a JAPL source file (i.e. one with a ".jpl" extension, without quotes) has b
 
 An object file starts with the headers, namely:
 
-- A 3-byte version header composed by 3 unsigned integers representing the major, minor and patch version of compiler used to generate the file, respectively. JAPL follows the SemVer standard for versioning
+- A 3-byte version header composed by 3 unsigned integers representing the major, minor and patch version of the compiler used to generate the file, respectively. JAPL follows the SemVer standard for versioning
 - A 32 bytes hexadecimal string, pinpointing the version of the compiler down to the exact commit hash in the JAPL repository, particularly useful when testing development versions
 - An 8 byte (64 bit) UNIX timestamp (starting from the Unix Epoch of January 1st 1970 at 00:OO), representing the date and time when the file was created
 - A 32 bytes SHA256 checksum of the source file's contents, used to track file changes
