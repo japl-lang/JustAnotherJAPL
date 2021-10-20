@@ -30,7 +30,7 @@ document can be summarized with the following points:
   relevant to the grammar and MUST be ignored by automated parsers and parser generators
 - `"*"` (without quotes, character code 42) is used for repetition of a rule, meaning it MUST match 0 or more times
 - `"?"` (without quotes, character code 63) means a rule can match 0 or 1 times
-- `"+"` (character code 43) is used for repetition of a rule, meaning it MUST 1 or more times
+- `"+"` (character code 43) is used for repetition of a rule, meaning it MUST match 1 or more times
 - `"|"` (without quotes, character code 123) is used to indicate alternatives and means a rule may match either the first or
   the second rule. This operator can be chained to obtain something like "foo | bar | baz", meaning that either
   foo, bar or baz are valid matches for the rule
