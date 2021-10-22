@@ -16,6 +16,43 @@ may be formatted in monospace to make them stand out more in the document.
 
 __Note__: The conventions about number literals described in the document laying out the formal grammar for JAPL also apply in this specification
 
+## Compile-time type specifiers
+
+To distinguish the different kinds of values that JAPL can represent at compile time, type specifiers are prepended to a given series of bytes to tell the deserializer what kind of object that specific sequence should deserialize into. It is important that each compile-time object specifies the size of its value in bytes (referred to as "size specifier" from now on, without quotes), after the type specifier. The following sections about object representation assume the appropriate type and size specifiers have been used and will therefore omit them to avoid repetition.
+
+Below a list of all type specifiers:
+
+- `0x01` -> Number
+- `0x02` -> String
+- `0x03` -> List literal (An heterogeneous dynamic array)
+- `0x04` -> Set literal  (An heterogeneous dynamic array without duplicates. Mirrors the mathematical definition of a set)
+- `0x05` -> Dictionary literal  (An associative array, also known as mapping)
+- `0x06` -> Tuple literal (An heterogeneous, static array)
+- `0x07` -> Function declaration
+- `0x08` -> Class declaration
+- `0x09` -> Variable declaration. Note that constants are replaced during compilation with their corresponding literal value, therefore they are represented as literals in the constants section and are not compiled as variable declarations.
+- `0x10` -> Lambda declarations (aka anonymous functions)
+
+
+### Object representation
+
+#### Numbers
+
+For simplicity purposes, numbers in object files are serialized as strings of decimal digits and optionally a dot followed by 1 or more decimal digits (for floats). The number `2.718`, for example, would just be serialized as the string `"2.718"` (without quotes). JAPL supports scientific notation such as `2e3`, but numbers in this form are collapsed to their decimal representation before being written to a file, therefore `2e3` becomes `2000.0`. Other decimal number representations such as hexadecimal, binary and octal are also converted to base 10 during compilation.
+
+#### Strings
+
+Strings are a little more complex than numbers because JAPL supports string modifiers. The first byte of a string object represents its modifier, and can be any of:
+
+- `0x00` -> No modifier
+- `0x01` -> Byte string (begins with a "b", without quotes, before the quote)
+- `0x02` -> Format string (begins with an "f", without quotes, before the quote)
+
+The "r" (without quotes) string modifier, used to mark raw strings where escape sequences are not interpreted, does not need to have an explicit code because it is already interpreted by the tokenizer and has no other compile-time meaning. Note that in format strings, values are interpolated in them by using matching pairs of braces enclosing an expression and that the same name resolution strategy is used as for the rest of JAPL.
+
+After the modifier follows the string encoded in UTF-8.
+
+
 ## File structure
 
 Once a JAPL source file (i.e. one with a ".jpl" extension, without quotes) has been successfully compiled to bytecode, the compiler dumps the resulting linear stream of bytes to a ".japlc" file (without quotes, which stands for __JAPL C__ompiled), which we will call "object file" (without quotes) in this document. The name of the object file will be the same of the original source file, and its structure is described below.
@@ -33,35 +70,6 @@ An object file starts with the headers, namely:
 ### Constant section
 
 This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are a compile-time view of the state of the VM's stack at runtime.
-
-
-### Compile-time type specifiers
-
-To distinguish the different kinds of values that JAPL can represent at compile time, the following type specifiers are prepended to a given series of bytes to tell the deserializer what kind of object that specific byte sequence should deserialize into. It is important that each compile-time object specifies the size of its value in bytes (referred to as "size specifier" from now on, without quotes), after the type specifier. The following sections about object representation assume the appropriate type and size specifiers have been used and will therefore omit them to avoid repetition.
-
-Below a list of all type specifiers:
-
-- `0x01` -> Number
-- `0x02` -> String
-- `0x03` -> List literal (An heterogeneous dynamic array)
-- `0x04` -> Set literal  (An heterogeneous dynamic array without duplicates. Mirrors the mathematical definition of a set)
-- `0x05` -> Dictionary literal  (A an associative array, also known as mapping)
-- `0x06` -> Tuple literal (An heterogeneous static array)
-- `0x07` -> Function declaration
-- `0x08` -> Class declaration
-- `0x09` -> Variable declaration. Note that constants are replaced during compilation with their corresponding literal value, therefore they are represented as literals in the constants section and are not compiled as variable declarations.
-- ``
-
-
-### Object representation
-
-#### Numbers
-
-For simplicity purposes, numbers in object files are serialized as strings of decimal digits and optionally a dot followed by 1 or more decimal digits (for floats). The number `2.718`, for example, would just be serialized as the string `"2.718"` (without quotes). JAPL supports scientific notation such as `2e3`, but numbers in this form are collapsed to their decimal representation before being written to file, therefore `2e5` becomes `2000.0`. Other decimal number representations such as hexadecimal, binary and octal are also converted to base 10 during compilation.
-
-#### Strings
-
-Strings are serialized 
 
 
 ## Behavior
