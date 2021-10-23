@@ -20,19 +20,11 @@ export ast
 
 
 type
-    IdentifierKind = enum
-        Static, Dynamic
-
-    LoopContext = enum
-        Loop, None
-
-    IdentifierWrapper = ref object
-        kind: IdentifierKind
-        node: ASTNode
-        isPrivate: bool
     
     Local = ref object
         name: ASTNode
+        isStatic: bool
+        isPrivate: bool
         depth: int
 
     Compiler* = ref object
@@ -41,19 +33,21 @@ type
         file: string
         # Keeps track of all identifiers
         # in the code
-        names: seq[IdentifierWrapper]
         locals: seq[Local]
         localCount: int
-        currentLoop: LoopContext
         scopeDepth: int
     
 
 proc initCompiler*(): Compiler =
     ## Initializes a new Compiler object
+    new(result)
     result.ast = @[]
     result.current = 0
     result.file = ""
-    result.names = @[]
+    result.locals = @[]
+    result.localCount = 0
+    result.currentLoop = None
+    result.scopeDepth = 0
 
 
 proc peek(self: Compiler, distance: int = 0): ASTNode =

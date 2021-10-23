@@ -28,6 +28,10 @@ export token, ast, errors
 type 
     ParseContext = enum
         Script, Function
+    
+    LoopContext = enum
+        Loop, None
+    
     Parser* = ref object
         ## A recursive-descent top-down
         ## parser implementation
@@ -35,6 +39,7 @@ type
         file: string
         tokens: seq[Token]
         context: ParseContext
+        currentLoop: LoopContext
 
 
 proc initParser*(): Parser = 
@@ -422,7 +427,7 @@ proc assertStmt(self: Parser): ASTNode =
     ## raise an error if the expression
     ## fed into them is falsey
     var expression = self.expression()
-    endOfLine("missing semicolon after del statement")
+    endOfLine("missing semicolon after assert statement")
     result = newAssertStmt(expression)
 
 
@@ -439,12 +444,16 @@ proc blockStmt(self: Parser): ASTNode =
 
 proc breakStmt(self: Parser): ASTNode =
     ## Parses break statements
+    if self.currentLoop != Loop:
+        self.error("'break' cannot be used outside loops")
     endOfLine("missing semicolon after break statement")
     result = newBreakStmt()
 
 
 proc continueStmt(self: Parser): ASTNode =
     ## Parses break statements
+    if self.currentLoop != Loop:
+        self.error("'continue' cannot be used outside loops")
     endOfLine("missing semicolon after continue statement")
     result = newContinueStmt()
 
@@ -476,6 +485,8 @@ proc raiseStmt(self: Parser): ASTNode =
 
 
 proc forEachStmt(self: Parser): ASTNode =
+    var enclosingLoop = self.currentLoop
+    self.currentLoop = Loop
     self.expect(LeftParen, "expecting '(' after 'foreach'")
     self.expect(Identifier)
     var identifier = newIdentExpr(self.peek(-1))
@@ -484,6 +495,7 @@ proc forEachStmt(self: Parser): ASTNode =
     self.expect(RightParen)
     var body = self.statement()
     result = newForEachStmt(identifier, expression, body)
+    self.currentLoop = enclosingLoop
 
 
 proc importStmt(self: Parser): ASTNode =
@@ -514,14 +526,19 @@ proc fromStmt(self: Parser): ASTNode =
 
 proc whileStmt(self: Parser): ASTNode =
     ## Parses a C-style while loop statement
+    var enclosingLoop = self.currentLoop
+    self.currentLoop = Loop
     self.expect(LeftParen, "expecting '(' before while loop condition")
     var condition = self.expression()
     self.expect(RightParen, "unterminated while loop condition")
     result = newWhileStmt(condition, self.statement())
+    self.currentLoop = enclosingLoop
 
 
 proc forStmt(self: Parser): ASTNode = 
     ## Parses a C-style for loop
+    var enclosingLoop = self.currentLoop
+    self.currentLoop = Loop
     self.expect(LeftParen, "expecting '(' before for loop condition")
     var initializer: ASTNode = nil
     var condition: ASTNode = nil
@@ -552,6 +569,7 @@ proc forStmt(self: Parser): ASTNode =
     # We can use a while loop, which in this case works just as well
     body = newWhileStmt(condition, body)
     result = body
+    self.currentLoop = enclosingLoop
 
 
 proc ifStmt(self: Parser): ASTNode =
@@ -797,5 +815,6 @@ proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
     self.file = file
     self.current = 0
     self.context = Script
+    self.currentLoop = None
     while not self.done():
         result.add(self.declaration())
