@@ -18,9 +18,13 @@ import strutils
 import parseutils
 import strformat
 import tables
+
 import meta/token
+import meta/errors
+
 
 export token # Makes Token available when importing the lexer module
+export errors
 
 
 # Tables of all character tokens that are not keywords
@@ -95,7 +99,6 @@ type
         start: int
         current: int
         file: string
-    LexingError* = object of CatchableError
 
 
 proc initLexer*(self: Lexer = nil): Lexer =

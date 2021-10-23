@@ -19,8 +19,10 @@ import strformat
 
 import meta/token
 import meta/ast
+import meta/errors
 
-export token, ast
+
+export token, ast, errors
 
 
 type 
@@ -33,8 +35,6 @@ type
         file: string
         tokens: seq[Token]
         context: ParseContext
-    ParseError* = object of CatchableError
-        ## A parse error
 
 
 proc initParser*(): Parser = 

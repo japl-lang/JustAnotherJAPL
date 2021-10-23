@@ -16,16 +16,25 @@ import meta/errors
 
 import strformat
 
+export ast
+
 
 type
     IdentifierKind = enum
         Static, Dynamic
+
+    LoopContext = enum
+        Loop, None
 
     IdentifierWrapper = ref object
         kind: IdentifierKind
         node: ASTNode
         isPrivate: bool
     
+    Local = ref object
+        name: ASTNode
+        depth: int
+
     Compiler* = ref object
         ast: seq[ASTNode]
         current: int
@@ -33,9 +42,11 @@ type
         # Keeps track of all identifiers
         # in the code
         names: seq[IdentifierWrapper]
+        locals: seq[Local]
+        localCount: int
+        currentLoop: LoopContext
+        scopeDepth: int
     
-    CompileError* = object of NimVMException
-
 
 proc initCompiler*(): Compiler =
     ## Initializes a new Compiler object

@@ -12,4 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-type NimVMException* = ref object of CatchableError
+type
+    NimVMException* = object of CatchableError
+    LexingError* = object of NimVMException
+    ParseError* = object of NimVMException
+    CompileError* = object of NimVMException
+
