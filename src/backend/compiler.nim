@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import meta/ast
+import meta/errors
+
+import strformat
 
 
 type
@@ -28,3 +31,54 @@ type
         current: int
         file: string
         names: seq[IdentifierWrapper]
+    
+    CompileError* = object of NimVMException
+
+
+proc initCompiler*(self: Compiler = nil, ast: seq[ASTNode], file: string): Compiler =
+    ## Initializes a new Compiler object or
+    ## resets the state of an existing one
+    if self != nil:
+        result = self
+    self.ast = ast
+    self.current = 0
+    self.file = file
+    self.names = @[]
+
+
+proc peek(self: Compiler, distance: int = 0): ASTNode =
+    ## Peeks at the AST node at the given distance.
+    ## If the distance is out of bounds, a nil
+    ## AST node is returned. A negative distance may
+    ## be used to retrieve previously consumed
+    ## AST nodes
+    if self.ast.high() == -1 or self.current + distance > self.ast.high() or self.current + distance < 0:
+        result = nil
+    else:
+        result = self.ast[self.current + distance]
+
+
+proc done(self: Compiler): bool =
+    ## Returns if the compiler is done
+    ## compiling
+    result = self.current >= self.ast.high()
+
+
+proc step(self: Compiler): ASTNode =
+    ## Steps n nodes into the input,
+    ## returning the last consumed one
+    result = self.peek()
+    if not self.done():
+        self.current += 1
+
+
+proc error(self: Compiler, message: string) =
+    ## Raises a formatted CompileError exception
+    var errorMessage: string
+    case self.peek().kind:
+        of floatExpr, intExpr, identExpr:
+            errorMessage = &"A fatal error occurred while compiling '{self.file}', line {LiteralExpr(self.peek()).literal.line} at '{LiteralExpr(self.peek()).literal.lexeme}' -> {message}"
+        else:
+            discard
+    raise newException(CompileError, errorMessage)
+
