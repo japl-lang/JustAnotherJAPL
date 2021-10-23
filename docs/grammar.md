@@ -88,7 +88,8 @@ returnStmt     → "return" expression? ";";  // Returns from a function, illega
 breakStmt      → "break" ";";
 importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ","?)+ ";";
 assertStmt     → "assert" expression ";";
-delStmt        → "del" expression ";"
+delStmt        → "del" expression ";";
+yieldStmt      → "yield" expression ";"; 
 continueStmt   → "continue" ";";
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
 ifStmt         → "if" "(" expression ")" statement ("else" statement)?;  // If statements are conditional jumps
@@ -100,7 +101,7 @@ foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement;
 // Expressions (rules that produce a value, but also have side effects)
 expression     → assignment;
 assignment     → (call ".")? IDENTIFIER "=" yield;  // Assignment is the highest-level expression
-yield          → "yield" expression;
+yield          → "(" "yield" expression ")";
 logic_or       → logic_and ("and" logic_and)*;
 logic_and      → equality ("or" equality)*;
 equality       → comparison (( "!=" | "==" ) comparison )*;
