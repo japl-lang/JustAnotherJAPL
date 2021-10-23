@@ -86,7 +86,7 @@ statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStm
 exprStmt       → expression ";";  // Any expression followed by a semicolon is technically a statement
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
 breakStmt      → "break" ";";
-importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ",")+ ";";
+importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ","?)+ ";";
 assertStmt     → "assert" expression ";";
 delStmt        → "del" expression ";"
 continueStmt   → "continue" ";";
