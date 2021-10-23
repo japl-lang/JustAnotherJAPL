@@ -305,7 +305,12 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
             var decl = VarDecl(node)
             if decl.isConst and not decl.isStatic:
                 self.newWarning(dynamicConstIgnored, decl)
+            decl.value = self.optimizeNode(decl.value)
             result = decl
+        of assignExpr:
+            var asgn = AssignExpr(node)
+            asgn.value = self.optimizeNode(asgn.value)
+            result = asgn
         else:
             result = node
 

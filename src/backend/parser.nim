@@ -193,9 +193,22 @@ proc primary(self: Parser): ASTNode =
         of LeftParen:
             # TODO: Tuples
             discard self.step()
-            result = self.expression()
-            self.expect(RightParen, "unmatched '('")
-            result = newGroupingExpr(result)
+            if self.match(RightParen):
+                # This yields an empty tuple
+                result = newTupleExpr(@[])
+            else:
+                result = self.expression()
+                if self.match(Comma):
+                    var tupleObject = newTupleExpr(@[result])
+                    while true:
+                        tupleObject.members.add(self.expression())
+                        if not self.match(Comma):
+                            break
+                    result = tupleObject
+                    self.expect(RightParen, "unterminated tuple literal")
+                else:
+                    self.expect(RightParen, "unterminated parenthesized expression")
+                    result = newGroupingExpr(result)
         of RightParen:
             # This is *technically* unnecessary: the parser would
             # throw an error regardless, but it's a little bit nicer
@@ -391,11 +404,13 @@ proc assignment(self: Parser): ASTNode =
     ## expression (including stuff like a.b = 1)
     result = self.yieldExpr()
     if self.match(Equal):
-        var value = self.assignment()
+        var value = self.expression()
         if result.kind == identExpr:
             result = newAssignExpr(result, value)
         elif result.kind == getItemExpr:
             result = newSetItemExpr(GetItemExpr(result).obj, GetItemExpr(result).name, value)
+        else:
+            self.error("invalid assignment target")
 
 
 proc delStmt(self: Parser): ASTNode =
@@ -409,10 +424,7 @@ proc delStmt(self: Parser): ASTNode =
     if expression.kind == groupingExpr:
         # We unpack grouping expressions
         temp = self.unnest(temp)
-    if temp.kind in {falseExpr, trueExpr, intExpr, 
-                     binExpr, hexExpr, octExpr,
-                     floatExpr, strExpr, nilExpr,
-                     nanExpr, infExpr}:
+    if temp.isLiteral():
         self.error("cannot delete a literal")
     elif temp.kind in {binaryExpr, unaryExpr}:
         self.error("cannot delete operator")

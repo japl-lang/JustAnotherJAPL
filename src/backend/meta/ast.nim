@@ -256,6 +256,12 @@ proc newASTNode*(kind: NodeKind): ASTNode =
     result.kind = kind
 
 
+proc isLiteral*(self: ASTNode): bool =
+    result = self.kind in {intExpr, hexExpr, binExpr, octExpr, strExpr,
+                             tupleExpr, dictExpr, listExpr, falseExpr,
+                             trueExpr, infExpr, nanExpr}
+
+
 proc newIntExpr*(literal: Token): LiteralExpr =
     result = IntExpr(kind: intExpr)
     result.literal = literal
@@ -307,6 +313,27 @@ proc newGetItemExpr*(obj: ASTNode, name: ASTNode): GetItemExpr =
     result = GetItemExpr(kind: getItemExpr)
     result.obj = obj
     result.name = name
+
+
+proc newListExpr*(members: seq[ASTNode]): ListExpr =
+    result = ListExpr(kind: listExpr)
+    result.members = members
+
+
+proc newSetExpr*(members: seq[ASTNode]): SetExpr =
+    result = SetExpr(kind: setExpr)
+    result.members = members
+
+
+proc newTupleExpr*(members: seq[ASTNode]): TupleExpr =
+    result = TupleExpr(kind: tupleExpr)
+    result.members = members
+
+
+proc newDictExpr*(keys, values: seq[ASTNode]): DictExpr =
+    result = DictExpr(kind: dictExpr)
+    result.keys = keys
+    result.values = values
 
 
 proc newSetItemExpr*(obj, name, value: ASTNode): SetItemExpr =
@@ -475,7 +502,7 @@ proc `$`*(self: ASTNode): string =
             result &= &"Binary({self.a}, Operator('{self.operator.lexeme}'), {self.b})"
         of assignExpr:
             var self = AssignExpr(self)
-            result &= &"Assign(name={self.name}, value={self.value})"
+            result &= &"Assign(name='{self.namec}', value={self.value})"
         of exprStmt:
             var self = ExprStmt(self)
             result &= &"ExpressionStatement({self.expression})"
