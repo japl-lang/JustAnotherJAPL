@@ -196,6 +196,10 @@ proc primary(self: Parser): ASTNode =
             if self.match(RightParen):
                 # This yields an empty tuple
                 result = newTupleExpr(@[])
+            elif self.match(Yield):
+                if self.context != Function:
+                    self.error("'yield' outside function")
+                result = newYieldExpr(self.expression())
             else:
                 result = self.expression()
                 if self.match(Comma):
@@ -383,26 +387,10 @@ proc bitwiseOr(self: Parser): ASTNode =
         result = newBinaryExpr(result, operator, right)
 
 
-proc yieldExpr(self: Parser): ASTNode =
-    ## Parses yield expressions. They need
-    ## to be expressions so that stuff like 
-    ## var a = yield; is valid
-    if self.match(Yield):
-        if self.context != Function:
-            self.error("'yield' outside function")
-        if self.check([Semicolon, RightBrace, RightParen, RightBracket]):
-            # Ugly hack to allow empty yield expressions (which yield nil)
-            result = newYieldExpr(newNilExpr())
-        else:
-            result = newYieldExpr(self.expression)
-    else:
-        result = self.bitwiseOr()
-
-
 proc assignment(self: Parser): ASTNode =
     ## Parses assignment, the highest-level
     ## expression (including stuff like a.b = 1)
-    result = self.yieldExpr()
+    result = self.bitwiseOr()
     if self.match(Equal):
         var value = self.expression()
         if result.kind == identExpr:
@@ -483,6 +471,14 @@ proc returnStmt(self: Parser): ASTNode =
         value = self.expression()
     endOfLine("missing semicolon after return statement")
     result = newReturnStmt(value)
+
+
+proc yieldStmt(self: Parser): ASTNode =
+    ## Parses yield Statements
+    if self.context != Function:
+        self.error("'yield' outside function")
+    result = newYieldExpr(self.expression)
+    endOfLine("missing semicolon after yield statement")
 
 
 proc raiseStmt(self: Parser): ASTNode =
@@ -746,6 +742,9 @@ proc statement(self: Parser): ASTNode =
         of LeftBrace:
             discard self.step()
             result = self.blockStmt()
+        of Yield:
+            discard self.step()
+            result = self.yieldStmt()
         else:
             result = self.expressionStatement()
 
