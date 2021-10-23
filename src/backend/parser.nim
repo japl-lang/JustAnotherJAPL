@@ -37,11 +37,8 @@ type
         ## A parse error
 
 
-proc initParser*(self: Parser = nil): Parser = 
+proc initParser*(): Parser = 
     ## Initializes a new Parser object
-    ## or resets an already existing one
-    if self != nil:
-        result = self
     new(result)
     result.current = 0
     result.file = ""
@@ -796,8 +793,9 @@ proc declaration(self: Parser): ASTNode =
 
 proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
     ## Parses a series of tokens into an AST node
-    discard self.initParser()
     self.tokens = tokens
     self.file = file
+    self.current = 0
+    self.context = Script
     while not self.done():
         result.add(self.declaration())

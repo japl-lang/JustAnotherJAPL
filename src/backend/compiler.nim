@@ -30,20 +30,19 @@ type
         ast: seq[ASTNode]
         current: int
         file: string
+        # Keeps track of all identifiers
+        # in the code
         names: seq[IdentifierWrapper]
     
     CompileError* = object of NimVMException
 
 
-proc initCompiler*(self: Compiler = nil, ast: seq[ASTNode], file: string): Compiler =
-    ## Initializes a new Compiler object or
-    ## resets the state of an existing one
-    if self != nil:
-        result = self
-    self.ast = ast
-    self.current = 0
-    self.file = file
-    self.names = @[]
+proc initCompiler*(): Compiler =
+    ## Initializes a new Compiler object
+    result.ast = @[]
+    result.current = 0
+    result.file = ""
+    result.names = @[]
 
 
 proc peek(self: Compiler, distance: int = 0): ASTNode =
