@@ -86,7 +86,7 @@ statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStm
 exprStmt       → expression ";";  // Any expression followed by a semicolon is technically a statement
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
 breakStmt      → "break" ";";
-importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ",") ";";
+importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ",")+ ";";
 assertStmt     → "assert" expression ";";
 delStmt        → "del" expression ";"
 continueStmt   → "continue" ";";
@@ -96,6 +96,7 @@ whileStmt      → "while" "(" expression ")" statement;  // While loops run unt
 forStmt        → "for" "(" (varDecl | exprStmt | ";") expression? ";" expression? ")" statement;  // C-style for loops
 // For-each loops iterate over a collection type
 foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement;
+
 // Expressions (rules that produce a value, but also have side effects)
 expression     → assignment;
 assignment     → (call ".")? IDENTIFIER "=" yield;  // Assignment is the highest-level expression
