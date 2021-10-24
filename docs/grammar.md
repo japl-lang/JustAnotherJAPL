@@ -101,14 +101,13 @@ foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement;
 // Expressions (rules that produce a value, but also have side effects)
 expression     → assignment;
 assignment     → (call ".")? IDENTIFIER "=" assignment | lambdaExpr;  // Assignment is the highest-level expression
-asExpr         → expression "as" expression;
 lambdaExpr     → declModifiers? "async"? "lambda" lambda;  // Lambdas are anonymous functions, so they act as expressions
 yieldExpr      → "yield" expression;
 awaitExpr      → "await" expression;
 logic_or       → logic_and ("and" logic_and)*;
 logic_and      → equality ("or" equality)*;
-equality       → comparison (( "!=" | "==" ) comparison )*;
-comparison     → term (( ">" | ">=" | "<" | "<=" ) term )*;
+equality       → comparison (( "!=" | "==") comparison )*;
+comparison     → term (( ">" | ">=" | "<" | "<=" | "as" | "is" | "of") term )*;
 term           → factor (( "-" | "+" ) factor )*;  // Precedence for + and - in operations
 factor         → unary (("/" | "*" | "**" | "^" | "&") unary)*;  // All other binary operators have the same precedence
 unary          → ("!" | "-" | "~") unary | call;
