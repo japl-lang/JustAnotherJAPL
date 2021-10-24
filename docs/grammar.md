@@ -77,7 +77,6 @@ program        → declaration* EOF; // An entire program (Note: an empty progra
 declaration    → classDecl | funDecl | varDecl | statement;  // A program is composed by a list of declarations
 classDecl      → declModifiers? "class" IDENTIFIER ("<" IDENTIFIER ("," IDENTIFIER)*)? blockStmt;   // Declares a class
 funDecl        → declModifiers? "async"? "fun" function;   // Function declarations
-lambdaDecl     → declModifiers? "async"? "lambda" lambda;  // Lambdas are anonymous functions
 // Constants still count as "variable" declarations in the grammar
 varDecl        → declModifiers? ("var" | | "const") IDENTIFIER ( "=" expression )? ";";
 
@@ -101,7 +100,9 @@ foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement;
 
 // Expressions (rules that produce a value, but also have side effects)
 expression     → assignment;
-assignment     → (call ".")? IDENTIFIER "=" expression;  // Assignment is the highest-level expression
+assignment     → (call ".")? IDENTIFIER "=" assignment | lambdaExpr;  // Assignment is the highest-level expression
+asExpr         → expression "as" expression;
+lambdaExpr     → declModifiers? "async"? "lambda" lambda;  // Lambdas are anonymous functions, so they act as expressions
 yieldExpr      → "yield" expression;
 awaitExpr      → "await" expression;
 logic_or       → logic_and ("and" logic_and)*;
