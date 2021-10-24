@@ -86,7 +86,8 @@ const keywords = to_table({
                 "async": Async, "await": Await,
                 "foreach": Foreach, "yield": Yield,
                 "private": Private, "public": Public,
-                "static": Static, "dynamic": Dynamic
+                "static": Static, "dynamic": Dynamic,
+                "as": As, "of": Of
     })
 
 

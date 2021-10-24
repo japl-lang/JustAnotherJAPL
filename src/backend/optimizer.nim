@@ -14,7 +14,6 @@
 import meta/ast
 import meta/token
 
-
 import parseutils
 import strformat
 import strutils
@@ -29,7 +28,6 @@ type
         equalityWithSingleton,
         valueOverflow,
         implicitConversion,
-        dynamicConstIgnored
 
     Warning* = ref object
         kind*: WarningKind
@@ -52,6 +50,7 @@ proc newWarning(self: Optimizer, kind: WarningKind, node: ASTNode) =
 
 
 proc `$`*(self: Warning): string = &"Warning(kind={self.kind}, node={self.node})"
+
 
 # Forward declaration
 proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode
@@ -306,14 +305,34 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
             result = node
         of varDecl:
             var decl = VarDecl(node)
-            if decl.isConst and not decl.isStatic:
-                self.newWarning(dynamicConstIgnored, decl)
             decl.value = self.optimizeNode(decl.value)
             result = decl
         of assignExpr:
             var asgn = AssignExpr(node)
             asgn.value = self.optimizeNode(asgn.value)
             result = asgn
+        of listExpr:
+            var l = ListExpr(node)
+            for i, e in l.members:
+                l.members[i] = self.optimizeNode(e)
+            result = node
+        of setExpr:
+            var s = SetExpr(node)
+            for i, e in s.members:
+                s.members[i] = self.optimizeNode(e)
+            result = node
+        of tupleExpr:
+            var t = TupleExpr(node)
+            for i, e in t.members:
+                t.members[i] = self.optimizeNode(e)
+            result = node
+        of dictExpr:
+            var d = DictExpr(node)
+            for i, e in d.keys:
+                d.keys[i] = self.optimizeNode(e)
+            for i, e in d.values:
+                d.values[i] = self.optimizeNode(e)
+            result = node
         else:
             result = node
 

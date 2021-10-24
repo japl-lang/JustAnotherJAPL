@@ -40,9 +40,8 @@ The compilation toolchain has been designed as follows:
     Note that this only applies to names defined as static (which means all of them unless they are explicitly marked as `dynamic`).
     This is a tradeoff to avoid enforcing block scoping while still retaining the performance of static name resolution (yes, even
     globally) most of the time
-  - throw warnings for things like unreachable code after return statements (optional).
+  - throw warnings for things like unreachable code after return statements
 
-    The optimization step is entirely optional and enabled by default
 - Once the optimizater is done, the compiler takes the AST and compiles it to bytecode for it to be later interpreted
   by the virtual machine. To be more specific, the compiler writes a file with some metadata and the produced bytecode
   to disk, and then the tool orchestrating compilation and execution will deserialize it and pass everything to the VM.

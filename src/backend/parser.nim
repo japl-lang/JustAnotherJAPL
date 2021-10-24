@@ -89,8 +89,7 @@ proc step(self: Parser, n: int = 1): Token =
 
 
 proc error(self: Parser, message: string) =
-    ## Raises a formatted ParseError exception to
-    ## be catched at self.parse()
+    ## Raises a formatted ParseError exception
     var lexeme = if not self.done(): self.peek().lexeme else: self.step().lexeme
     var errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at '{lexeme}' -> {message}"
     raise newException(ParseError, errorMessage)
@@ -163,6 +162,7 @@ proc expression(self: Parser): ASTNode
 proc expressionStatement(self: Parser): ASTNode
 proc statement(self: Parser): ASTNode
 proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNode
+proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true, isLambda: bool = false): ASTNode
 proc declaration(self: Parser): ASTNode
 
 
@@ -170,7 +170,6 @@ proc primary(self: Parser): ASTNode =
     ## Parses primary expressions such
     ## as integer literals and keywords
     ## that map to builtin types (true, false, etc)
-    
     case self.peek().kind:
         of True:
             discard self.step()
@@ -191,7 +190,6 @@ proc primary(self: Parser): ASTNode =
         of Identifier:
             result = newIdentExpr(self.step())
         of LeftParen:
-            # TODO: Tuples
             discard self.step()
             if self.match(RightParen):
                 # This yields an empty tuple
@@ -200,28 +198,82 @@ proc primary(self: Parser): ASTNode =
                 result = self.expression()
                 if self.match(Comma):
                     var tupleObject = newTupleExpr(@[result])
-                    while true:
+                    while not self.check(RightParen):
                         tupleObject.members.add(self.expression())
                         if not self.match(Comma):
                             break
+                    echo self.peek()
                     result = tupleObject
                     self.expect(RightParen, "unterminated tuple literal")
                 else:
                     self.expect(RightParen, "unterminated parenthesized expression")
                     result = newGroupingExpr(result)
+        of LeftBracket:
+            discard self.step()
+            if self.match(RightBracket):
+                # This yields an empty list
+                result = newListExpr(@[])
+            else:
+                result = self.expression()
+                if self.match(Comma):
+                    var listObject = newListExpr(@[result])
+                    while not self.check(RightBracket):
+                        listObject.members.add(self.expression())
+                        if not self.match(Comma):
+                            break
+                    result = listObject
+                    self.expect(RightBracket, "unterminated list literal")
+                elif self.match(RightBracket):
+                    return newListExpr(@[result])
+        of LeftBrace:
+            discard self.step()
+            if self.match(RightBrace):
+                # This yields an empty dictionary
+                result = newDictExpr(@[], @[])
+            else:
+                result = self.expression()
+                if self.match(Comma):
+                    var setObject = newSetExpr(@[result])
+                    while not self.check(RightBrace):
+                        setObject.members.add(self.expression())
+                        if not self.match(Comma):
+                            break
+                    result = setObject
+                    self.expect(RightBrace, "unterminated set literal")
+                elif self.match(Colon):
+                    var dictObject = newDictExpr(@[result], @[self.expression()])
+                    if self.match(RightBrace):
+                        return dictObject
+                    if self.match(Comma):
+                        while not self.check(RightBrace):
+                            dictObject.keys.add(self.expression())
+                            self.expect(Colon)
+                            dictObject.values.add(self.expression())
+                            if not self.match(Comma):
+                                break
+                        self.expect(RightBrace, "unterminated dict literal")
+                    result = dictObject
         of Yield:
+            discard self.step()
             if self.context != Function:
                 self.error("'yield' cannot be outside functions")
-            result = newYieldExpr(self.expression())
+            if not self.check([RightBrace, RightBracket, RightParen, Comma, Semicolon]):
+                result = newYieldExpr(self.expression())
+            else:
+                result = newYieldExpr(newNilExpr())
         of Await:
+            discard self.step()
             if self.context != Function:
                 self.error("'await' cannot be used outside functions")
             result = newAwaitExpr(self.expression())
-        of RightParen:
+        of Lambda:
+            discard self.step()
+            result = self.funDecl(isLambda=true)
+        of RightParen, RightBracket, RightBrace:
             # This is *technically* unnecessary: the parser would
             # throw an error regardless, but it's a little bit nicer
             # when the error message is more specific
-            self.error("unmatched ')'")
+            self.error(&"unmatched '{self.peek().lexeme}'")
         of Hex:
             result = newHexExpr(self.step())
         of Octal:
@@ -233,8 +285,6 @@ proc primary(self: Parser): ASTNode =
         of Infinity:
             discard self.step()
             result = newInfExpr()
-        of LeftBracket, LeftBrace:
-            discard  # TODO
         else:
             self.error("invalid syntax")
 
@@ -328,7 +378,7 @@ proc comparison(self: Parser): ASTNode =
     result = self.add()
     var operator: Token
     var right: ASTNode
-    while self.match([LessThan, GreaterThan, LessOrEqual, GreaterOrEqual, Is]):
+    while self.match([LessThan, GreaterThan, LessOrEqual, GreaterOrEqual, Is, As, Of]):
         operator = self.peek(-1)
         right = self.add()
         result = newBinaryExpr(result, operator, right)
@@ -479,7 +529,10 @@ proc yieldStmt(self: Parser): ASTNode =
     ## Parses yield Statements
     if self.context != Function:
         self.error("'yield' cannot be used outside functions")
-    result = newYieldExpr(self.expression)
+    if not self.check(Semicolon):
+        result = newYieldStmt(self.expression())
+    else:
+        result = newYieldStmt(newNilExpr())
     endOfLine("missing semicolon after yield statement")
 
 
@@ -487,7 +540,7 @@ proc awaitStmt(self: Parser): ASTNode =
     ## Parses yield Statements
     if self.context != Function:
         self.error("'await' cannot be used outside functions")
-    result = newAwaitExpr(self.expression)
+    result = newAwaitStmt(self.expression())
     endOfLine("missing semicolon after yield statement")
 
 
@@ -496,13 +549,14 @@ proc raiseStmt(self: Parser): ASTNode =
     var exception: ASTNode
     if not self.check(Semicolon):
         # Raise can be used on its own, in which
-        # case it re-raises the last exception
+        # case it re-raises the last active exception
         exception = self.expression()
     endOfLine("missing semicolon after raise statement")
     result = newRaiseStmt(exception)
 
 
 proc forEachStmt(self: Parser): ASTNode =
+    # Parses C#-like foreach loops
     var enclosingLoop = self.currentLoop
     self.currentLoop = Loop
     self.expect(LeftParen, "expecting '(' after 'foreach'")
@@ -518,15 +572,13 @@ proc forEachStmt(self: Parser): ASTNode =
 
 proc importStmt(self: Parser): ASTNode =
     ## Parses import statements
-    result = self.expression()
-    if result.kind != identExpr:
-        self.error("expecting module name after import statement")
+    self.expect(Identifier, "expecting module name(s) after import statement")
+    result = newImportStmt(self.expression())
     endOfLine("missing semicolon after import statement")
-    result = newImportStmt(result)
 
 
 proc fromStmt(self: Parser): ASTNode =
-    self.expect(Identifier)
+    self.expect(Identifier, "expecting module name(s) after import statement")
     result = newIdentExpr(self.peek(-1))
     var attributes: seq[ASTNode] = @[]
     var attribute: ASTNode
@@ -538,7 +590,8 @@ proc fromStmt(self: Parser): ASTNode =
         self.expect(Identifier)
         attribute = newIdentExpr(self.peek(-1))
         attributes.add(attribute)
-    endOfLine("missing semicolon after from ... import statement")
+    # from x import a [, b, c, ...];
+    endOfLine("missing semicolon after import statement")
     result = newFromImportStmt(result, attributes)
 
 
@@ -609,6 +662,9 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
     var value: ASTNode
     case varKind.kind:
         of Const:
+            # Note that isStatic being false is an error, because constants are replaced at compile-time
+            if not isStatic:
+                self.error("constant declarations cannot be dynamic")
             keyword = "constant"
         else:
             keyword = "variable"
@@ -616,27 +672,117 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
     var name = newIdentExpr(self.peek(-1))
     if self.match(Equal):
         value = self.expression()
+        if varKind.kind == Const and not value.isConst():
+            self.error("the initializer for constant declarations must be a primitive and constant type")
     else:
         if varKind.kind == Const:
-            self.error(&"constant declaration requires a value")
+            self.error("constant declaration requires a value")
         value = newNilExpr()
     self.expect(Semicolon, &"expecting semicolon after {keyword} declaration")
     case varKind.kind:
         of Var:
             result = newVarDecl(name, value, isStatic=isStatic, isPrivate=isPrivate)
         of Const:
-            # Note that isStatic is ignored here, because constants are resolved differently,
-            # but we leave it so the optimizer can issue a warning about it
-            result = newVarDecl(name, value, isConst=true, isPrivate=isPrivate, isStatic=isStatic)
+            result = newVarDecl(name, value, isConst=true, isPrivate=isPrivate, isStatic=true)
         else:
             discard  # Unreachable
 
+proc validateFunction(self: Parser, f: FunDecl)
+proc validateFunction(self: Parser, f: LambdaExpr)
 
-proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true): FunDecl =
-    ## Parses function declarations
-    self.expect(Identifier, "expecting function name after 'fun'")
-    var ident = newIdentExpr(self.peek(-1))
-    result = newFunDecl(ident, @[], @[], nil, isStatic=isStatic, isAsync=isAsync, isGenerator=false, isPrivate=isPrivate)
+
+proc validateFunction(self: Parser, f: FunDecl) =
+    # Does some analysis on the code of the function. Namely it checks
+    # if the user used 'await' in a non-async function and if the
+    # function has any yield expressions in them, making it a 
+    # generator. Async generators are also supported. This modifies
+    # the isGenerator field of f in-place since it's a ref object
+    for line in BlockStmt(f.body).code:
+        case line.kind:
+            of exprStmt:
+                if ExprStmt(line).expression.kind == yieldExpr:
+                    f.isGenerator = true
+                elif ExprStmt(line).expression.kind == awaitExpr and not f.isAsync:
+                    self.error("'await' cannot be used outside async functions")
+            of NodeKind.yieldStmt:
+                f.isGenerator = true
+            of NodeKind.awaitStmt:
+                if not f.isAsync:
+                    self.error("'await' cannot be used outside async functions")
+            of NodeKind.funDecl:
+                # Nested function declarations with yield expressions as
+                # default arguments are valid, but for them to work we
+                # need to make the containing function a generator. These
+                # yield expressions will run in the outer function's scope
+                # and are lazily evaluated at runtime
+                for default in FunDecl(line).defaults:
+                    if default.kind == NodeKind.yieldExpr:
+                        f.isGenerator = true
+                    elif default.kind == NodeKind.awaitExpr and not f.isAsync:
+                        self.error("'await' cannot be used outside async functions")
+                self.validateFunction(FunDecl(line))
+            of NodeKind.lambdaExpr:
+                for default in LambdaExpr(line).defaults:
+                    if default.kind == NodeKind.yieldExpr:
+                        f.isGenerator = true
+                    elif default.kind == NodeKind.awaitExpr and not f.isAsync:
+                        self.error("'await' cannot be used outside async functions")
+                self.validateFunction(LambdaExpr(line))
+            else:
+                discard
+
+
+proc validateFunction(self: Parser, f: LambdaExpr) =
+    # Does some analysis on the code of the function. Namely it checks
+    # if the user used 'await' in a non-async function and if the
+    # function has any yield expressions in them, making it a 
+    # generator. Async generators are also supported. This modifies
+    # the isGenerator field of f in-place since it's a ref object
+    for line in BlockStmt(f.body).code:
+        case line.kind:
+            of exprStmt:
+                if ExprStmt(line).expression.kind == yieldExpr:
+                    f.isGenerator = true
+                elif ExprStmt(line).expression.kind == awaitExpr:
+                    self.error("'await' cannot be used outside async functions")
+            of NodeKind.yieldStmt:
+                f.isGenerator = true
+            of NodeKind.awaitStmt:
+                self.error("'await' cannot be used outside async functions")
+            of NodeKind.funDecl:
+                # Nested function declarations with yield expressions as
+                # default arguments are valid, but for them to work we
+                # need to make the containing function a generator. These
+                # yield expressions will run in the outer function's scope
+                # and are lazily evaluated at runtime
+                for default in FunDecl(line).defaults:
+                    if default.kind == NodeKind.yieldExpr:
+                        f.isGenerator = true
+                    elif default.kind == NodeKind.awaitExpr:
+                        self.error("'await' cannot be used outside async functions")
+                self.validateFunction(FunDecl(line))
+            of NodeKind.lambdaExpr:
+                for default in LambdaExpr(line).defaults:
+                    if default.kind == NodeKind.yieldExpr:
+                        f.isGenerator = true
+                    elif default.kind == NodeKind.awaitExpr:
+                        self.error("'await' cannot be used outside async functions")
+                self.validateFunction(LambdaExpr(line))
+            else:
+                discard
+
+
+proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true, isLambda: bool = false): ASTNode =
+    ## Parses function and lambda declarations. Note that lambdas count as expressions!
+    let enclosing = self.context
+    self.context = Function
+    var ident: IdentExpr
+    var arguments: seq[ASTNode] = @[]
+    var defaults: seq[ASTNode] = @[]
+    var body: ASTNode = nil
+    if not isLambda:
+        self.expect(Identifier, "expecting function name after 'fun'")
+        ident = newIdentExpr(self.peek(-1))
     if self.match(LeftBrace):
         # Argument-less function
         discard
@@ -644,42 +790,29 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
         var parameter: IdentExpr
         self.expect(LeftParen)
         while not self.check(RightParen):
-            if result.arguments.len > 255:
+            if arguments.len > 255:
                 self.error("cannot have more than 255 arguments in function declaration")
             self.expect(Identifier)
             parameter = newIdentExpr(self.peek(-1))
-            if parameter in result.arguments:
+            if parameter in arguments:
                 self.error("duplicate parameter name in function declaration")
-            result.arguments.add(parameter)
+            arguments.add(parameter)
             if self.match(Equal):
-                result.defaults.add(self.expression())
-            elif result.defaults.len() > 0:
+                defaults.add(self.expression())
+            elif defaults.len() > 0:
                 self.error("positional argument(s) cannot follow default argument(s) in function declaration")
             if not self.match(Comma):
                 break
         self.expect(RightParen)
         self.expect(LeftBrace)
-    result.body = self.blockStmt()
-    # We do some analysis on the code of the function. Namely we check
-    # if the user used 'await' in a non-async function and if the
-    # function has any yield expressions in them, making it a 
-    # generator. Async generators are also supported
-    for line in BlockStmt(result.body).code:
-        if line.kind == exprStmt:
-            echo ExprStmt(line).expression.kind
-            if ExprStmt(line).expression.kind == yieldExpr:
-                result.isGenerator = true
-            elif not result.isAsync and ExprStmt(line).expression.kind == awaitExpr:
-                self.error("'await' cannot be used outside async functions")
-        elif line.kind == NodeKind.funDecl:
-            # Nested function declarations with yield expressions as
-            # default arguments are valid, but for them to work we
-            # need to make the containing function a generator. These
-            # yield expressions will run in the outer function's scope
-            # and are lazily evaluated at runtime
-            for default in FunDecl(line).defaults:
-                if default.kind == NodeKind.yieldExpr:
-                    result.isGenerator = true
+    body = self.blockStmt()
+    if not isLambda:
+        result = newFunDecl(ident, arguments, defaults, body, isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate)
+        self.validateFunction(FunDecl(result))
+    else:
+        result = newLambdaExpr(arguments, defaults, body, isGenerator=false)
+        self.validateFunction(LambdaExpr(result))
+    self.context = enclosing
 
 
 proc classDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNode =
@@ -772,23 +905,18 @@ proc declaration(self: Parser): ASTNode =
             discard self.step()
             result = self.classDecl()
         of Fun:
-            self.context = Function
             discard self.step()
             result = self.funDecl()
-            self.context = Script
         of Private, Public:
             discard self.step()
-            var isStatic: bool
+            var isStatic: bool = true
             let isPrivate = if self.peek(-1).kind == Private: true else: false
             if self.match(Dynamic):
                 isStatic = false
             elif self.match(Static):
-                isStatic = true
+                discard   # This is just to allow an "explicit" static keyword
             if self.match(Async):
-                self.expect(Fun)
-                self.context = Function
                 result = self.funDecl(isStatic=isStatic, isPrivate=isPrivate, isAsync=true)
-                self.context = Script
             else:
                 case self.peek().kind:
                     of Var, Const:
@@ -798,10 +926,8 @@ proc declaration(self: Parser): ASTNode =
                         discard self.step()
                         result = self.classDecl(isStatic=isStatic, isPrivate=isPrivate)
                     of Fun:
-                        self.context = Function
                         discard self.step()
-                        result = self.funDecl(isStatic=isStatic, isPrivate=isPrivate)
-                        self.context = Script
+                        result = self.funDecl(isStatic=isStatic, isPrivate=isPrivate) 
                     else:
                         self.error("invalid syntax")
         of Static, Dynamic:
@@ -809,9 +935,7 @@ proc declaration(self: Parser): ASTNode =
             let isStatic: bool = if self.peek(-1).kind == Static: true else: false
             if self.match(Async):
                 self.expect(Fun)
-                self.context = Function
                 result = self.funDecl(isStatic=isStatic, isPrivate=true, isAsync=true)
-                self.context = Script
             else:
                 case self.peek().kind:
                     of Var, Const:
@@ -821,18 +945,15 @@ proc declaration(self: Parser): ASTNode =
                         discard self.step()
                         result = self.classDecl(isStatic=isStatic, isPrivate=true)
                     of Fun:
-                        self.context = Function
                         discard self.step()
                         result = self.funDecl(isStatic=isStatic, isPrivate=true)
-                        self.context = Script
                     else:
                         self.error("invalid syntax")
         of Async:
             discard self.step()
             self.expect(Fun)
-            self.context = Function
             result = self.funDecl(isAsync=true)
-            self.context = Script
+            
         else:
             result = self.statement()
 
@@ -842,7 +963,7 @@ proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
     self.tokens = tokens
     self.file = file
     self.current = 0
-    self.context = Script
+    
     self.currentLoop = None
     while not self.done():
         result.add(self.declaration())

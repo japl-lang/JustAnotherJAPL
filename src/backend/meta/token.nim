@@ -38,7 +38,7 @@ type
     Return, Async, Class, Import, From,
     IsNot, Raise, Assert, Del, Await,
     Foreach, Yield, Static, Dynamic,
-    Private, Public
+    Private, Public, As, Of
 
     # Basic types
 

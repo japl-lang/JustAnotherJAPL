@@ -53,6 +53,7 @@ type
         exprStmt,
         # Expressions
         assignExpr,
+        lambdaExpr,
         awaitExpr,
         yieldExpr,
         setItemExpr,  # Set expressions like a.b = "c"
@@ -166,6 +167,17 @@ type
     AwaitExpr* = ref object of ASTNode
         awaitee*: ASTNode
 
+    LambdaExpr* = ref object of ASTNode
+        body*: ASTNode
+        arguments*: seq[ASTNode]
+        # This is, in order, the list of each default argument
+        # the function takes. It maps 1:1 with self.arguments
+        # although it may be shorter (in which case this maps
+        # 1:1 with what's left of self.arguments after all
+        # positional arguments have been consumed)
+        defaults*: seq[ASTNode]
+        isGenerator*: bool
+
     AssignExpr* = ref object of ASTNode
         name*: ASTNode
         value*: ASTNode
@@ -268,42 +280,44 @@ proc newASTNode*(kind: NodeKind): ASTNode =
     result.kind = kind
 
 
-proc isLiteral*(self: ASTNode): bool =
-    result = self.kind in {intExpr, hexExpr, binExpr, octExpr, strExpr,
-                             tupleExpr, dictExpr, listExpr, falseExpr,
-                             trueExpr, infExpr, nanExpr}
+proc isConst*(self: ASTNode): bool {.inline.} = self.kind in {intExpr, hexExpr, binExpr, octExpr, strExpr,
+                                                              falseExpr, trueExpr, infExpr, nanExpr,
+                                                              floatExpr}
 
 
-proc newIntExpr*(literal: Token): LiteralExpr =
+proc isLiteral*(self: ASTNode): bool {.inline.} = self.isConst() or self.kind in {tupleExpr, dictExpr, setExpr, listExpr}
+
+
+proc newIntExpr*(literal: Token): IntExpr =
     result = IntExpr(kind: intExpr)
     result.literal = literal
 
 
-proc newOctExpr*(literal: Token): LiteralExpr =
+proc newOctExpr*(literal: Token): OctExpr =
     result = OctExpr(kind: octExpr)
     result.literal = literal
 
 
-proc newHexExpr*(literal: Token): LiteralExpr =
+proc newHexExpr*(literal: Token): HexExpr =
     result = HexExpr(kind: hexExpr)
     result.literal = literal
 
 
-proc newBinExpr*(literal: Token): LiteralExpr =
+proc newBinExpr*(literal: Token): BinExpr =
     result = BinExpr(kind: binExpr)
     result.literal = literal
 
 
-proc newFloatExpr*(literal: Token): LiteralExpr =
+proc newFloatExpr*(literal: Token): FloatExpr =
     result = FloatExpr(kind: floatExpr)
     result.literal = literal
 
 
-proc newTrueExpr*: LiteralExpr = LiteralExpr(kind: trueExpr)
-proc newFalseExpr*: LiteralExpr = LiteralExpr(kind: falseExpr)
-proc newNaNExpr*: LiteralExpr = LiteralExpr(kind: nanExpr)
-proc newNilExpr*: LiteralExpr = LiteralExpr(kind: nilExpr)
-proc newInfExpr*: LiteralExpr = LiteralExpr(kind: infExpr)
+proc newTrueExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: trueExpr)
+proc newFalseExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: falseExpr)
+proc newNaNExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: nanExpr)
+proc newNilExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: nilExpr)
+proc newInfExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: infExpr)
 
 
 proc newStrExpr*(literal: Token): StrExpr =
@@ -319,6 +333,14 @@ proc newIdentExpr*(name: Token): IdentExpr =
 proc newGroupingExpr*(expression: ASTNode): GroupingExpr =
     result = GroupingExpr(kind: groupingExpr)
     result.expression = expression
+
+
+proc newLambdaExpr*(arguments, defaults: seq[ASTNode], body: ASTNode, isGenerator: bool): LambdaExpr =
+    result = LambdaExpr(kind: lambdaExpr)
+    result.body = body
+    result.arguments = arguments
+    result.defaults = defaults
+    result.isGenerator = isGenerator
 
 
 proc newGetItemExpr*(obj: ASTNode, name: ASTNode): GetItemExpr =
@@ -511,7 +533,7 @@ proc `$`*(self: ASTNode): string =
             else:
                 result &= &"Literal({LiteralExpr(self).literal.lexeme})"
         of identExpr:
-            result &= &"Identifier({IdentExpr(self).name})"
+            result &= &"Identifier('{IdentExpr(self).name.lexeme}')"
         of groupingExpr:
             result &= &"Grouping({GroupingExpr(self).expression})"
         of getItemExpr:
@@ -522,7 +544,7 @@ proc `$`*(self: ASTNode): string =
             result &= &"SetItem(obj={self.obj}, name={self.value}, value={self.value})"
         of callExpr:
             var self = CallExpr(self)
-            result &= &"Call(callee={self.callee}, arguments=(positionals=[{self.arguments.positionals.join(\", \")}], keyword=[{self.arguments.keyword.join(\", \")}]))"
+            result &= &"Call({self.callee}, arguments=(positionals=[{self.arguments.positionals.join(\", \")}], keyword=[{self.arguments.keyword.join(\", \")}]))"
         of unaryExpr:
             var self = UnaryExpr(self)
             result &= &"Unary(Operator('{self.operator}'), {self.a})"
@@ -564,7 +586,10 @@ proc `$`*(self: ASTNode): string =
             result &= &"Return({self.value})"
         of yieldExpr:
             var self = YieldExpr(self)
-            result &= &"Yield(expression={self.expression})"
+            result &= &"Yield({self.expression})"
+        of awaitExpr:
+            var self = AwaitExpr(self)
+            result &= &"Await({self.awaitee})"
         of ifStmt:
             var self = IfStmt(self)
             if self.elseBranch == nil:
@@ -573,7 +598,10 @@ proc `$`*(self: ASTNode): string =
                 result &= &"If(condition={self.condition}, thenBranch={self.thenBranch}, elseBranch={self.elseBranch})"
         of yieldStmt:
             var self = YieldStmt(self)
-            result &= &"YieldStmt(expression={self.expression})"
+            result &= &"YieldStmt({self.expression})"
+        of awaitStmt:
+            var self = AwaitStmt(self)
+            result &= &"AwaitStmt({self.awaitee})"
         of varDecl:
             var self = VarDecl(self)
             result &= &"Var(name={self.name}, value={self.value}, const={self.isConst}, static={self.isStatic}, private={self.isPrivate})"
@@ -583,5 +611,20 @@ proc `$`*(self: ASTNode): string =
         of classDecl:
             var self = ClassDecl(self)
             result &= &"Class(name={self.name}, body={self.body}, parents=[{self.parents.join(\", \")}], static={self.isStatic}, private={self.isPrivate})"
+        of tupleExpr:
+            var self = TupleExpr(self)
+            result &= &"Tuple([{self.members.join(\", \")}])"
+        of setExpr:
+            var self = SetExpr(self)
+            result &= &"Set([{self.members.join(\", \")}])"
+        of listExpr:
+            var self = ListExpr(self)
+            result &= &"List([{self.members.join(\", \")}])"
+        of dictExpr:
+            var self = DictExpr(self)
+            result &= &"Dict(keys=[{self.keys.join(\", \")}], values=[{self.values.join(\", \")}])"
+        of lambdaExpr:
+            var self = LambdaExpr(self)
+            result &= &"Lambda(body={self.body}, arguments=[{self.arguments.join(\", \")}], defaults=[{self.defaults.join(\", \")}], generator={self.isGenerator})"
         else:
             discard    

@@ -17,4 +17,4 @@ type
     LexingError* = object of NimVMException
     ParseError* = object of NimVMException
     CompileError* = object of NimVMException
-
+    DeserializationError* = object of NimVMException
