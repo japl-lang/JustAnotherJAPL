@@ -45,12 +45,15 @@ type
         raiseStmt,
         assertStmt,
         delStmt,
+        yieldStmt,
+        awaitStmt,
         fromImportStmt,
         importStmt,
         # An expression followed by a semicolon
         exprStmt,
         # Expressions
         assignExpr,
+        awaitExpr,
         yieldExpr,
         setItemExpr,  # Set expressions like a.b = "c"
         binaryExpr,
@@ -160,6 +163,9 @@ type
     YieldExpr* = ref object of ASTNode
         expression*: ASTNode
 
+    AwaitExpr* = ref object of ASTNode
+        awaitee*: ASTNode
+
     AssignExpr* = ref object of ASTNode
         name*: ASTNode
         value*: ASTNode
@@ -198,6 +204,9 @@ type
         condition*: ASTNode
         body*: ASTNode
     
+    AwaitStmt* = ref object of ASTNode
+        awaitee*: ASTNode
+
     BreakStmt* = ref object of ASTNode
     
     ContinueStmt* = ref object of ASTNode
@@ -209,6 +218,9 @@ type
         condition*: ASTNode
         thenBranch*: ASTNode
         elseBranch*: ASTNode
+
+    YieldStmt* = ref object of ASTNode
+        expression*: ASTNode
 
     VarDecl* = ref object of ASTNode
         name*: ASTNode
@@ -373,6 +385,11 @@ proc newAssignExpr*(name, value: ASTNode): AssignExpr =
     result.value = value
 
 
+proc newAwaitExpr*(awaitee: ASTNode): AwaitExpr =
+    result = AwaitExpr(kind: awaitExpr)
+    result.awaitee = awaitee
+
+
 proc newExprStmt*(expression: ASTNode): ExprStmt =
     result = ExprStmt(kind: exprStmt)
     result.expression = expression
@@ -392,6 +409,16 @@ proc newFromImportStmt*(fromModule: ASTNode, fromAttributes: seq[ASTNode]): From
 proc newDelStmt*(name: ASTNode): DelStmt =
     result = DelStmt(kind: delStmt)
     result.name = name
+
+
+proc newYieldStmt*(expression: ASTNode): YieldStmt =
+    result = YieldStmt(kind: yieldStmt)
+    result.expression = expression
+
+
+proc newAwaitStmt*(awaitee: ASTNode): AwaitExpr =
+    result = AwaitExpr(kind: awaitExpr)
+    result.awaitee = awaitee
 
 
 proc newAssertStmt*(expression: ASTNode): AssertStmt =
@@ -439,7 +466,7 @@ proc newIfStmt*(condition: ASTNode, thenBranch, elseBranch: ASTNode): IfStmt =
 
 
 proc newVarDecl*(name: ASTNode, value: ASTNode = newNilExpr(),
-                 isStatic: bool = true, isConst,
+                 isStatic: bool = true, isConst: bool = false,
                  isPrivate: bool = true): VarDecl =
     result = VarDecl(kind: varDecl)
     result.name = name
@@ -479,6 +506,8 @@ proc `$`*(self: ASTNode): string =
         of intExpr, floatExpr, hexExpr, binExpr, octExpr, strExpr, trueExpr, falseExpr, nanExpr, nilExpr, infExpr:
             if self.kind in {trueExpr, falseExpr, nanExpr, nilExpr, infExpr}:
                 result &= &"Literal({($self.kind)[0..^5]})"
+            elif self.kind == strExpr:
+                result &= &"Literal({LiteralExpr(self).literal.lexeme.escape()})"
             else:
                 result &= &"Literal({LiteralExpr(self).literal.lexeme})"
         of identExpr:
@@ -502,7 +531,7 @@ proc `$`*(self: ASTNode): string =
             result &= &"Binary({self.a}, Operator('{self.operator.lexeme}'), {self.b})"
         of assignExpr:
             var self = AssignExpr(self)
-            result &= &"Assign(name='{self.namec}', value={self.value})"
+            result &= &"Assign(name='{self.name}', value={self.value})"
         of exprStmt:
             var self = ExprStmt(self)
             result &= &"ExpressionStatement({self.expression})"
@@ -533,12 +562,18 @@ proc `$`*(self: ASTNode): string =
         of returnStmt:
             var self = ReturnStmt(self)
             result &= &"Return({self.value})"
+        of yieldExpr:
+            var self = YieldExpr(self)
+            result &= &"Yield(expression={self.expression})"
         of ifStmt:
             var self = IfStmt(self)
             if self.elseBranch == nil:
                 result &= &"If(condition={self.condition}, thenBranch={self.thenBranch}, elseBranch=nil)"
             else:
                 result &= &"If(condition={self.condition}, thenBranch={self.thenBranch}, elseBranch={self.elseBranch})"
+        of yieldStmt:
+            var self = YieldStmt(self)
+            result &= &"YieldStmt(expression={self.expression})"
         of varDecl:
             var self = VarDecl(self)
             result &= &"Var(name={self.name}, value={self.value}, const={self.isConst}, static={self.isStatic}, private={self.isPrivate})"

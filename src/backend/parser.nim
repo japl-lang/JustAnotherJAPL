@@ -196,10 +196,6 @@ proc primary(self: Parser): ASTNode =
             if self.match(RightParen):
                 # This yields an empty tuple
                 result = newTupleExpr(@[])
-            elif self.match(Yield):
-                if self.context != Function:
-                    self.error("'yield' outside function")
-                result = newYieldExpr(self.expression())
             else:
                 result = self.expression()
                 if self.match(Comma):
@@ -213,6 +209,14 @@ proc primary(self: Parser): ASTNode =
                 else:
                     self.expect(RightParen, "unterminated parenthesized expression")
                     result = newGroupingExpr(result)
+        of Yield:
+            if self.context != Function:
+                self.error("'yield' cannot be outside functions")
+            result = newYieldExpr(self.expression())
+        of Await:
+            if self.context != Function:
+                self.error("'await' cannot be used outside functions")
+            result = newAwaitExpr(self.expression())
         of RightParen:
             # This is *technically* unnecessary: the parser would
             # throw an error regardless, but it's a little bit nicer
@@ -280,9 +284,7 @@ proc call(self: Parser): ASTNode =
 
 proc unary(self: Parser): ASTNode = 
     ## Parses unary expressions
-    if self.match([Minus, Tilde, Await]):
-        if self.peek(-1).kind == Await and self.context != Function:
-            self.error("'await' cannot be used outside functions")
+    if self.match([Minus, Tilde]):
         result = newUnaryExpr(self.peek(-1), self.unary())
     else:
         result = self.call()
@@ -476,8 +478,16 @@ proc returnStmt(self: Parser): ASTNode =
 proc yieldStmt(self: Parser): ASTNode =
     ## Parses yield Statements
     if self.context != Function:
-        self.error("'yield' outside function")
+        self.error("'yield' cannot be used outside functions")
     result = newYieldExpr(self.expression)
+    endOfLine("missing semicolon after yield statement")
+
+
+proc awaitStmt(self: Parser): ASTNode =
+    ## Parses yield Statements
+    if self.context != Function:
+        self.error("'await' cannot be used outside functions")
+    result = newAwaitExpr(self.expression)
     endOfLine("missing semicolon after yield statement")
 
 
@@ -653,20 +663,20 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
     # We do some analysis on the code of the function. Namely we check
     # if the user used 'await' in a non-async function and if the
     # function has any yield expressions in them, making it a 
-    # generator. Async generators are also (syntactically) supported
+    # generator. Async generators are also supported
     for line in BlockStmt(result.body).code:
         if line.kind == exprStmt:
-            if ExprStmt(line).expression.kind == unaryExpr:
-                if not result.isGenerator and UnaryExpr(ExprStmt(line).expression).operator.kind == Yield:
-                    # If the function has the isGenerator field already set, checking again
-                    # is redundant
-                    result.isGenerator = true
-                elif UnaryExpr(ExprStmt(line).expression).operator.kind == Await and not result.isAsync:
-                    self.error("'await' outside async function")
-        elif not result.isGenerator and line.kind == NodeKind.funDecl:
+            echo ExprStmt(line).expression.kind
+            if ExprStmt(line).expression.kind == yieldExpr:
+                result.isGenerator = true
+            elif not result.isAsync and ExprStmt(line).expression.kind == awaitExpr:
+                self.error("'await' cannot be used outside async functions")
+        elif line.kind == NodeKind.funDecl:
             # Nested function declarations with yield expressions as
             # default arguments are valid, but for them to work we
-            # need to make the containing function a generator!
+            # need to make the containing function a generator. These
+            # yield expressions will run in the outer function's scope
+            # and are lazily evaluated at runtime
             for default in FunDecl(line).defaults:
                 if default.kind == NodeKind.yieldExpr:
                     result.isGenerator = true
@@ -745,6 +755,9 @@ proc statement(self: Parser): ASTNode =
         of Yield:
             discard self.step()
             result = self.yieldStmt()
+        of Await:
+            discard self.step()
+            result = self.awaitStmt()
         else:
             result = self.expressionStatement()
 
@@ -796,7 +809,9 @@ proc declaration(self: Parser): ASTNode =
             let isStatic: bool = if self.peek(-1).kind == Static: true else: false
             if self.match(Async):
                 self.expect(Fun)
+                self.context = Function
                 result = self.funDecl(isStatic=isStatic, isPrivate=true, isAsync=true)
+                self.context = Script
             else:
                 case self.peek().kind:
                     of Var, Const:
@@ -815,7 +830,9 @@ proc declaration(self: Parser): ASTNode =
         of Async:
             discard self.step()
             self.expect(Fun)
+            self.context = Function
             result = self.funDecl(isAsync=true)
+            self.context = Script
         else:
             result = self.statement()
 

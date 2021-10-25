@@ -457,7 +457,8 @@ proc next(self: Lexer) =
         self.line += 1
     elif single in ['"', '\'']:
         if self.check(single) and self.check(single, 1):
-            # Multiline strings start with 3 apexes
+            # Multiline strings start with 3 quotes
+            discard self.step(2)
             self.parseString(single, "multi")
         else:
             self.parseString(single)
@@ -479,7 +480,7 @@ proc next(self: Lexer) =
     else:
         # Comments are a special case
         if single == '#':
-            while not self.check('\n'):
+            while not (self.check('\n') or self.done()):
                 discard self.step()
             return
         # We start by checking for multi-character tokens,

@@ -37,15 +37,14 @@ type
 
     Optimizer* = ref object
         warnings: seq[Warning]
-        dryRun: bool
+        foldConstants: bool
 
 
-proc initOptimizer*(self: Optimizer = nil): Optimizer =
+proc initOptimizer*(foldConstants: bool = true): Optimizer =
     ## Initializes a new optimizer object
-    ## or resets the state of an existing one
-    if self != nil:
-        result = self
     new(result)
+    result.foldConstants = foldConstants
+    result.warnings = @[]
 
 
 proc newWarning(self: Optimizer, kind: WarningKind, node: ASTNode) =
@@ -63,6 +62,8 @@ proc optimizeConstant(self: Optimizer, node: ASTNode): ASTNode =
     ## integers. This method converts all of the different
     ## integer forms (binary, octal and hexadecimal) to
     ## decimal integers. Overflows are checked here too
+    if not self.foldConstants:
+        return node
     case node.kind:
         of intExpr:
             var x: int
@@ -272,6 +273,8 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
     ## Analyzes an AST node and attempts to perform
     ## optimizations on it. If no optimization can be
     ## applied, the same node is returned
+    if not self.foldConstants:
+        return node
     case node.kind:
         of exprStmt:
             result = newExprStmt(self.optimizeNode(ExprStmt(node).expression))
@@ -321,7 +324,9 @@ proc optimize*(self: Optimizer, tree: seq[ASTNode]): tuple[tree: seq[ASTNode], w
     ## as well as a list of warnings that may
     ## be of interest. The input tree may be
     ## identical to the output tree if no optimization
-    ## could be performed
+    ## could be performed. Constant folding can be
+    ## turned off by setting foldConstants to false
+    ## when initializing the optimizer object
     var newTree: seq[ASTNode] = @[]
     for node in tree:
         newTree.add(self.optimizeNode(node))

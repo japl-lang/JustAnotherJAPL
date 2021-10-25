@@ -90,6 +90,7 @@ importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? "
 assertStmt     → "assert" expression ";";
 delStmt        → "del" expression ";";
 yieldStmt      → "yield" expression ";"; 
+awaitStmt      → "await" expression ";";
 continueStmt   → "continue" ";";
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
 ifStmt         → "if" "(" expression ")" statement ("else" statement)?;  // If statements are conditional jumps
@@ -100,15 +101,16 @@ foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement;
 
 // Expressions (rules that produce a value, but also have side effects)
 expression     → assignment;
-assignment     → (call ".")? IDENTIFIER "=" yield;  // Assignment is the highest-level expression
-yield          → "(" "yield" expression ")";
+assignment     → (call ".")? IDENTIFIER "=" expression;  // Assignment is the highest-level expression
+yieldExpr      → "yield" expression;
+awaitExpr      → "await" expression;
 logic_or       → logic_and ("and" logic_and)*;
 logic_and      → equality ("or" equality)*;
 equality       → comparison (( "!=" | "==" ) comparison )*;
 comparison     → term (( ">" | ">=" | "<" | "<=" ) term )*;
 term           → factor (( "-" | "+" ) factor )*;  // Precedence for + and - in operations
 factor         → unary (("/" | "*" | "**" | "^" | "&") unary)*;  // All other binary operators have the same precedence
-unary          → ("!" | "-" | "~" | "await") unary | call;
+unary          → ("!" | "-" | "~") unary | call;
 call           → primary ("(" arguments? ")" | "." IDENTIFIER)*;
 // Below are some collection literals: lists, sets, dictionaries and tuples
 listExpr       → "[" arguments? "]"
