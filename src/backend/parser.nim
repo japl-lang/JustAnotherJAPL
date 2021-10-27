@@ -502,6 +502,14 @@ proc breakStmt(self: Parser): ASTNode =
     result = newBreakStmt()
 
 
+proc deferStmt(self: Parser): ASTNode =
+    ## Parses break statements
+    if self.context != Function:
+        self.error("'defer' cannot be used outside functions")
+    result = newDeferStmt(self.expression())
+    endOfLine("missing semicolon after defer statement")
+
+
 proc continueStmt(self: Parser): ASTNode =
     ## Parses break statements
     if self.currentLoop != Loop:
@@ -891,6 +899,9 @@ proc statement(self: Parser): ASTNode =
         of Await:
             discard self.step()
             result = self.awaitStmt()
+        of Defer:
+            discard self.step()
+            result = self.deferStmt()
         else:
             result = self.expressionStatement()
 
@@ -963,7 +974,6 @@ proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
     self.tokens = tokens
     self.file = file
     self.current = 0
-    
     self.currentLoop = None
     while not self.done():
         result.add(self.declaration())

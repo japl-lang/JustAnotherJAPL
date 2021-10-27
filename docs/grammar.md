@@ -84,6 +84,7 @@ varDecl        → declModifiers? ("var" | | "const") IDENTIFIER ( "=" expressio
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements
 exprStmt       → expression ";";  // Any expression followed by a semicolon is technically a statement
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
+deferStmt      → "defer" expression ";";
 breakStmt      → "break" ";";
 importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ","?)+ ";";
 assertStmt     → "assert" expression ";";

@@ -49,6 +49,7 @@ type
         awaitStmt,
         fromImportStmt,
         importStmt,
+        deferStmt,
         # An expression followed by a semicolon
         exprStmt,
         # Expressions
@@ -212,6 +213,9 @@ type
         expression*: ASTNode
         body*: ASTNode
 
+    DeferStmt* = ref object of ASTNode
+        deferred*: ASTNode
+    
     WhileStmt* = ref object of ASTNode
         condition*: ASTNode
         body*: ASTNode
@@ -448,6 +452,11 @@ proc newAssertStmt*(expression: ASTNode): AssertStmt =
     result.expression = expression
 
 
+proc newDeferStmt*(deferred: ASTNode): DeferStmt =
+    result = DeferStmt(kind: deferStmt)
+    result.deferred = deferred
+
+
 proc newRaiseStmt*(exception: ASTNode): RaiseStmt =
     result = RaiseStmt(kind: raiseStmt)
     result.exception = exception
@@ -626,5 +635,8 @@ proc `$`*(self: ASTNode): string =
         of lambdaExpr:
             var self = LambdaExpr(self)
             result &= &"Lambda(body={self.body}, arguments=[{self.arguments.join(\", \")}], defaults=[{self.defaults.join(\", \")}], generator={self.isGenerator})"
+        of deferStmt:
+            var self = DeferStmt(self)
+            result &= &"Defer({self.deferred})"
         else:
             discard    
