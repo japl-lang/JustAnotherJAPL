@@ -73,51 +73,57 @@ Below you can find the EBNF specification of NimVM's grammar.
 // Top-level code
 program        → declaration* EOF; // An entire program (Note: an empty program is a valid program)
 
-// Declarations (rules that bind a name to an object in the current scope and produce side effects)
+// Declarations (rules that bind a name to an object in the current scope and produce no side effects)
 declaration    → classDecl | funDecl | varDecl | statement;  // A program is composed by a list of declarations
 classDecl      → declModifiers? "class" IDENTIFIER ("<" IDENTIFIER ("," IDENTIFIER)*)? blockStmt;   // Declares a class
 funDecl        → declModifiers? "async"? "fun" function;   // Function declarations
-// Constants still count as "variable" declarations in the grammar
-varDecl        → declModifiers? ("var" | | "const") IDENTIFIER ( "=" expression )? ";";
+varDecl        → declModifiers? ("var" | | "const") IDENTIFIER ( "=" expression )? ";"; // Constants still count as "variable" declarations in the grammar
 
-// Statements (rules that produce side effects but without binding a name. Well, mostly: import, for and foreach do, but w/e)
+// Statements (rules that produce side effects, without binding a name. Well, mostly: import, for, foreach and others do, but they're exceptions to the rule)
 statement      → exprStmt | forStmt | ifStmt | returnStmt| whileStmt| blockStmt;  // The set of all statements
-exprStmt       → expression ";";  // Any expression followed by a semicolon is technically a statement
+exprStmt       → expression ";";  // Any expression followed by a semicolon is an expression statement
 returnStmt     → "return" expression? ";";  // Returns from a function, illegal in top-level code
+// Defers the evaluation of the given expression right before a function exits, illegal in top-level code. Semantically and functionally equivalent to wrapping a function in a big try block and executing the expression in the finally block, but less verbose
 deferStmt      → "defer" expression ";";
-breakStmt      → "break" ";";
-importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ","?)+ ";";
-assertStmt     → "assert" expression ";";
-delStmt        → "del" expression ";";
-yieldStmt      → "yield" expression ";"; 
-awaitStmt      → "await" expression ";";
-continueStmt   → "continue" ";";
+breakStmt      → "break" ";";  // Breaks out of a loop
+continueStmt   → "continue" ";";  // Skips to the next iteration in a loop
+importStmt     -> ("from" IDENTIFIER)? "import" (IDENTIFIER ("as" IDENTIFIER)? ","?)+ ";";  // Imports one or more modules in the current scope. Creates a namespace
+assertStmt     → "assert" expression ";";  // Raises an error if the given expression evaluates to a falsey value
+delStmt        → "del" expression ";";     // Unbinds a name in the current scope. Raises an error if it doesn't exist
+// Returns a value to the caller, pausing the execution of the callee while preserving the scope of the function.
+// An empty yield yields nil. The yield statement (together with yield expressions) allows for efficient custom iterators
+yieldStmt      → "yield" expression? ";";
+awaitStmt      → "await" expression ";";    // Pauses the execution of the calling coroutine and calls the given coroutine. Execution continues when the callee returns
+// Exception handling. Multiple except clauses are allowed. Using an "as" expression in the except clause assigns the value of the current exception
+// to the given name. The finally clause, if present, is executed regardless of whether the try block raises an exception, meaning it even overrides return,
+// break and continue statements and it must be below all except clauses. The else clause, if present, is executed when the try block doesn't raise an exception.
+// It must be the last statement of the block
+tryStmt        → "try" statement (("except" IDENTIFIER ("as" IDENTIFIER)? statement)+ "finally" statement | "finally" statement) ("else" statement)?;
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
 ifStmt         → "if" "(" expression ")" statement ("else" statement)?;  // If statements are conditional jumps
 whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy
 forStmt        → "for" "(" (varDecl | exprStmt | ";") expression? ";" expression? ")" statement;  // C-style for loops
-// For-each loops iterate over a collection type
-foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement;
+foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement; // For-each loops iterate over a collection type
 
-// Expressions (rules that produce a value, but also have side effects)
-expression     → assignment;
-assignment     → (call ".")? IDENTIFIER "=" assignment | lambdaExpr;  // Assignment is the highest-level expression
+// Expressions (rules that produce a value and have side effects)
+expression     → assignment;  // Assignment is the highest-level expression
+assignment     → (call ".")? IDENTIFIER "=" assignment | lambdaExpr;
 lambdaExpr     → "lambda" lambda;  // Lambdas are anonymous functions, so they act as expressions
-yieldExpr      → "yield" expression;
+yieldExpr      → "yield" expression?; // Empty yield equals yield nil
 awaitExpr      → "await" expression;
 logic_or       → logic_and ("and" logic_and)*;
 logic_and      → equality ("or" equality)*;
-equality       → comparison (( "!=" | "==") comparison )*;
-comparison     → term (( ">" | ">=" | "<" | "<=" | "as" | "is" | "of") term )*;
-term           → factor (( "-" | "+" ) factor )*;  // Precedence for + and - in operations
+equality       → comparison (("!=" | "==") comparison)*;
+comparison     → term ((">" | ">=" | "<" | "<=" | "as" | "is" | "of") term)*;
+term           → factor (("-" | "+") factor)*;  // Precedence for + and - in operations
 factor         → unary (("/" | "*" | "**" | "^" | "&") unary)*;  // All other binary operators have the same precedence
 unary          → ("!" | "-" | "~") unary | call;
 call           → primary ("(" arguments? ")" | "." IDENTIFIER)*;
 // Below are some collection literals: lists, sets, dictionaries and tuples
-listExpr       → "[" arguments? "]"
-setExpr        → "{" arguments? "}"
-dictExpr       → "{" (expression ":" expression ("," expression ":" expression)*)? "}"  // {key: value, ...}
-tupleExpr      → "(" arguments? ")"
+listExpr       → "[" arguments* "]";
+setExpr        → "{" arguments? "}"; // Note: {} is an empty dictionary, NOT an empty set
+dictExpr       → "{" (expression ":" expression ("," expression ":" expression)*)* "}"; // {key: value, ...}
+tupleExpr      → "(" arguments* ")";
 primary        → "nan" | "true" | "false" | "nil" | "inf" | NUMBER | STRING | IDENTIFIER | "(" expression ")" "." IDENTIFIER;
 
 // Utility rules to avoid repetition
