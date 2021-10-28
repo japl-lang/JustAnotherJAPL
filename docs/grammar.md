@@ -118,6 +118,7 @@ comparison     → term ((">" | ">=" | "<" | "<=" | "as" | "is" | "of") term)*;
 term           → factor (("-" | "+") factor)*;  // Precedence for + and - in operations
 factor         → unary (("/" | "*" | "**" | "^" | "&") unary)*;  // All other binary operators have the same precedence
 unary          → ("!" | "-" | "~") unary | call;
+slice          → expression "[" expression (":" expression){0,2} "]"
 call           → primary ("(" arguments? ")" | "." IDENTIFIER)*;
 // Below are some collection literals: lists, sets, dictionaries and tuples
 listExpr       → "[" arguments* "]";

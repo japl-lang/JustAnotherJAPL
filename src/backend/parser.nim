@@ -328,6 +328,14 @@ proc call(self: Parser): ASTNode =
         elif self.match(Dot):
             self.expect(Identifier, "expecting attribute name after '.'")
             result = newGetItemExpr(result, newIdentExpr(self.peek(-1)))
+        elif self.match(LeftBracket):
+            var ends: seq[ASTNode] = @[]
+            while not self.match(RightBracket) and ends.len() < 3:
+                ends.add(self.expression())
+                discard self.match(Colon)
+            if ends.len() < 1:
+                self.error("invalid syntax")
+            result = newSliceExpr(result, ends)
         else:
             break
 
@@ -441,11 +449,12 @@ proc bitwiseOr(self: Parser): ASTNode =
 
 proc assignment(self: Parser): ASTNode =
     ## Parses assignment, the highest-level
-    ## expression (including stuff like a.b = 1)
+    ## expression (including stuff like a.b = 1).
+    ## Slice assignments are also parsed here
     result = self.bitwiseOr()
     if self.match(Equal):
         var value = self.expression()
-        if result.kind == identExpr:
+        if result.kind in {identExpr, sliceExpr}:
             result = newAssignExpr(result, value)
         elif result.kind == getItemExpr:
             result = newSetItemExpr(GetItemExpr(result).obj, GetItemExpr(result).name, value)
@@ -503,7 +512,7 @@ proc breakStmt(self: Parser): ASTNode =
 
 
 proc deferStmt(self: Parser): ASTNode =
-    ## Parses break statements
+    ## Parses defer statements
     if self.context != Function:
         self.error("'defer' cannot be used outside functions")
     result = newDeferStmt(self.expression())
@@ -511,7 +520,7 @@ proc deferStmt(self: Parser): ASTNode =
 
 
 proc continueStmt(self: Parser): ASTNode =
-    ## Parses break statements
+    ## Parses continue statements
     if self.currentLoop != Loop:
         self.error("'continue' cannot be used outside loops")
     endOfLine("missing semicolon after continue statement")
@@ -601,6 +610,38 @@ proc fromStmt(self: Parser): ASTNode =
     # from x import a [, b, c, ...];
     endOfLine("missing semicolon after import statement")
     result = newFromImportStmt(result, attributes)
+
+
+proc tryStmt(self: Parser): ASTNode =
+    ## Parses try/except/finally/else blocks
+    var body = self.statement()
+    var handlers: seq[tuple[body, exc, name: ASTNode]] = @[]
+    var finallyClause: ASTNode
+    var elseClause: ASTNode
+    var asName: ASTNode
+    var excName: ASTNode
+    var handlerBody: ASTNode
+    while self.match(Except):
+        excName = self.expression()
+        if excName.kind == identExpr:
+            discard
+        elif excName.kind == binaryExpr and BinaryExpr(excName).operator.kind == As:
+            asName = BinaryExpr(excName).b
+            if BinaryExpr(excName).a.kind != identExpr:
+                self.error("expecting alias name after 'except ... as'")
+            excName = BinaryExpr(excName).a
+        else:
+            self.error("expecting exception name after 'except'") 
+        handlerBody = self.statement()
+        handlers.add((body: handlerBody, exc: excName, name: asName))
+        asName = nil
+    if self.match(Finally):
+        finallyClause = self.statement()
+    if self.match(Else):
+        elseClause = self.statement()
+    if handlers.len() == 0 and elseClause == nil and finallyClause == nil:
+        self.error("expecting 'except', 'finally' or 'else' statements after 'try' block")
+    result = newTryStmt(body, handlers, finallyClause, elseClause)
 
 
 proc whileStmt(self: Parser): ASTNode =
@@ -902,6 +943,9 @@ proc statement(self: Parser): ASTNode =
         of Defer:
             discard self.step()
             result = self.deferStmt()
+        of Try:
+            discard self.step()
+            result = self.tryStmt()
         else:
             result = self.expressionStatement()
 

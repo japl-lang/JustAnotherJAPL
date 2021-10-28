@@ -87,7 +87,9 @@ const keywords = to_table({
                 "foreach": Foreach, "yield": Yield,
                 "private": Private, "public": Public,
                 "static": Static, "dynamic": Dynamic,
-                "as": As, "of": Of, "defer": Defer
+                "as": As, "of": Of, "defer": Defer,
+                "except": Except, "finally": Finally,
+                "try": Try
     })
 
 

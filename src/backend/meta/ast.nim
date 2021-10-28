@@ -45,6 +45,7 @@ type
         raiseStmt,
         assertStmt,
         delStmt,
+        tryStmt,
         yieldStmt,
         awaitStmt,
         fromImportStmt,
@@ -60,6 +61,7 @@ type
         setItemExpr,  # Set expressions like a.b = "c"
         binaryExpr,
         unaryExpr,
+        sliceExpr,
         callExpr,
         getItemExpr,  # Get expressions like a.b
         # Primary expressions
@@ -179,6 +181,10 @@ type
         defaults*: seq[ASTNode]
         isGenerator*: bool
 
+    SliceExpr* = ref object of ASTNode
+        slicee*: ASTNode
+        ends*: seq[ASTNode]
+
     AssignExpr* = ref object of ASTNode
         name*: ASTNode
         value*: ASTNode
@@ -216,6 +222,12 @@ type
     DeferStmt* = ref object of ASTNode
         deferred*: ASTNode
     
+    TryStmt* = ref object of ASTNode
+        body*: ASTNode
+        handlers*: seq[tuple[body: ASTNode, exc: ASTNode, name: ASTNode]]
+        finallyClause*: ASTNode
+        elseClause*: ASTNode
+
     WhileStmt* = ref object of ASTNode
         condition*: ASTNode
         body*: ASTNode
@@ -387,6 +399,12 @@ proc newCallExpr*(callee: ASTNode, arguments: tuple[positionals: seq[ASTNode], k
     result.arguments = arguments
 
 
+proc newSliceExpr*(slicee: ASTNode, ends: seq[ASTNode]): SliceExpr =
+    result = SliceExpr(kind: sliceExpr)
+    result.slicee = slicee
+    result.ends = ends
+
+
 proc newUnaryExpr*(operator: Token, a: ASTNode): UnaryExpr =
     result = UnaryExpr(kind: unaryExpr)
     result.operator = operator
@@ -460,6 +478,16 @@ proc newDeferStmt*(deferred: ASTNode): DeferStmt =
 proc newRaiseStmt*(exception: ASTNode): RaiseStmt =
     result = RaiseStmt(kind: raiseStmt)
     result.exception = exception
+
+
+proc newTryStmt*(body: ASTNode, handlers: seq[tuple[body: ASTNode, exc: ASTNode, name: ASTNode]],
+                 finallyClause: ASTNode,
+                 elseClause: ASTNode): TryStmt =
+    result = TryStmt(kind: tryStmt)
+    result.body = body
+    result.handlers = handlers
+    result.finallyClause = finallyClause
+    result.elseClause = elseClause
 
 
 proc newBlockStmt*(code: seq[ASTNode]): BlockStmt =
@@ -556,13 +584,13 @@ proc `$`*(self: ASTNode): string =
             result &= &"Call({self.callee}, arguments=(positionals=[{self.arguments.positionals.join(\", \")}], keyword=[{self.arguments.keyword.join(\", \")}]))"
         of unaryExpr:
             var self = UnaryExpr(self)
-            result &= &"Unary(Operator('{self.operator}'), {self.a})"
+            result &= &"Unary(Operator('{self.operator.lexeme}'), {self.a})"
         of binaryExpr:
             var self = BinaryExpr(self)
             result &= &"Binary({self.a}, Operator('{self.operator.lexeme}'), {self.b})"
         of assignExpr:
             var self = AssignExpr(self)
-            result &= &"Assign(name='{self.name}', value={self.value})"
+            result &= &"Assign(name={self.name}, value={self.value})"
         of exprStmt:
             var self = ExprStmt(self)
             result &= &"ExpressionStatement({self.expression})"
@@ -638,5 +666,20 @@ proc `$`*(self: ASTNode): string =
         of deferStmt:
             var self = DeferStmt(self)
             result &= &"Defer({self.deferred})"
+        of sliceExpr:
+            var self = SliceExpr(self)
+            result &= &"Slice({self.slicee}, ends=[{self.ends.join(\", \")}])"
+        of tryStmt:
+            var self = TryStmt(self)
+            result &= &"TryStmt(body={self.body}, handlers={self.handlers}"
+            if self.finallyClause != nil:
+                result &= &", finallyClause={self.finallyClause}"
+            else:
+                result &= ", finallyClause=nil"
+            if self.elseClause != nil:
+                result &= &", elseClause={self.elseClause}"
+            else:
+                result &= ", elseClause=nil"
+            result &= ")"
         else:
             discard    

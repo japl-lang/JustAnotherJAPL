@@ -293,6 +293,22 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
             for i, (key, value) in node.arguments.keyword:
                 node.arguments.keyword[i].value = self.optimizeNode(value)
             result = node
+        of sliceExpr:
+            var node = SliceExpr(node)
+            for i, e in node.ends:
+                node.ends[i] = self.optimizeNode(e)
+            node.slicee = self.optimizeNode(node.slicee)
+            result = node
+        of tryStmt:
+            var node = TryStmt(node)
+            node.body = self.optimizeNode(node.body)
+            if node.finallyClause != nil:
+                node.finallyClause = self.optimizeNode(node.finallyClause)
+            if node.elseClause != nil:
+                node.elseClause = self.optimizeNode(node.elseClause)
+            for i, handler in node.handlers:
+                node.handlers[i].body = self.optimizeNode(node.handlers[i].body)
+            result = node
         of funDecl:
             var decl = FunDecl(node)
             for i, node in decl.defaults:
