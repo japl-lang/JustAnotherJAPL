@@ -753,10 +753,28 @@ proc validateFunction(self: Parser, f: FunDecl) =
     for line in BlockStmt(f.body).code:
         case line.kind:
             of exprStmt:
-                if ExprStmt(line).expression.kind == yieldExpr:
-                    f.isGenerator = true
-                elif ExprStmt(line).expression.kind == awaitExpr and not f.isAsync:
-                    self.error("'await' cannot be used outside async functions")
+                case ExprStmt(line).expression.kind:
+                    of yieldExpr:
+                        f.isGenerator = true
+                    of awaitExpr:
+                        if not f.isAsync:
+                            self.error("'await' cannot be used outside async functions")
+                    of callExpr:
+                        var line = CallExpr(ExprStmt(line).expression)
+                        for argument in line.arguments.positionals:
+                            if argument.kind == yieldExpr:
+                                f.isGenerator = true
+                            elif argument.kind == awaitExpr:
+                                if not f.isAsync:
+                                    self.error("'await' cannot be used outside async functions")
+                        for argument in line.arguments.keyword:
+                            if argument.value.kind == yieldExpr:
+                                f.isGenerator = true
+                            elif argument.value.kind == awaitExpr:
+                                if not f.isAsync:
+                                    self.error("'await' cannot be used outside async functions")
+                    else:
+                        discard
             of NodeKind.yieldStmt:
                 f.isGenerator = true
             of NodeKind.awaitStmt:
@@ -787,17 +805,31 @@ proc validateFunction(self: Parser, f: FunDecl) =
 
 proc validateFunction(self: Parser, f: LambdaExpr) =
     # Does some analysis on the code of the function. Namely it checks
-    # if the user used 'await' in a non-async function and if the
-    # function has any yield expressions in them, making it a 
-    # generator. Async generators are also supported. This modifies
-    # the isGenerator field of f in-place since it's a ref object
+    # if the user used 'await' in a lambda (which is invalid) and if the
+    # function has any yield expressions in them, making it a generator
+    # This modifies the isGenerator field of f in-place since it's a ref object
     for line in BlockStmt(f.body).code:
         case line.kind:
             of exprStmt:
-                if ExprStmt(line).expression.kind == yieldExpr:
-                    f.isGenerator = true
-                elif ExprStmt(line).expression.kind == awaitExpr:
-                    self.error("'await' cannot be used outside async functions")
+                case ExprStmt(line).expression.kind:
+                    of yieldExpr:
+                        f.isGenerator = true
+                    of awaitExpr:
+                        self.error("'await' cannot be used outside async functions")
+                    of callExpr:
+                        var line = CallExpr(ExprStmt(line).expression)
+                        for argument in line.arguments.positionals:
+                            if argument.kind == yieldExpr:
+                                f.isGenerator = true
+                            elif argument.kind == awaitExpr:
+                                self.error("'await' cannot be used outside async functions")
+                        for argument in line.arguments.keyword:
+                            if argument.value.kind == yieldExpr:
+                                f.isGenerator = true
+                            elif argument.value.kind == awaitExpr:
+                                self.error("'await' cannot be used outside async functions")
+                    else:
+                        discard
             of NodeKind.yieldStmt:
                 f.isGenerator = true
             of NodeKind.awaitStmt:
@@ -892,7 +924,7 @@ proc expressionStatement(self: Parser): ASTNode =
     ## Parses expression statements, which
     ## are expressions followed by a semicolon
     var expression = self.expression()
-    endOfLIne("missing semicolon after expression")
+    endOfLine("missing semicolon after expression")
     result = newExprStmt(expression)
 
 
