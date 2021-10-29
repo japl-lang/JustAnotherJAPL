@@ -144,6 +144,8 @@ proc peek(self: Lexer, distance: int = 0): char =
     ## negative to retrieve previously consumed
     ## tokens, while the default distance is 0
     ## (retrieves the next token to be consumed).
+    ## If the given distance goes beyond EOF, a
+    ## null terminator is returned
     if self.done() or self.current + distance > self.source.high():
         result = '\0'
     else:
