@@ -26,8 +26,6 @@ export token, ast, errors
 
 
 type 
-    ParseContext = enum
-        Script, Function
     
     LoopContext = enum
         Loop, None
@@ -35,12 +33,42 @@ type
     Parser* = ref object
         ## A recursive-descent top-down
         ## parser implementation
+        # Index into self.tokens
         current: int
+        # The name of the file being parsed.
+        # Only meaningful for parse errors
         file: string
+        # The list of tokens representing
+        # the source code to be parsed.
+        # In most cases, those will come
+        # from the builtin lexer, but this
+        # behavior is not enforced and the
+        # tokenizer is entirely separate from
+        # the parser
         tokens: seq[Token]
-        context: ParseContext
+        # Little internal attribute that tells
+        # us if we're inside a loop or not. This
+        # allows us to detect errors like break
+        # being used outside loops
         currentLoop: LoopContext
+        # Stores the current function
+        # being parsed. This is a reference
+        # to either a FunDecl or LambdaExpr
+        # AST node and is mostly used to allow
+        # implicit generators to work. What that
+        # means is that there is no need for the
+        # programmer to specifiy a function is a
+        # generator like in nim, (which uses the
+        # 'iterator' keyword): any function is 
+        # automatically a generator if it contains
+        # any number of yield statement(s) or 
+        # yield expression(s). This attribute
+        # is nil when the parser is at the top-level
+        # code and is what allows the parser to detect
+        # errors like return outside functions before
+        # compilation even begins
         currentFunction: ASTNode
+
 
 proc initParser*(): Parser = 
     ## Initializes a new Parser object
@@ -48,12 +76,12 @@ proc initParser*(): Parser =
     result.current = 0
     result.file = ""
     result.tokens = @[]
-    result.context = Script
     result.currentFunction = nil
     result.currentLoop = None
 
 
 # Handy templates to make our life easier, thanks nim!
+
 template endOfFile: Token = Token(kind: EndOfFile, lexeme: "", line: -1)
 template endOfLine(msg: string) = self.expect(Semicolon, msg)
 
@@ -257,7 +285,7 @@ proc primary(self: Parser): ASTNode =
                     result = dictObject
         of Yield:
             discard self.step()
-            if self.context != Function:
+            if self.currentFunction == nil:
                 self.error("'yield' cannot be outside functions")
             if self.currentFunction.kind == funDecl:
                 FunDecl(self.currentFunction).isGenerator = true
@@ -269,7 +297,7 @@ proc primary(self: Parser): ASTNode =
                 result = newYieldExpr(newNilExpr())
         of Await:
             discard self.step()
-            if self.context != Function:
+            if self.currentFunction == nil:
                 self.error("'await' cannot be used outside functions")
             if self.currentFunction.kind == lambdaExpr or not FunDecl(self.currentFunction).isAsync:
                 self.error("'await' can only be used inside async functions")
@@ -521,7 +549,7 @@ proc breakStmt(self: Parser): ASTNode =
 
 proc deferStmt(self: Parser): ASTNode =
     ## Parses defer statements
-    if self.context != Function:
+    if self.currentFunction == nil:
         self.error("'defer' cannot be used outside functions")
     result = newDeferStmt(self.expression())
     endOfLine("missing semicolon after defer statement")
@@ -537,7 +565,7 @@ proc continueStmt(self: Parser): ASTNode =
 
 proc returnStmt(self: Parser): ASTNode =
     ## Parses return statements
-    if self.context != Function:
+    if self.currentFunction == nil:
         self.error("'return' cannot be used outside functions")
     var value: ASTNode
     if not self.check(Semicolon):
@@ -552,7 +580,7 @@ proc returnStmt(self: Parser): ASTNode =
 
 proc yieldStmt(self: Parser): ASTNode =
     ## Parses yield Statements
-    if self.context != Function:
+    if self.currentFunction == nil:
         self.error("'yield' cannot be outside functions")
     if self.currentFunction.kind == funDecl:
         FunDecl(self.currentFunction).isGenerator = true
@@ -567,7 +595,7 @@ proc yieldStmt(self: Parser): ASTNode =
 
 proc awaitStmt(self: Parser): ASTNode =
     ## Parses yield Statements
-    if self.context != Function:
+    if self.currentFunction == nil:
         self.error("'await' cannot be used outside functions")
     if self.currentFunction.kind == lambdaExpr or not FunDecl(self.currentFunction).isAsync:
         self.error("'await' can only be used inside async functions")
@@ -758,8 +786,6 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
 proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true, isLambda: bool = false): ASTNode =
     ## Parses function and lambda declarations. Note that lambdas count as expressions!
     var enclosingFunction = self.currentFunction
-    let enclosingContext = self.context
-    self.context = Function
     var arguments: seq[ASTNode] = @[]
     var defaults: seq[ASTNode] = @[]
     if not isLambda:
@@ -795,7 +821,6 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
         FunDecl(self.currentFunction).body = self.blockStmt()
     else:
         LambdaExpr(self.currentFunction).body = self.blockStmt()
-    self.context = enclosingContext
     result = self.currentFunction
     self.currentFunction = enclosingFunction
 
