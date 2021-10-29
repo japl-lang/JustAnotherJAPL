@@ -755,7 +755,6 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
             discard  # Unreachable
 
 
-
 proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true, isLambda: bool = false): ASTNode =
     ## Parses function and lambda declarations. Note that lambdas count as expressions!
     var enclosingFunction = self.currentFunction
@@ -763,11 +762,10 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
     self.context = Function
     var arguments: seq[ASTNode] = @[]
     var defaults: seq[ASTNode] = @[]
-    var body: ASTNode = newBlockStmt(@[])
     if not isLambda:
-        self.currentFunction = newFunDecl(nil, arguments, defaults, body, isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate)
+        self.currentFunction = newFunDecl(nil, arguments, defaults, newBlockStmt(@[]), isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate)
     else:
-        self.currentFunction = newLambdaExpr(arguments, defaults, body, isGenerator=false)
+        self.currentFunction = newLambdaExpr(arguments, defaults, newBlockStmt(@[]), isGenerator=false)
     if not isLambda:
         self.expect(Identifier, "expecting function name after 'fun'")
         FunDecl(self.currentFunction).name = newIdentExpr(self.peek(-1))
@@ -793,7 +791,10 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
                 break
         self.expect(RightParen)
         self.expect(LeftBrace)
-    body = self.blockStmt()
+    if not isLambda:
+        FunDecl(self.currentFunction).body = self.blockStmt()
+    else:
+        LambdaExpr(self.currentFunction).body = self.blockStmt()
     self.context = enclosingContext
     result = self.currentFunction
     self.currentFunction = enclosingFunction
