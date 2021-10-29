@@ -729,7 +729,7 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
             self.error("the initializer for constant declarations must be a primitive and constant type")
     else:
         if varKind.kind == Const:
-            self.error("constant declaration requires a value")
+            self.error("constant declaration requires an explicit initializer")
         value = newNilExpr()
     self.expect(Semicolon, &"expecting semicolon after {keyword} declaration")
     case varKind.kind:
