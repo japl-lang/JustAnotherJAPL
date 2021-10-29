@@ -315,7 +315,7 @@ proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
     ## lines and escape sequences in them are not parsed, like in raw
     ## strings, so a multi-line string prefixed with the "r" modifier
     ## is redundant, although multi-line byte strings are supported
-    while not self.check(delimiter):
+    while not self.check(delimiter) and not self.done():
         if self.check('\n'):
             if mode == "multi":
                 self.line = self.line + 1

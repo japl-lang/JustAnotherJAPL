@@ -40,7 +40,7 @@ type
         tokens: seq[Token]
         context: ParseContext
         currentLoop: LoopContext
-
+        currentFunction: ASTNode
 
 proc initParser*(): Parser = 
     ## Initializes a new Parser object
@@ -49,6 +49,8 @@ proc initParser*(): Parser =
     result.file = ""
     result.tokens = @[]
     result.context = Script
+    result.currentFunction = nil
+    result.currentLoop = None
 
 
 # Handy templates to make our life easier, thanks nim!
@@ -257,6 +259,10 @@ proc primary(self: Parser): ASTNode =
             discard self.step()
             if self.context != Function:
                 self.error("'yield' cannot be outside functions")
+            if self.currentFunction.kind == funDecl:
+                FunDecl(self.currentFunction).isGenerator = true
+            else:
+                LambdaExpr(self.currentFunction).isGenerator = true
             if not self.check([RightBrace, RightBracket, RightParen, Comma, Semicolon]):
                 result = newYieldExpr(self.expression())
             else:
@@ -265,6 +271,8 @@ proc primary(self: Parser): ASTNode =
             discard self.step()
             if self.context != Function:
                 self.error("'await' cannot be used outside functions")
+            if self.currentFunction.kind == lambdaExpr or not FunDecl(self.currentFunction).isAsync:
+                self.error("'await' can only be used inside async functions")
             result = newAwaitExpr(self.expression())
         of Lambda:
             discard self.step()
@@ -545,7 +553,11 @@ proc returnStmt(self: Parser): ASTNode =
 proc yieldStmt(self: Parser): ASTNode =
     ## Parses yield Statements
     if self.context != Function:
-        self.error("'yield' cannot be used outside functions")
+        self.error("'yield' cannot be outside functions")
+    if self.currentFunction.kind == funDecl:
+        FunDecl(self.currentFunction).isGenerator = true
+    else:
+        LambdaExpr(self.currentFunction).isGenerator = true
     if not self.check(Semicolon):
         result = newYieldStmt(self.expression())
     else:
@@ -557,6 +569,8 @@ proc awaitStmt(self: Parser): ASTNode =
     ## Parses yield Statements
     if self.context != Function:
         self.error("'await' cannot be used outside functions")
+    if self.currentFunction.kind == lambdaExpr or not FunDecl(self.currentFunction).isAsync:
+        self.error("'await' can only be used inside async functions")
     result = newAwaitStmt(self.expression())
     endOfLine("missing semicolon after yield statement")
 
@@ -740,134 +754,23 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
         else:
             discard  # Unreachable
 
-proc validateFunction(self: Parser, f: FunDecl)
-proc validateFunction(self: Parser, f: LambdaExpr)
-
-
-proc validateFunction(self: Parser, f: FunDecl) =
-    # Does some analysis on the code of the function. Namely it checks
-    # if the user used 'await' in a non-async function and if the
-    # function has any yield expressions in them, making it a 
-    # generator. Async generators are also supported. This modifies
-    # the isGenerator field of f in-place since it's a ref object
-    for line in BlockStmt(f.body).code:
-        case line.kind:
-            of exprStmt:
-                case ExprStmt(line).expression.kind:
-                    of yieldExpr:
-                        f.isGenerator = true
-                    of awaitExpr:
-                        if not f.isAsync:
-                            self.error("'await' cannot be used outside async functions")
-                    of callExpr:
-                        var line = CallExpr(ExprStmt(line).expression)
-                        for argument in line.arguments.positionals:
-                            if argument.kind == yieldExpr:
-                                f.isGenerator = true
-                            elif argument.kind == awaitExpr:
-                                if not f.isAsync:
-                                    self.error("'await' cannot be used outside async functions")
-                        for argument in line.arguments.keyword:
-                            if argument.value.kind == yieldExpr:
-                                f.isGenerator = true
-                            elif argument.value.kind == awaitExpr:
-                                if not f.isAsync:
-                                    self.error("'await' cannot be used outside async functions")
-                    else:
-                        discard
-            of NodeKind.yieldStmt:
-                f.isGenerator = true
-            of NodeKind.awaitStmt:
-                if not f.isAsync:
-                    self.error("'await' cannot be used outside async functions")
-            of NodeKind.funDecl:
-                # Nested function declarations with yield expressions as
-                # default arguments are valid, but for them to work we
-                # need to make the containing function a generator. These
-                # yield expressions will run in the outer function's scope
-                # and are lazily evaluated at runtime
-                for default in FunDecl(line).defaults:
-                    if default.kind == NodeKind.yieldExpr:
-                        f.isGenerator = true
-                    elif default.kind == NodeKind.awaitExpr and not f.isAsync:
-                        self.error("'await' cannot be used outside async functions")
-                self.validateFunction(FunDecl(line))
-            of NodeKind.lambdaExpr:
-                for default in LambdaExpr(line).defaults:
-                    if default.kind == NodeKind.yieldExpr:
-                        f.isGenerator = true
-                    elif default.kind == NodeKind.awaitExpr and not f.isAsync:
-                        self.error("'await' cannot be used outside async functions")
-                self.validateFunction(LambdaExpr(line))
-            else:
-                discard
-
-
-proc validateFunction(self: Parser, f: LambdaExpr) =
-    # Does some analysis on the code of the function. Namely it checks
-    # if the user used 'await' in a lambda (which is invalid) and if the
-    # function has any yield expressions in them, making it a generator
-    # This modifies the isGenerator field of f in-place since it's a ref object
-    for line in BlockStmt(f.body).code:
-        case line.kind:
-            of exprStmt:
-                case ExprStmt(line).expression.kind:
-                    of yieldExpr:
-                        f.isGenerator = true
-                    of awaitExpr:
-                        self.error("'await' cannot be used outside async functions")
-                    of callExpr:
-                        var line = CallExpr(ExprStmt(line).expression)
-                        for argument in line.arguments.positionals:
-                            if argument.kind == yieldExpr:
-                                f.isGenerator = true
-                            elif argument.kind == awaitExpr:
-                                self.error("'await' cannot be used outside async functions")
-                        for argument in line.arguments.keyword:
-                            if argument.value.kind == yieldExpr:
-                                f.isGenerator = true
-                            elif argument.value.kind == awaitExpr:
-                                self.error("'await' cannot be used outside async functions")
-                    else:
-                        discard
-            of NodeKind.yieldStmt:
-                f.isGenerator = true
-            of NodeKind.awaitStmt:
-                self.error("'await' cannot be used outside async functions")
-            of NodeKind.funDecl:
-                # Nested function declarations with yield expressions as
-                # default arguments are valid, but for them to work we
-                # need to make the containing function a generator. These
-                # yield expressions will run in the outer function's scope
-                # and are lazily evaluated at runtime
-                for default in FunDecl(line).defaults:
-                    if default.kind == NodeKind.yieldExpr:
-                        f.isGenerator = true
-                    elif default.kind == NodeKind.awaitExpr:
-                        self.error("'await' cannot be used outside async functions")
-                self.validateFunction(FunDecl(line))
-            of NodeKind.lambdaExpr:
-                for default in LambdaExpr(line).defaults:
-                    if default.kind == NodeKind.yieldExpr:
-                        f.isGenerator = true
-                    elif default.kind == NodeKind.awaitExpr:
-                        self.error("'await' cannot be used outside async functions")
-                self.validateFunction(LambdaExpr(line))
-            else:
-                discard
 
 
 proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true, isLambda: bool = false): ASTNode =
     ## Parses function and lambda declarations. Note that lambdas count as expressions!
-    let enclosing = self.context
+    var enclosingFunction = self.currentFunction
+    let enclosingContext = self.context
     self.context = Function
-    var ident: IdentExpr
     var arguments: seq[ASTNode] = @[]
     var defaults: seq[ASTNode] = @[]
-    var body: ASTNode = nil
+    var body: ASTNode = newBlockStmt(@[])
+    if not isLambda:
+        self.currentFunction = newFunDecl(nil, arguments, defaults, body, isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate)
+    else:
+        self.currentFunction = newLambdaExpr(arguments, defaults, body, isGenerator=false)
     if not isLambda:
         self.expect(Identifier, "expecting function name after 'fun'")
-        ident = newIdentExpr(self.peek(-1))
+        FunDecl(self.currentFunction).name = newIdentExpr(self.peek(-1))
     if self.match(LeftBrace):
         # Argument-less function
         discard
@@ -891,13 +794,9 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
         self.expect(RightParen)
         self.expect(LeftBrace)
     body = self.blockStmt()
-    if not isLambda:
-        result = newFunDecl(ident, arguments, defaults, body, isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate)
-        self.validateFunction(FunDecl(result))
-    else:
-        result = newLambdaExpr(arguments, defaults, body, isGenerator=false)
-        self.validateFunction(LambdaExpr(result))
-    self.context = enclosing
+    self.context = enclosingContext
+    result = self.currentFunction
+    self.currentFunction = enclosingFunction
 
 
 proc classDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNode =
