@@ -622,16 +622,17 @@ proc tryStmt(self: Parser): ASTNode =
     var excName: ASTNode
     var handlerBody: ASTNode
     while self.match(Except):
-        excName = self.expression()
-        if excName.kind == identExpr:
-            discard
-        elif excName.kind == binaryExpr and BinaryExpr(excName).operator.kind == As:
-            asName = BinaryExpr(excName).b
-            if BinaryExpr(excName).a.kind != identExpr:
-                self.error("expecting alias name after 'except ... as'")
-            excName = BinaryExpr(excName).a
+        if self.check(Identifier):
+            excName = self.expression()
+            if excName.kind == identExpr:
+                discard
+            elif excName.kind == binaryExpr and BinaryExpr(excName).operator.kind == As:
+                asName = BinaryExpr(excName).b
+                if BinaryExpr(excName).a.kind != identExpr:
+                    self.error("expecting alias name after 'except ... as'")
+                excName = BinaryExpr(excName).a
         else:
-            self.error("expecting exception name after 'except'") 
+            excName = nil
         handlerBody = self.statement()
         handlers.add((body: handlerBody, exc: excName, name: asName))
         asName = nil
@@ -641,6 +642,9 @@ proc tryStmt(self: Parser): ASTNode =
         elseClause = self.statement()
     if handlers.len() == 0 and elseClause == nil and finallyClause == nil:
         self.error("expecting 'except', 'finally' or 'else' statements after 'try' block")
+    for i, handler in handlers:
+        if handler.exc == nil and i != handlers.high():
+            self.error("catch-all exception handler with bare 'except' must come last in try statement")
     result = newTryStmt(body, handlers, finallyClause, elseClause)
 
 
