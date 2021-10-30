@@ -11,3 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Makes our short integers platform-independent (big vs little endian)
+
+
+proc toDouble*(input: int | uint | uint16): array[2, uint8] =
+    ## Converts an int (either int, uint or uint16)
+    ## to an array[2, uint8]
+    result = cast[array[2, uint8]](uint16(input))
+
+
+proc fromDouble*(input: array[2, uint8]): uint16 =
+    ## Rebuilds the output of toDouble into
+    ## an uint16
+    copyMem(result.addr, unsafeAddr(input), sizeof(uint16))

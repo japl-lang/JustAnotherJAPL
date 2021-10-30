@@ -1,26 +1,23 @@
-# CONFIDENTIAL
-# ______________
+# Copyright 2021 Mattia Giambirtone
 #
-#  2021 Mattia Giambirtone
-#  All Rights Reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
+#    http://www.apache.org/licenses/LICENSE-2.0
 #
-# NOTICE: All information contained herein is, and remains
-# the property of Mattia Giambirtone. The intellectual and technical
-# concepts contained herein are proprietary to Mattia Giambirtone
-# and his suppliers and may be covered by Patents and are
-# protected by trade secret or copyright law.
-# Dissemination of this information or reproduction of this material
-# is strictly forbidden unless prior written permission is obtained
-# from Mattia Giambirtone
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 ## Memory allocator from JAPL
 
 
-const DEBUG_TRACE_ALLOCATION = false
-
 import segfaults
-import config
+import ../config
+
 when DEBUG_TRACE_ALLOCATION:
     import strformat
 
@@ -53,8 +50,8 @@ proc reallocate*(pointr: pointer, oldSize: int, newSize: int): pointer =
             if oldSize > 0 and pointr == nil:
                 echo &"DEBUG - Memory manager: Warning, asked to realloc() nil pointer from {oldSize} to {newSize} bytes, ignoring request"
     except NilAccessDefect:
-        stderr.write("A fatal error occurred -> could not manage memory, segmentation fault\n")
-        quit(71)   # For now, there's not much we can do if we can't get the memory we need
+        stderr.write("JAPL: could not manage memory, segmentation fault\n")
+        quit(139)   # For now, there's not much we can do if we can't get the memory we need, so we exit
 
 
 template resizeArray*(kind: untyped, pointr: pointer, oldCount, newCount: int): untyped =
