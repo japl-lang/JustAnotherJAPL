@@ -29,13 +29,12 @@ type
 
     Compiler* = ref object
         ast: seq[ASTNode]
+        enclosing: Compiler
         current: int
         file: string
-        # Keeps track of all identifiers
-        # in the code
         locals: seq[Local]
-        localCount: int
         scopeDepth: int
+        currentFunction: FunDecl
     
 
 proc initCompiler*(): Compiler =
@@ -45,9 +44,8 @@ proc initCompiler*(): Compiler =
     result.current = 0
     result.file = ""
     result.locals = @[]
-    result.localCount = 0
-    result.currentLoop = None
     result.scopeDepth = 0
+    result.currentFunction = nil
 
 
 proc peek(self: Compiler, distance: int = 0): ASTNode =

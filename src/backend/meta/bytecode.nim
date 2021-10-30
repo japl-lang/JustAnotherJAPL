@@ -20,8 +20,7 @@ export ast
 type
     Chunk* = ref object
         ## A piece of bytecode.
-        ## Consts represents the constants table the code is referring to
-        ## and is a compile-time a mirror of the VM's stack at runtime.
+        ## Consts represents the constants table the code is referring to.
         ## Code is the linear sequence of compiled bytecode instructions.
         ## Lines maps bytecode instructions to line numbers using Run
         ## Length Encoding. Instructions are encoded in groups whose structure
@@ -29,7 +28,7 @@ type
         ## - The first integer represents the line number
         ## - The second integer represents the count of whatever comes after it
         ##  (let's call it c)
-        ## - After c, a sequence of c integer follows
+        ## - After c, a sequence of c integers follows
         ## 
         ## A visual representation may be easier to understand: [1, 2, 3, 4]
         ## This is to be interpreted as "there are 2 instructions at line 1 whose values
@@ -42,34 +41,35 @@ type
 
     OpCode* {.pure.} = enum
         ## Enum of possible opcodes.
-        ## Note: x represents the
-        ## argument to unary opcodes, while
-        ## a and b represent arguments to binary
-        ## opcodes. Other variable names may be
-        ## used for more complex opcodes
-        
-        LoadConstant = 0u8,  # Pushes constant from Chunk.consts[x] onto the stack
+
+        # Note: x represents the
+        # argument to unary opcodes, while
+        # a and b represent arguments to binary
+        # opcodes. Other variable names may be
+        # used for more complex opcodes        
+        LoadConstant = 0u8,  # Pushes constant at position x in the constant table onto the stack
         # Binary operators
         UnaryNegate,  # Pushes the result of -x onto the stack
         BinaryAdd,    # Pushes the result of a + b onto the stack
         BinarySubtract,  # Pushes the result of a - b onto the stack
-        BinaryDivide,    # Pushes the result of a / b onto the stack (true division)
-        BinaryFloorDiv,  # Pushes the result of a // b onto the stack (integer division)
+        BinaryDivide,    # Pushes the result of a / b onto the stack (true division). The result is a float
+        BinaryFloorDiv,  # Pushes the result of a // b onto the stack (integer division). The result is always an integer
         BinaryMultiply,  # Pushes the result of a * b onto the stack
-        BinaryPow,    # Pushes the result of a ** b (reads as 'a to the power of') onto the stack
+        BinaryPow,    # Pushes the result of a ** b (a to the power of b) onto the stack
         BinaryMod,  # Pushes the result of a % b onto the stack (modulo division)
-        BinaryShiftRight,  # 
-        BinaryShiftLeft,
-        BinaryXor,
-        BinaryOr,
-        BinaryAnd,
-        BinaryNot,
-        BinaryAs,   # Type conversion
-        BinaryIs,   # Identity checking
-        BinaryOf,   # Instance checking
-        BinarySlice,  # Subscript operator, like "hello"[0]
+        BinaryShiftRight,  # Pushes the result of a >> b (a with bits shifted b times to the right) onto the stack
+        BinaryShiftLeft,   # Pushes the result of a << b (a with bits shifted b times to the left) onto the stack
+        BinaryXor,  # Pushes the result of a ^ b (bitwise exclusive or) onto the stack
+        BinaryOr,   # Pushes the result of a | b (bitwise or) onto the stack
+        BinaryAnd,  # Pushes the result of a & b (bitwise and) onto the stack
+        BinaryNot,  # Pushes the result of ~x (bitwise not) onto the stack
+        BinaryAs,   # Pushes the result of a as b onto the stack (converts a to the type of b. Explicit support from a is required)
+        BinaryIs,   # Pushes the result of a is b onto the stack (true if a and b point to the same object, false otherwise)
+        BinaryOf,   # Pushes the result of a of b onto the stack (true if a is a subclass of b, false otherwise)
+        BinarySlice, # Perform slicing on supported objects (like "hello"[0:2], which yields "he"). The result is pushed onto the stack
+        BinarySubscript,  # Subscript operator, like "hello"[0] (which pushes 'h' onto the stack)
         # Binary comparison operators
-        GreaterThan,   # 
+        GreaterThan,
         LessThan,
         EqualTo,
         GreaterOrEqual,
@@ -78,7 +78,8 @@ type
         LogicalNot,
         LogicalAnd,
         LogicalOr,
-        # Binary in-place operators
+        # Binary in-place operators. Same as their non in-place counterparts
+        # except they operate on already existing names.
         InPlaceAdd,
         InPlaceSubtract,
         InPlaceDivide,
@@ -86,6 +87,12 @@ type
         InPlaceMultiply,
         InPlacePow,
         InPlaceMod,
+        InPlaceRightShift,
+        InPlaceLeftShift,
+        InPlaceXor,
+        InPlaceOr,
+        InPlaceAnd,
+        InPlaceNot,
         # Constants/singletons
         Nil,
         True,
@@ -106,38 +113,42 @@ type
         DeleteName,
         DeleteNameFast,
         # Looping and jumping
-        JumpIfFalse,
-        Jump,
-        Loop,
+        JumpIfFalse,   # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
+        Jump,    # Relative unconditional jump in the bytecode. This is how instructions like break and continue are implemented
         Call,
         Return
         # Misc
         Raise,
         ReRaise,   # Re-raises active exception
         BeginTry,
-        FinishTry
+        FinishTry, 
+        Yield,
+        Await
 
 
 
-const simpleInstructions* = {OpCode.Return, OpCode.BinaryAdd, OpCode.BinaryMultiply,
-                             OpCode.BinaryDivide, OpCode.BinarySubtract,
-                             OpCode.BinaryMod, OpCode.BinaryPow, OpCode.Nil,
-                             OpCode.True, OpCode.False, OpCode.Nan, OpCode.Inf,
-                             OpCode.BinaryShiftLeft, OpCode.BinaryShiftRight,
-                             OpCode.BinaryXor, OpCode.LogicalNot, OpCode.EqualTo,
-                             OpCode.GreaterThan, OpCode.LessThan, OpCode.LoadAttribute,
-                             OpCode.BinarySlice, OpCode.Pop, OpCode.UnaryNegate,
-                             OpCode.BinaryIs, OpCode.BinaryAs, OpCode.GreaterOrEqual,
-                             OpCode.LessOrEqual, OpCode.BinaryOr, OpCode.BinaryAnd,
-                             OpCode.BinaryNot, OpCode.InPlaceAdd, OpCode.InPlaceDivide,
-                             OpCode.InPlaceFloorDiv, OpCode.InPlaceMod, OpCode.InPlaceMultiply,
-                             OpCode.InPlaceSubtract, OpCode.BinaryFloorDiv, OpCode.BinaryOf}
-const constantInstructions* = {OpCode.LoadConstant, OpCode.DeclareName,
-                               OpCode.LoadName, OpCode.UpdateName,
-                               OpCode.DeleteName}
-const byteInstructions* = {OpCode.UpdateNameFast, OpCode.LoadNameFast, 
-                           OpCode.DeleteNameFast, OpCode.Call}
-const jumpInstructions* = {OpCode.JumpIfFalse, OpCode.Jump, OpCode.Loop}
+
+const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
+                             BinaryDivide, BinarySubtract,
+                             BinaryMod, BinaryPow, Nil,
+                             True, False, OpCode.Nan, OpCode.Inf,
+                             BinaryShiftLeft, BinaryShiftRight,
+                             BinaryXor, LogicalNot, EqualTo,
+                             GreaterThan, LessThan, LoadAttribute,
+                             BinarySlice, Pop, UnaryNegate,
+                             BinaryIs, BinaryAs, GreaterOrEqual,
+                             LessOrEqual, BinaryOr, BinaryAnd,
+                             BinaryNot, InPlaceAdd, InPlaceDivide,
+                             InPlaceFloorDiv, InPlaceMod, InPlaceMultiply,
+                             InPlaceSubtract, BinaryFloorDiv, BinaryOf, Raise,
+                             ReRaise, BeginTry, FinishTry,
+                             Yield, Await}
+const constantInstructions* = {LoadConstant, DeclareName,
+                               LoadName, UpdateName,
+                               DeleteName}
+const byteInstructions* = {UpdateNameFast, LoadNameFast, 
+                           DeleteNameFast, Call}
+const jumpInstructions* = {JumpIfFalse, Jump}
 
 
 proc newChunk*(): Chunk =
@@ -156,6 +167,26 @@ proc write*(self: Chunk, newByte: uint8, line: int) =
     self.code.add(newByte)
 
 
+proc write*(self: Chunk, bytes: openarray[uint8], line: int) =
+    ## Calls write in a loop with all members of the given
+    ## array
+    for cByte in bytes:
+        self.write(cByte, line)
+
+
+proc write*(self: Chunk, newByte: OpCode, line: int) =
+    ## Adds the given instruction at the provided line number
+    ## to the given chunk object
+    self.write(uint8(newByte), line)
+
+
+proc write*(self: Chunk, bytes: openarray[OpCode], line: int) =
+    ## Calls write in a loop with all members of the given
+    ## array
+    for cByte in bytes:
+        self.write(uint8(cByte), line)
+
+
 proc getLine*(self: Chunk, idx: int): int =
     ## Returns the associated line of a given 
     ## instruction index
@@ -170,13 +201,6 @@ proc getLine*(self: Chunk, idx: int): int =
             return self.lines[n]
         current += count
     raise newException(IndexDefect, "index out of range")
-
-
-proc write*(self: Chunk, bytes: openarray[uint8], line: int) =
-    ## Calls writeChunk in a loop with all members of the given
-    ## array
-    for cByte in bytes:
-        self.write(cByte, line)
 
 
 proc addConstant*(self: Chunk, constant: ASTNode): array[3, uint8] =

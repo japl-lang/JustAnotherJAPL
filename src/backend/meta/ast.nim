@@ -96,7 +96,7 @@ type
 
     LiteralExpr* = ref object of ASTNode
         # Using a string for literals makes it much easier to handle numeric types, as
-        # there is no overflow nor underflow or float precision issues to deal with.
+        # there is no overflow nor underflow or float precision issues during parsing.
         # Numbers are just serialized as strings and then converted back to numbers
         # before being passed to the VM, which also keeps the door open in the future
         # to implementing bignum arithmetic that can take advantage of natively supported
