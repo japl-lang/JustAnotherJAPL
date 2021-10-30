@@ -178,7 +178,13 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
                 of FloorDiv:
                     z = int(x / y)
                 of DoubleAsterisk:
-                    z = x ^ y
+                    if y >= 0:
+                        z = x ^ y
+                    else:
+                        # Nim's builtin pow operator can't handle
+                        # negative exponents, so we use math's
+                        # pow and convert from/to floats instead
+                        z = pow(x.float, y.float).int
                 of Percentage:
                     z = x mod y
                 of Caret:
@@ -194,6 +200,9 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
                     result = BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
         except OverflowDefect:
             self.newWarning(valueOverflow, node)
+            return BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
+        except RangeDefect:
+            # TODO: What warning do we raise here?
             return BinaryExpr(kind: binaryExpr, a: a, b: b, operator: node.operator)
         result = IntExpr(kind: intExpr, literal: Token(kind: Integer, lexeme: $z, line: IntExpr(a).literal.line, pos: (start: -1, stop: -1)))
     elif a.kind == floatExpr or b.kind == floatExpr:
