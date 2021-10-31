@@ -250,7 +250,9 @@ proc primary(self: Parser): ASTNode =
         of LeftBrace:
             let tok = self.step()
             if self.match(RightBrace):
-                # This yields an empty dictionary
+                # This yields an empty dictionary, not an empty set!
+                # For empty sets, there will be a builtin set() type
+                # that can be instantiated with no arguments
                 result = newDictExpr(@[], @[], tok)
             else:
                 result = self.expression()
