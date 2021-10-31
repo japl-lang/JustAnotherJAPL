@@ -285,7 +285,7 @@ proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
         return node
     case node.kind:
         of exprStmt:
-            result = newExprStmt(self.optimizeNode(ExprStmt(node).expression))
+            result = newExprStmt(self.optimizeNode(ExprStmt(node).expression), ExprStmt(node).token)
         of intExpr, hexExpr, octExpr, binExpr, floatExpr, strExpr:
             result = self.optimizeConstant(node)
         of unaryExpr:

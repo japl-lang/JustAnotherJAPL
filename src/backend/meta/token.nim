@@ -70,7 +70,7 @@ type
     EndOfFile
 
 
-  Token* = ref object
+  Token* = object
     ## A token object
     kind*: TokenType
     lexeme*: string

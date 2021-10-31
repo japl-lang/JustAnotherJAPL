@@ -87,6 +87,10 @@ type
     ASTNode* = ref object of RootObj
         ## An AST node
         kind*: NodeKind
+        # Regardless of the type of node, we keep the token in the AST node for internal usage.
+        # This is not shown when the node is printed, but makes it a heck of a lot easier to report
+        # errors accurately even deep in the compilation pipeline
+        token*: Token
 
     # Here I would've rather used object variants, and in fact that's what was in
     # place before, but not being able to re-declare a field of the same type in
@@ -290,10 +294,11 @@ type
 
 
 
-proc newASTNode*(kind: NodeKind): ASTNode =
+proc newASTNode*(kind: NodeKind, token: Token): ASTNode =
     ## Initializes a new generic ASTNode object
     new(result)
     result.kind = kind
+    result.token = token
 
 
 proc isConst*(self: ASTNode): bool {.inline.} = self.kind in {intExpr, hexExpr, binExpr, octExpr, strExpr,
@@ -312,103 +317,120 @@ proc newIntExpr*(literal: Token): IntExpr =
 proc newOctExpr*(literal: Token): OctExpr =
     result = OctExpr(kind: octExpr)
     result.literal = literal
+    result.token = literal
 
 
 proc newHexExpr*(literal: Token): HexExpr =
     result = HexExpr(kind: hexExpr)
     result.literal = literal
+    result.token = literal
 
 
 proc newBinExpr*(literal: Token): BinExpr =
     result = BinExpr(kind: binExpr)
     result.literal = literal
+    result.token = literal
 
 
 proc newFloatExpr*(literal: Token): FloatExpr =
     result = FloatExpr(kind: floatExpr)
     result.literal = literal
+    result.token = literal
 
 
-proc newTrueExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: trueExpr)
-proc newFalseExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: falseExpr)
-proc newNaNExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: nanExpr)
-proc newNilExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: nilExpr)
-proc newInfExpr*: LiteralExpr {.inline.} = LiteralExpr(kind: infExpr)
+proc newTrueExpr*(token: Token): LiteralExpr = LiteralExpr(kind: trueExpr, token: token)
+proc newFalseExpr*(token: Token): LiteralExpr = LiteralExpr(kind: falseExpr, token: token)
+proc newNaNExpr*(token: Token): LiteralExpr = LiteralExpr(kind: nanExpr, token: token)
+proc newNilExpr*(token: Token): LiteralExpr = LiteralExpr(kind: nilExpr, token: token)
+proc newInfExpr*(token: Token): LiteralExpr = LiteralExpr(kind: infExpr, token: token)
 
 
 proc newStrExpr*(literal: Token): StrExpr =
     result = StrExpr(kind: strExpr)
     result.literal = literal
+    result.token = literal
 
 
 proc newIdentExpr*(name: Token): IdentExpr =
     result = IdentExpr(kind: identExpr)
     result.name = name
+    result.token = name
 
 
-proc newGroupingExpr*(expression: ASTNode): GroupingExpr =
+proc newGroupingExpr*(expression: ASTNode, token: Token): GroupingExpr =
     result = GroupingExpr(kind: groupingExpr)
     result.expression = expression
+    result.token = token
 
 
-proc newLambdaExpr*(arguments, defaults: seq[ASTNode], body: ASTNode, isGenerator: bool): LambdaExpr =
+proc newLambdaExpr*(arguments, defaults: seq[ASTNode], body: ASTNode, isGenerator: bool, token: Token): LambdaExpr =
     result = LambdaExpr(kind: lambdaExpr)
     result.body = body
     result.arguments = arguments
     result.defaults = defaults
     result.isGenerator = isGenerator
+    result.token = token
 
 
-proc newGetItemExpr*(obj: ASTNode, name: ASTNode): GetItemExpr =
+proc newGetItemExpr*(obj: ASTNode, name: ASTNode, token: Token): GetItemExpr =
     result = GetItemExpr(kind: getItemExpr)
     result.obj = obj
     result.name = name
+    result.token = token
 
 
-proc newListExpr*(members: seq[ASTNode]): ListExpr =
+proc newListExpr*(members: seq[ASTNode], token: Token): ListExpr =
     result = ListExpr(kind: listExpr)
     result.members = members
+    result.token = token
 
 
-proc newSetExpr*(members: seq[ASTNode]): SetExpr =
+proc newSetExpr*(members: seq[ASTNode], token: Token): SetExpr =
     result = SetExpr(kind: setExpr)
     result.members = members
+    result.token = token
 
 
-proc newTupleExpr*(members: seq[ASTNode]): TupleExpr =
+proc newTupleExpr*(members: seq[ASTNode], token: Token): TupleExpr =
     result = TupleExpr(kind: tupleExpr)
     result.members = members
+    result.token = token
 
 
-proc newDictExpr*(keys, values: seq[ASTNode]): DictExpr =
+proc newDictExpr*(keys, values: seq[ASTNode], token: Token): DictExpr =
     result = DictExpr(kind: dictExpr)
     result.keys = keys
     result.values = values
+    result.token = token
 
 
-proc newSetItemExpr*(obj, name, value: ASTNode): SetItemExpr =
+proc newSetItemExpr*(obj, name, value: ASTNode, token: Token): SetItemExpr =
     result = SetItemExpr(kind: setItemExpr)
     result.obj = obj
     result.name = name
     result.value = value
+    result.token = token
 
 
-proc newCallExpr*(callee: ASTNode, arguments: tuple[positionals: seq[ASTNode], keyword: seq[tuple[name: ASTNode, value: ASTNode]]]): CallExpr =
+proc newCallExpr*(callee: ASTNode, arguments: tuple[positionals: seq[ASTNode], keyword: seq[tuple[name: ASTNode, value: ASTNode]]], token: Token): CallExpr =
     result = CallExpr(kind: callExpr)
     result.callee = callee
     result.arguments = arguments
+    result.token = token
 
 
-proc newSliceExpr*(slicee: ASTNode, ends: seq[ASTNode]): SliceExpr =
+proc newSliceExpr*(slicee: ASTNode, ends: seq[ASTNode], token: Token): SliceExpr =
     result = SliceExpr(kind: sliceExpr)
     result.slicee = slicee
     result.ends = ends
+    result.token = token
 
 
 proc newUnaryExpr*(operator: Token, a: ASTNode): UnaryExpr =
     result = UnaryExpr(kind: unaryExpr)
     result.operator = operator
     result.a = a
+    result.token = result.operator
 
 
 proc newBinaryExpr*(a: ASTNode, operator: Token, b: ASTNode): BinaryExpr =
@@ -416,128 +438,148 @@ proc newBinaryExpr*(a: ASTNode, operator: Token, b: ASTNode): BinaryExpr =
     result.operator = operator
     result.a = a
     result.b = b
+    result.token = operator
 
 
-proc newYieldExpr*(expression: ASTNode): YieldExpr =
+proc newYieldExpr*(expression: ASTNode, token: Token): YieldExpr =
     result = YieldExpr(kind: yieldExpr)
     result.expression = expression
+    result.token = token
 
 
-proc newAssignExpr*(name, value: ASTNode): AssignExpr =
+proc newAssignExpr*(name, value: ASTNode, token: Token): AssignExpr =
     result = AssignExpr(kind: assignExpr)
     result.name = name
     result.value = value
+    result.token = token
 
 
-proc newAwaitExpr*(awaitee: ASTNode): AwaitExpr =
+proc newAwaitExpr*(awaitee: ASTNode, token: Token): AwaitExpr =
     result = AwaitExpr(kind: awaitExpr)
     result.awaitee = awaitee
+    result.token = token
 
 
-proc newExprStmt*(expression: ASTNode): ExprStmt =
+proc newExprStmt*(expression: ASTNode, token: Token): ExprStmt =
     result = ExprStmt(kind: exprStmt)
     result.expression = expression
+    result.token = token
 
 
-proc newImportStmt*(moduleName: ASTNode): ImportStmt =
+proc newImportStmt*(moduleName: ASTNode, token: Token): ImportStmt =
     result = ImportStmt(kind: importStmt)
     result.moduleName = moduleName
+    result.token = token
 
 
-proc newFromImportStmt*(fromModule: ASTNode, fromAttributes: seq[ASTNode]): FromImportStmt =
+proc newFromImportStmt*(fromModule: ASTNode, fromAttributes: seq[ASTNode], token: Token): FromImportStmt =
     result = FromImportStmt(kind: fromImportStmt)
     result.fromModule = fromModule
     result.fromAttributes = fromAttributes
+    result.token = token
 
 
-proc newDelStmt*(name: ASTNode): DelStmt =
+proc newDelStmt*(name: ASTNode, token: Token): DelStmt =
     result = DelStmt(kind: delStmt)
     result.name = name
+    result.token = token
 
 
-proc newYieldStmt*(expression: ASTNode): YieldStmt =
+proc newYieldStmt*(expression: ASTNode, token: Token): YieldStmt =
     result = YieldStmt(kind: yieldStmt)
     result.expression = expression
+    result.token = token
 
 
-proc newAwaitStmt*(awaitee: ASTNode): AwaitExpr =
+proc newAwaitStmt*(awaitee: ASTNode, token: Token): AwaitExpr =
     result = AwaitExpr(kind: awaitExpr)
     result.awaitee = awaitee
+    result.token = token
 
 
-proc newAssertStmt*(expression: ASTNode): AssertStmt =
+proc newAssertStmt*(expression: ASTNode, token: Token): AssertStmt =
     result = AssertStmt(kind: assertStmt)
     result.expression = expression
+    result.token = token
 
 
-proc newDeferStmt*(deferred: ASTNode): DeferStmt =
+proc newDeferStmt*(deferred: ASTNode, token: Token): DeferStmt =
     result = DeferStmt(kind: deferStmt)
     result.deferred = deferred
+    result.token = token
 
 
-proc newRaiseStmt*(exception: ASTNode): RaiseStmt =
+proc newRaiseStmt*(exception: ASTNode, token: Token): RaiseStmt =
     result = RaiseStmt(kind: raiseStmt)
     result.exception = exception
+    result.token = token
 
 
 proc newTryStmt*(body: ASTNode, handlers: seq[tuple[body: ASTNode, exc: ASTNode, name: ASTNode]],
                  finallyClause: ASTNode,
-                 elseClause: ASTNode): TryStmt =
+                 elseClause: ASTNode, token: Token): TryStmt =
     result = TryStmt(kind: tryStmt)
     result.body = body
     result.handlers = handlers
     result.finallyClause = finallyClause
     result.elseClause = elseClause
+    result.token = token
 
 
-proc newBlockStmt*(code: seq[ASTNode]): BlockStmt =
+proc newBlockStmt*(code: seq[ASTNode], token: Token): BlockStmt =
     result = BlockStmt(kind: blockStmt)
     result.code = code
+    result.token = token
 
 
-proc newWhileStmt*(condition: ASTNode, body: ASTNode): WhileStmt =
+proc newWhileStmt*(condition: ASTNode, body: ASTNode, token: Token): WhileStmt =
     result = WhileStmt(kind: whileStmt)
     result.condition = condition
     result.body = body
+    result.token = token
 
 
-proc newForEachStmt*(identifier: ASTNode, expression, body: ASTNode): ForEachStmt =
+proc newForEachStmt*(identifier: ASTNode, expression, body: ASTNode, token: Token): ForEachStmt =
     result = ForEachStmt(kind: forEachStmt)
     result.identifier = identifier
     result.expression = expression
     result.body = body
+    result.token = token
 
 
-proc newBreakStmt*: BreakStmt = BreakStmt(newASTNode(breakStmt))
-proc newContinueStmt*: ContinueStmt = ContinueStmt(newASTNode(continueStmt))
+proc newBreakStmt*(token: Token): BreakStmt = BreakStmt(newASTNode(breakStmt, token))
+proc newContinueStmt*(token: Token): ContinueStmt = ContinueStmt(newASTNode(continueStmt, token))
 
 
-proc newReturnStmt*(value: ASTNode): ReturnStmt =
+proc newReturnStmt*(value: ASTNode, token: Token): ReturnStmt =
     result = ReturnStmt(kind: returnStmt)
     result.value = value
+    result.token = token
 
 
-proc newIfStmt*(condition: ASTNode, thenBranch, elseBranch: ASTNode): IfStmt =
+proc newIfStmt*(condition: ASTNode, thenBranch, elseBranch: ASTNode, token: Token): IfStmt =
     result = IfStmt(kind: ifStmt)
     result.condition = condition
     result.thenBranch = thenBranch
     result.elseBranch = elseBranch
+    result.token = token
 
 
-proc newVarDecl*(name: ASTNode, value: ASTNode = newNilExpr(),
+proc newVarDecl*(name: ASTNode, value: ASTNode = newNilExpr(Token()),
                  isStatic: bool = true, isConst: bool = false,
-                 isPrivate: bool = true): VarDecl =
+                 isPrivate: bool = true, token: Token): VarDecl =
     result = VarDecl(kind: varDecl)
     result.name = name
     result.value = value
     result.isConst = isConst
     result.isStatic = isStatic
     result.isPrivate = isPrivate
+    result.token = token
 
 
 proc newFunDecl*(name: ASTNode, arguments, defaults: seq[ASTNode],
                  body: ASTNode, isStatic: bool = true, isAsync,
-                 isGenerator: bool, isPrivate: bool = true): FunDecl =
+                 isGenerator: bool, isPrivate: bool = true, token: Token): FunDecl =
     result = FunDecl(kind: funDecl)
     result.name = name
     result.arguments = arguments
@@ -547,17 +589,19 @@ proc newFunDecl*(name: ASTNode, arguments, defaults: seq[ASTNode],
     result.isGenerator = isGenerator
     result.isStatic = isStatic
     result.isPrivate = isPrivate
+    result.token = token
 
 
 proc newClassDecl*(name: ASTNode, body: ASTNode,
                    parents: seq[ASTNode], isStatic: bool = true,
-                   isPrivate: bool = true): ClassDecl =
+                   isPrivate: bool = true, token: Token): ClassDecl =
     result = ClassDecl(kind: classDecl)
     result.name = name
     result.body = body
     result.parents = parents
     result.isStatic = isStatic
     result.isPrivate = isPrivate
+    result.token = token
 
 
 proc `$`*(self: ASTNode): string = 

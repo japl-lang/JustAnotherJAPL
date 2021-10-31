@@ -13,6 +13,9 @@
 # limitations under the License.
 import meta/ast
 import meta/errors
+import meta/bytecode
+import ../config
+
 
 import strformat
 
@@ -28,6 +31,7 @@ type
         depth: int
 
     Compiler* = ref object
+        chunk: Chunk
         ast: seq[ASTNode]
         enclosing: Compiler
         current: int
@@ -37,7 +41,7 @@ type
         currentFunction: FunDecl
     
 
-proc initCompiler*(): Compiler =
+proc newCompiler*(): Compiler =
     ## Initializes a new Compiler object
     new(result)
     result.ast = @[]
@@ -84,3 +88,52 @@ proc error(self: Compiler, message: string) =
             discard
     raise newException(CompileError, errorMessage)
 
+
+proc emitByte(self: Compiler, byt: OpCode|uint8) =
+    ## Emits a single bytecode instruction and writes it
+    ## to the current chunk being compiled
+    when DEBUG_TRACE_COMPILER:
+        stdout.write(&"DEBUG - Compiler: Emitting {$byt} (uint8 value of {$(uint8 byt)}")
+        if byt.int() <= OpCode.high().int():
+          stdout.write(&"; opcode value of {$byt.OpCode}")
+        stdout.write(")\n")
+    self.chunk.write(uint8 byt, self.peek().token.line)
+
+
+proc emitBytes(self: Compiler, byt1: OpCode|uint8, byt2: OpCode|uint8) =
+    ## Emits multiple bytes instead of a single one, this is useful
+    ## to emit operators along with their operands or for multi-byte
+    ## instructions that are longer than one byte
+    self.emitByte(uint8 byt1)
+    self.emitByte(uint8 byt2)
+
+
+proc emitBytes(self: Compiler, bytarr: array[3, uint8]) =
+    ## Handy helper method to write an array of 3 bytes into
+    ## the current chunk, calling emiteByte(s) on each of its
+    ## elements
+    self.emitBytes(bytarr[0], bytarr[1])
+    self.emitByte(bytarr[2])
+
+
+proc makeConstant(self: Compiler, val: ASTNode): array[3, uint8] =
+    ## Adds a constant to the current chunk's constant table
+    ## and returns its index as a 3-byte array of uint8s
+    result = self.chunk.addConstant(val)
+
+
+proc emitConstant(self: Compiler, obj: ASTNode) =
+    ## Emits a LoadConstant instruction along
+    ## with its operand
+    self.emitByte(LoadConstant)
+    self.emitBytes(self.makeConstant(obj))
+
+
+proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
+    self.chunk = newChunk()
+    self.ast = ast
+    self.file = file
+    self.locals = @[]
+    self.scopeDepth = 0
+    self.currentFunction = nil
+    result = self.chunk

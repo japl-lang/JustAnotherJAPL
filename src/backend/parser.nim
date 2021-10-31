@@ -202,17 +202,13 @@ proc primary(self: Parser): ASTNode =
     ## that map to builtin types (true, false, etc)
     case self.peek().kind:
         of True:
-            discard self.step()
-            result = newTrueExpr()
+            result = newTrueExpr(self.step())
         of False:
-            discard self.step()
-            result = newFalseExpr()
+            result = newFalseExpr(self.step())
         of TokenType.NotANumber:
-            discard self.step()
-            result = newNanExpr()
+            result = newNanExpr(self.step())
         of Nil:
-            discard self.step()
-            result = newNilExpr()
+            result = newNilExpr(self.step())
         of Float:
             result = newFloatExpr(self.step())
         of Integer:
@@ -220,14 +216,14 @@ proc primary(self: Parser): ASTNode =
         of Identifier:
             result = newIdentExpr(self.step())
         of LeftParen:
-            discard self.step()
+            let tok = self.step()
             if self.match(RightParen):
                 # This yields an empty tuple
-                result = newTupleExpr(@[])
+                result = newTupleExpr(@[], tok)
             else:
                 result = self.expression()
                 if self.match(Comma):
-                    var tupleObject = newTupleExpr(@[result])
+                    var tupleObject = newTupleExpr(@[result], tok)
                     while not self.check(RightParen):
                         tupleObject.members.add(self.expression())
                         if not self.match(Comma):
@@ -237,33 +233,29 @@ proc primary(self: Parser): ASTNode =
                     self.expect(RightParen, "unterminated tuple literal")
                 else:
                     self.expect(RightParen, "unterminated parenthesized expression")
-                    result = newGroupingExpr(result)
+                    result = newGroupingExpr(result, tok)
         of LeftBracket:
-            discard self.step()
+            let tok = self.step()
             if self.match(RightBracket):
                 # This yields an empty list
-                result = newListExpr(@[])
+                result = newListExpr(@[], tok)
             else:
-                result = self.expression()
-                if self.match(Comma):
-                    var listObject = newListExpr(@[result])
-                    while not self.check(RightBracket):
-                        listObject.members.add(self.expression())
-                        if not self.match(Comma):
-                            break
-                    result = listObject
-                    self.expect(RightBracket, "unterminated list literal")
-                elif self.match(RightBracket):
-                    return newListExpr(@[result])
+                var listObject = newListExpr(@[], tok)
+                while not self.check(RightBracket):
+                    listObject.members.add(self.expression())
+                    if not self.match(Comma):
+                        break
+                result = listObject
+                self.expect(RightBracket, "unterminated list literal")
         of LeftBrace:
-            discard self.step()
+            let tok = self.step()
             if self.match(RightBrace):
                 # This yields an empty dictionary
-                result = newDictExpr(@[], @[])
+                result = newDictExpr(@[], @[], tok)
             else:
                 result = self.expression()
-                if self.match(Comma):
-                    var setObject = newSetExpr(@[result])
+                if self.match(Comma) or self.check(RightBrace):
+                    var setObject = newSetExpr(@[result], tok)
                     while not self.check(RightBrace):
                         setObject.members.add(self.expression())
                         if not self.match(Comma):
@@ -271,7 +263,7 @@ proc primary(self: Parser): ASTNode =
                     result = setObject
                     self.expect(RightBrace, "unterminated set literal")
                 elif self.match(Colon):
-                    var dictObject = newDictExpr(@[result], @[self.expression()])
+                    var dictObject = newDictExpr(@[result], @[self.expression()], tok)
                     if self.match(RightBrace):
                         return dictObject
                     if self.match(Comma):
@@ -281,27 +273,27 @@ proc primary(self: Parser): ASTNode =
                             dictObject.values.add(self.expression())
                             if not self.match(Comma):
                                 break
-                        self.expect(RightBrace, "unterminated dict literal")
+                    self.expect(RightBrace, "unterminated dict literal")
                     result = dictObject
         of Yield:
-            discard self.step()
+            let tok = self.step()
             if self.currentFunction == nil:
                 self.error("'yield' cannot be outside functions")
-            if self.currentFunction.kind == funDecl:
+            if self.currentFunction.kind == NodeKind.funDecl:
                 FunDecl(self.currentFunction).isGenerator = true
             else:
                 LambdaExpr(self.currentFunction).isGenerator = true
             if not self.check([RightBrace, RightBracket, RightParen, Comma, Semicolon]):
-                result = newYieldExpr(self.expression())
+                result = newYieldExpr(self.expression(), tok)
             else:
-                result = newYieldExpr(newNilExpr())
+                result = newYieldExpr(newNilExpr(Token()), tok)
         of Await:
-            discard self.step()
+            let tok = self.step()
             if self.currentFunction == nil:
                 self.error("'await' cannot be used outside functions")
             if self.currentFunction.kind == lambdaExpr or not FunDecl(self.currentFunction).isAsync:
                 self.error("'await' can only be used inside async functions")
-            result = newAwaitExpr(self.expression())
+            result = newAwaitExpr(self.expression(), tok)
         of Lambda:
             discard self.step()
             result = self.funDecl(isLambda=true)
@@ -319,8 +311,7 @@ proc primary(self: Parser): ASTNode =
         of String:
             result = newStrExpr(self.step())
         of Infinity:
-            discard self.step()
-            result = newInfExpr()
+            result = newInfExpr(self.step())
         else:
             self.error("invalid syntax")
 
@@ -328,6 +319,7 @@ proc primary(self: Parser): ASTNode =
 proc makeCall(self: Parser, callee: ASTNode): ASTNode =
     ## Utility function called iteratively by self.call()
     ## to parse a function-like call
+    let tok = self.peek(-1)
     var argNames: seq[ASTNode] = @[]
     var arguments: tuple[positionals: seq[ASTNode], keyword: seq[tuple[name: ASTNode, value: ASTNode]]] = (positionals: @[], keyword: @[])
     var argument: ASTNode = nil
@@ -351,7 +343,7 @@ proc makeCall(self: Parser, callee: ASTNode): ASTNode =
                 break
         argCount += 1
     self.expect(RightParen)
-    result = newCallExpr(callee, arguments)
+    result = newCallExpr(callee, arguments, tok)
 
 
 proc call(self: Parser): ASTNode = 
@@ -363,15 +355,16 @@ proc call(self: Parser): ASTNode =
             result = self.makeCall(result)
         elif self.match(Dot):
             self.expect(Identifier, "expecting attribute name after '.'")
-            result = newGetItemExpr(result, newIdentExpr(self.peek(-1)))
+            result = newGetItemExpr(result, newIdentExpr(self.peek(-1)), self.peek(-1))
         elif self.match(LeftBracket):
+            let tok = self.peek(-1)
             var ends: seq[ASTNode] = @[]
             while not self.match(RightBracket) and ends.len() < 3:
                 ends.add(self.expression())
                 discard self.match(Colon)
             if ends.len() < 1:
                 self.error("invalid syntax")
-            result = newSliceExpr(result, ends)
+            result = newSliceExpr(result, ends, tok)
         else:
             break
 
@@ -489,11 +482,12 @@ proc assignment(self: Parser): ASTNode =
     ## Slice assignments are also parsed here
     result = self.bitwiseOr()
     if self.match(Equal):
+        let tok = self.peek(-1)
         var value = self.expression()
         if result.kind in {identExpr, sliceExpr}:
-            result = newAssignExpr(result, value)
+            result = newAssignExpr(result, value, tok)
         elif result.kind == getItemExpr:
-            result = newSetItemExpr(GetItemExpr(result).obj, GetItemExpr(result).name, value)
+            result = newSetItemExpr(GetItemExpr(result).obj, GetItemExpr(result).name, value, tok)
         else:
             self.error("invalid assignment target")
 
@@ -503,6 +497,7 @@ proc delStmt(self: Parser): ASTNode =
     ## which unbind a name from its
     ## value in the current scope and
     ## calls its destructor
+    let tok = self.peek(-1)
     var expression = self.expression()
     var temp = expression
     endOfLIne("missing semicolon after del statement")
@@ -516,55 +511,61 @@ proc delStmt(self: Parser): ASTNode =
     elif temp.kind == callExpr:
         self.error("cannot delete function call")
     else:
-        result = newDelStmt(expression)
+        result = newDelStmt(expression, tok)
 
 
 proc assertStmt(self: Parser): ASTNode =
     ## Parses "assert" statements,
     ## raise an error if the expression
     ## fed into them is falsey
+    let tok = self.peek(-1)
     var expression = self.expression()
     endOfLine("missing semicolon after assert statement")
-    result = newAssertStmt(expression)
+    result = newAssertStmt(expression, tok)
 
 
 proc blockStmt(self: Parser): ASTNode =
     ## Parses block statements. A block
     ## statement simply opens a new local
     ## scope
+    let tok = self.peek(-1)
     var code: seq[ASTNode] = @[]
     while not self.check(RightBrace) and not self.done():
         code.add(self.declaration())
     self.expect(RightBrace, "unterminated block statement")
-    result = newBlockStmt(code)
+    result = newBlockStmt(code, tok)
 
 
 proc breakStmt(self: Parser): ASTNode =
     ## Parses break statements
+    let tok = self.peek(-1)
     if self.currentLoop != Loop:
         self.error("'break' cannot be used outside loops")
     endOfLine("missing semicolon after break statement")
-    result = newBreakStmt()
+    result = newBreakStmt(tok)
 
 
 proc deferStmt(self: Parser): ASTNode =
     ## Parses defer statements
+    let tok = self.peek(-1)
     if self.currentFunction == nil:
         self.error("'defer' cannot be used outside functions")
-    result = newDeferStmt(self.expression())
+    result = newDeferStmt(self.expression(), tok)
     endOfLine("missing semicolon after defer statement")
 
 
 proc continueStmt(self: Parser): ASTNode =
     ## Parses continue statements
+    let tok = self.peek(-1)
     if self.currentLoop != Loop:
         self.error("'continue' cannot be used outside loops")
     endOfLine("missing semicolon after continue statement")
-    result = newContinueStmt()
+    result = newContinueStmt(tok)
 
 
 proc returnStmt(self: Parser): ASTNode =
     ## Parses return statements
+    let tok = self.peek(-1)
     if self.currentFunction == nil:
         self.error("'return' cannot be used outside functions")
     var value: ASTNode
@@ -575,47 +576,51 @@ proc returnStmt(self: Parser): ASTNode =
         # to return or not
         value = self.expression()
     endOfLine("missing semicolon after return statement")
-    result = newReturnStmt(value)
+    result = newReturnStmt(value, tok)
 
 
 proc yieldStmt(self: Parser): ASTNode =
     ## Parses yield Statements
+    let tok = self.peek(-1)
     if self.currentFunction == nil:
         self.error("'yield' cannot be outside functions")
-    if self.currentFunction.kind == funDecl:
+    if self.currentFunction.kind == NodeKind.funDecl:
         FunDecl(self.currentFunction).isGenerator = true
     else:
         LambdaExpr(self.currentFunction).isGenerator = true
     if not self.check(Semicolon):
-        result = newYieldStmt(self.expression())
+        result = newYieldStmt(self.expression(), tok)
     else:
-        result = newYieldStmt(newNilExpr())
+        result = newYieldStmt(newNilExpr(Token()), tok)
     endOfLine("missing semicolon after yield statement")
 
 
 proc awaitStmt(self: Parser): ASTNode =
     ## Parses yield Statements
+    let tok = self.peek(-1)
     if self.currentFunction == nil:
         self.error("'await' cannot be used outside functions")
     if self.currentFunction.kind == lambdaExpr or not FunDecl(self.currentFunction).isAsync:
         self.error("'await' can only be used inside async functions")
-    result = newAwaitStmt(self.expression())
+    result = newAwaitStmt(self.expression(), tok)
     endOfLine("missing semicolon after yield statement")
 
 
 proc raiseStmt(self: Parser): ASTNode =
     ## Parses raise statements
     var exception: ASTNode
+    let tok = self.peek(-1)
     if not self.check(Semicolon):
         # Raise can be used on its own, in which
         # case it re-raises the last active exception
         exception = self.expression()
     endOfLine("missing semicolon after raise statement")
-    result = newRaiseStmt(exception)
+    result = newRaiseStmt(exception, tok)
 
 
 proc forEachStmt(self: Parser): ASTNode =
-    # Parses C#-like foreach loops
+    ## Parses C#-like foreach loops
+    let tok = self.peek(-1)
     var enclosingLoop = self.currentLoop
     self.currentLoop = Loop
     self.expect(LeftParen, "expecting '(' after 'foreach'")
@@ -625,18 +630,21 @@ proc forEachStmt(self: Parser): ASTNode =
     var expression = self.expression()
     self.expect(RightParen)
     var body = self.statement()
-    result = newForEachStmt(identifier, expression, body)
+    result = newForEachStmt(identifier, expression, body, tok)
     self.currentLoop = enclosingLoop
 
 
 proc importStmt(self: Parser): ASTNode =
     ## Parses import statements
+    let tok = self.peek(-1)
     self.expect(Identifier, "expecting module name(s) after import statement")
-    result = newImportStmt(self.expression())
+    result = newImportStmt(self.expression(), tok)
     endOfLine("missing semicolon after import statement")
 
 
 proc fromStmt(self: Parser): ASTNode =
+    ## Parser from xx import yy statements
+    let tok = self.peek(-1)
     self.expect(Identifier, "expecting module name(s) after import statement")
     result = newIdentExpr(self.peek(-1))
     var attributes: seq[ASTNode] = @[]
@@ -651,11 +659,12 @@ proc fromStmt(self: Parser): ASTNode =
         attributes.add(attribute)
     # from x import a [, b, c, ...];
     endOfLine("missing semicolon after import statement")
-    result = newFromImportStmt(result, attributes)
+    result = newFromImportStmt(result, attributes, tok)
 
 
 proc tryStmt(self: Parser): ASTNode =
     ## Parses try/except/finally/else blocks
+    let tok = self.peek(-1)
     var body = self.statement()
     var handlers: seq[tuple[body, exc, name: ASTNode]] = @[]
     var finallyClause: ASTNode
@@ -687,22 +696,24 @@ proc tryStmt(self: Parser): ASTNode =
     for i, handler in handlers:
         if handler.exc == nil and i != handlers.high():
             self.error("catch-all exception handler with bare 'except' must come last in try statement")
-    result = newTryStmt(body, handlers, finallyClause, elseClause)
+    result = newTryStmt(body, handlers, finallyClause, elseClause, tok)
 
 
 proc whileStmt(self: Parser): ASTNode =
     ## Parses a C-style while loop statement
+    let tok = self.peek(-1)
     var enclosingLoop = self.currentLoop
     self.currentLoop = Loop
     self.expect(LeftParen, "expecting '(' before while loop condition")
     var condition = self.expression()
     self.expect(RightParen, "unterminated while loop condition")
-    result = newWhileStmt(condition, self.statement())
+    result = newWhileStmt(condition, self.statement(), tok)
     self.currentLoop = enclosingLoop
 
 
 proc forStmt(self: Parser): ASTNode = 
     ## Parses a C-style for loop
+    let tok = self.peek(-1)
     var enclosingLoop = self.currentLoop
     self.currentLoop = Loop
     self.expect(LeftParen, "expecting '(' before for loop condition")
@@ -723,23 +734,24 @@ proc forStmt(self: Parser): ASTNode =
     if increment != nil:
         # The increment runs at each iteration, so we
         # inject it into the block as the first statement
-        body = newBlockStmt(@[body, increment])
+        body = newBlockStmt(@[body, increment], tok)
     if condition == nil:
         ## An empty condition is functionally
         ## equivalent to "true"
-        condition = newTrueExpr()
+        condition = newTrueExpr(Token())
     if initializer != nil:
         # Nested blocks, so the initializer is
         # only executed once
-        body = newBlockStmt(@[initializer, body])
+        body = newBlockStmt(@[initializer, body], tok)
     # We can use a while loop, which in this case works just as well
-    body = newWhileStmt(condition, body)
+    body = newWhileStmt(condition, body, tok)
     result = body
     self.currentLoop = enclosingLoop
 
 
 proc ifStmt(self: Parser): ASTNode =
     ## Parses if statements
+    let tok = self.peek(-1)
     self.expect(LeftParen, "expecting '(' before if condition")
     var condition = self.expression()
     self.expect(RightParen, "expecting ')' after if condition")
@@ -747,7 +759,7 @@ proc ifStmt(self: Parser): ASTNode =
     var elseBranch: ASTNode = nil
     if self.match(Else):
         elseBranch = self.statement()
-    result = newIfStmt(condition, thenBranch, elseBranch)
+    result = newIfStmt(condition, thenBranch, elseBranch, tok)
 
 
 proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNode =
@@ -772,26 +784,27 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
     else:
         if varKind.kind == Const:
             self.error("constant declaration requires an explicit initializer")
-        value = newNilExpr()
+        value = newNilExpr(Token())
     self.expect(Semicolon, &"expecting semicolon after {keyword} declaration")
     case varKind.kind:
         of Var:
-            result = newVarDecl(name, value, isStatic=isStatic, isPrivate=isPrivate)
+            result = newVarDecl(name, value, isStatic=isStatic, isPrivate=isPrivate, token=varKind)
         of Const:
-            result = newVarDecl(name, value, isConst=true, isPrivate=isPrivate, isStatic=true)
+            result = newVarDecl(name, value, isConst=true, isPrivate=isPrivate, isStatic=true, token=varKind)
         else:
             discard  # Unreachable
 
 
 proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true, isLambda: bool = false): ASTNode =
     ## Parses function and lambda declarations. Note that lambdas count as expressions!
+    let tok = self.peek(-1)
     var enclosingFunction = self.currentFunction
     var arguments: seq[ASTNode] = @[]
     var defaults: seq[ASTNode] = @[]
     if not isLambda:
-        self.currentFunction = newFunDecl(nil, arguments, defaults, newBlockStmt(@[]), isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate)
+        self.currentFunction = newFunDecl(nil, arguments, defaults, newBlockStmt(@[], Token()), isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate, token=tok)
     else:
-        self.currentFunction = newLambdaExpr(arguments, defaults, newBlockStmt(@[]), isGenerator=false)
+        self.currentFunction = newLambdaExpr(arguments, defaults, newBlockStmt(@[], Token()), isGenerator=false, token=tok)
     if not isLambda:
         self.expect(Identifier, "expecting function name after 'fun'")
         FunDecl(self.currentFunction).name = newIdentExpr(self.peek(-1))
@@ -827,6 +840,7 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
 
 proc classDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNode =
     ## Parses class declarations
+    let tok = self.peek(-1)
     var parents: seq[ASTNode] = @[]
     self.expect(Identifier)
     var name = newIdentExpr(self.peek(-1))
@@ -837,7 +851,7 @@ proc classDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): AST
             if not self.match(Comma):
                 break
     self.expect(LeftBrace)
-    result = newClassDecl(name, self.blockStmt(), isPrivate=isPrivate, isStatic=isStatic, parents=parents)
+    result = newClassDecl(name, self.blockStmt(), isPrivate=isPrivate, isStatic=isStatic, parents=parents, token=tok)
 
 
 proc expression(self: Parser): ASTNode = 
@@ -850,7 +864,7 @@ proc expressionStatement(self: Parser): ASTNode =
     ## are expressions followed by a semicolon
     var expression = self.expression()
     endOfLine("missing semicolon after expression")
-    result = newExprStmt(expression)
+    result = newExprStmt(expression, expression.token)
 
 
 proc statement(self: Parser): ASTNode =

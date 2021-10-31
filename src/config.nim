@@ -24,7 +24,7 @@ const DEBUG_TRACE_VM* = false # Traces VM execution
 const SKIP_STDLIB_INIT* = false # Skips stdlib initialization in debug mode
 const DEBUG_TRACE_GC* = false    # Traces the garbage collector (TODO)
 const DEBUG_TRACE_ALLOCATION* = false   # Traces memory allocation/deallocation
-const DEBUG_TRACE_COMPILER* = false  # Traces the compiler
+const DEBUG_TRACE_COMPILER* = true  # Traces the compiler
 const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION} ({JAPL_RELEASE}, {CompileDate} {CompileTime})"
 const HELP_MESSAGE* = """The JAPL runtime interface, Copyright (C) 2020 Mattia Giambirtone
 

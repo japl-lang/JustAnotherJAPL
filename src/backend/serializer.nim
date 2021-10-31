@@ -1,4 +1,4 @@
-# Copyright 2021 Mattia Giambirtone
+# Copyright 2020 Mattia Giambirtone
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,10 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import meta/ast
+import meta/errors
+import meta/bytecode
+
+
+import strformat
+
+export ast
+
 
 type
-    NimVMException* = object of CatchableError
-    LexingError* = object of NimVMException
-    ParseError* = object of NimVMException
-    CompileError* = object of NimVMException
-    SerializationError* = object of NimVMException
+    Serializer* = ref object
+        tree: seq[ASTNode]
+        file: string
+        chunk: Chunk
+
+
+proc newSerializer*(tree: seq[ASTNode], file: string, chunk: Chunk): Serializer =
+    new(result)
+    result.file = file
+    result.tree = tree
+    result.chunk = chunk
