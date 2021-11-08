@@ -14,6 +14,8 @@
 import backend/lexer as lx
 import backend/parser as ps
 import backend/optimizer as op
+import backend/compiler as cp
+import util/debugger
 
 
 import strformat
@@ -23,9 +25,11 @@ var filename = "test.jpl"
 var tokens: seq[Token]
 var tree: seq[ASTNode]
 var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
+var compiled: Chunk
 var lexer = initLexer()
 var parser = initParser()
 var optimizer = initOptimizer()
+var compiler = initCompiler()
 
 
 echo "NimVM REPL\n"
@@ -51,14 +55,14 @@ while true:
         # acts in-place on the AST so if we printed
         # it later the parsed tree would equal the
         # optimized one!
-        echo &"Parsing step: "
+        echo "Parsing step: "
         for node in tree:
             echo "\t", node
         echo ""
 
         optimized = optimizer.optimize(tree)
 
-        echo &"Optimization step:"
+        echo "Optimization step:"
         for node in optimized.tree:
             echo "\t", node
         echo ""
@@ -70,6 +74,11 @@ while true:
                 echo "\t", warning
         else:
             stdout.write("No warnings produced\n")
+        echo ""
+
+        compiled = compiler.compile(optimized.tree, filename)
+        echo "Compilation step:"
+        disassembleChunk(compiled, filename)
     except:
         echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
         continue

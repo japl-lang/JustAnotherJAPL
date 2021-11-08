@@ -107,11 +107,11 @@ proc disassembleInstruction*(chunk: Chunk, offset: int): int =
 
 proc disassembleChunk*(chunk: Chunk, name: string) =
     ## Takes a chunk of bytecode, and prints it
-    echo &"==== JAPL Bytecode Debugger - Chunk '{name}' ===="
+    # echo &"==== JAPL Bytecode Debugger - Chunk '{name}' ===="
     var index = 0
     while index < chunk.code.len:
         index = disassembleInstruction(chunk, index)
     setForegroundColor(fgDefault)
-    echo &"==== Debug session ended - Chunk '{name}' ===="
+    # echo &"==== Debug session ended - Chunk '{name}' ===="
 
 

@@ -18,8 +18,11 @@ import ../config
 
 
 import strformat
+import parseutils
+
 
 export ast
+export bytecode
 
 
 type
@@ -41,7 +44,7 @@ type
         currentFunction: FunDecl
     
 
-proc newCompiler*(): Compiler =
+proc initCompiler*(): Compiler =
     ## Initializes a new Compiler object
     new(result)
     result.ast = @[]
@@ -67,7 +70,7 @@ proc peek(self: Compiler, distance: int = 0): ASTNode =
 proc done(self: Compiler): bool =
     ## Returns if the compiler is done
     ## compiling
-    result = self.current >= self.ast.high()
+    result = self.current > self.ast.high()
 
 
 proc step(self: Compiler): ASTNode =
@@ -80,24 +83,16 @@ proc step(self: Compiler): ASTNode =
 
 proc error(self: Compiler, message: string) =
     ## Raises a formatted CompileError exception
-    var errorMessage: string
-    case self.peek().kind:
-        of floatExpr, intExpr, identExpr:
-            errorMessage = &"A fatal error occurred while compiling '{self.file}', line {LiteralExpr(self.peek()).literal.line} at '{LiteralExpr(self.peek()).literal.lexeme}' -> {message}"
-        else:
-            discard
-    raise newException(CompileError, errorMessage)
+    let tok = if not self.done(): self.peek().token else: self.peek(-1).token
+    raise newException(CompileError, &"A fatal error occurred while compiling '{self.file}', line {tok.line} at '{tok.lexeme}' -> {message}")
 
 
 proc emitByte(self: Compiler, byt: OpCode|uint8) =
     ## Emits a single bytecode instruction and writes it
     ## to the current chunk being compiled
     when DEBUG_TRACE_COMPILER:
-        stdout.write(&"DEBUG - Compiler: Emitting {$byt} (uint8 value of {$(uint8 byt)}")
-        if byt.int() <= OpCode.high().int():
-          stdout.write(&"; opcode value of {$byt.OpCode}")
-        stdout.write(")\n")
-    self.chunk.write(uint8 byt, self.peek().token.line)
+        echo &"DEBUG - Compiler: Emitting {$byt}"
+    self.chunk.write(uint8 byt, self.peek(-1).token.line)
 
 
 proc emitBytes(self: Compiler, byt1: OpCode|uint8, byt2: OpCode|uint8) =
@@ -129,6 +124,89 @@ proc emitConstant(self: Compiler, obj: ASTNode) =
     self.emitBytes(self.makeConstant(obj))
 
 
+proc literal(self: Compiler) =
+    ## Emits instructions for literals such
+    ## as singletons, strings, numbers and
+    ## collections
+    if self.peek().kind != NodeKind.exprStmt or not ExprStmt(self.peek()).expression.isLiteral():
+        self.error(&"invalid or corrupted AST node '{self.peek()}' ({self.peek().kind})")
+    let stomp = LiteralExpr(ExprStmt(self.step()).expression)
+    case stomp.kind:
+        of trueExpr:
+            self.emitByte(True)
+        of falseExpr:
+            self.emitByte(False)
+        of nilExpr:
+            self.emitByte(Nil)
+        of infExpr:
+            self.emitByte(OpCode.Inf)
+        of nanExpr:
+            self.emitByte(OpCode.Nan)
+        # The optimizer will emit warning
+        # for overflowing numbers. Here, we
+        # treat them as errors
+        of intExpr:
+            var x: int
+            var y = IntExpr(stomp)
+            try:
+                assert parseInt(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.error("integer value out of range")
+            self.emitConstant(y)
+        # Even though most likely the optimizer
+        # will collapse all these other literals
+        # to nodes of kind intExpr, that can be
+        # disabled. This also allows us to catch
+        # overflow errors before running any code
+        of hexExpr:
+            var x: int
+            var y = HexExpr(stomp)
+            try:
+                assert parseHex(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.error("integer value out of range")
+            self.emitConstant(y)
+        of binExpr:
+            var x: int
+            var y = BinExpr(stomp)
+            try:
+                assert parseBin(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.error("integer value out of range")
+        of octExpr:
+            var x: int
+            var y = OctExpr(stomp)
+            try:
+                assert parseOct(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.error("integer value out of range")
+        of floatExpr:
+            var x: float
+            var y = FloatExpr(stomp)
+            try:
+                assert parseFloat(y.literal.lexeme, x) == len(y.literal.lexeme)
+            except ValueError:
+                self.error("floating point value out of range")             
+        else:
+            discard
+
+
+proc expression(self: Compiler) =
+    self.literal()
+
+
+proc expressionStatement(self: Compiler) =
+    self.expression()
+
+
+proc statement(self: Compiler) =
+    self.expressionStatement()
+
+
+proc declaration(self: Compiler) =
+    self.statement()
+
+
 proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.chunk = newChunk()
     self.ast = ast
@@ -136,4 +214,8 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.locals = @[]
     self.scopeDepth = 0
     self.currentFunction = nil
+    self.current = 0
+    while not self.done():
+        self.declaration()
+        self.current += 1
     result = self.chunk

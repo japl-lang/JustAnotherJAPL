@@ -121,7 +121,7 @@ proc step(self: Parser, n: int = 1): Token =
 proc error(self: Parser, message: string) =
     ## Raises a formatted ParseError exception
     var lexeme = if not self.done(): self.peek().lexeme else: self.step().lexeme
-    var errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at '{lexeme}' -> {message}"
+    var errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at '{lexeme}' {message}"
     raise newException(ParseError, errorMessage)
 
 
@@ -417,7 +417,7 @@ proc comparison(self: Parser): ASTNode =
     result = self.add()
     var operator: Token
     var right: ASTNode
-    while self.match([LessThan, GreaterThan, LessOrEqual, GreaterOrEqual, Is, As, Of]):
+    while self.match([LessThan, GreaterThan, LessOrEqual, GreaterOrEqual, Is, As, Of, IsNot]):
         operator = self.peek(-1)
         right = self.add()
         result = newBinaryExpr(result, operator, right)
