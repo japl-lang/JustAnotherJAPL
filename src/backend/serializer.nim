@@ -124,7 +124,6 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
                 result.add(0xB)
             else:
                 self.error(&"unknown constant kind in chunk table ({constant.kind})")
-                
 
 
 proc dumpHex*(self: Serializer, chunk: Chunk, file, filename: string): string =
@@ -132,3 +131,24 @@ proc dumpHex*(self: Serializer, chunk: Chunk, file, filename: string): string =
     ## instead of a seq[byte]
     for b in self.dumpBytes(chunk, file, filename):
         result.add(toHex(b))
+
+
+proc loadBytes(self: Serializer, stream: seq[byte]): Serialized =
+    ## Loads the result from dumpBytes to a Serializer object
+    ## for use in the VM or for inspection
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
