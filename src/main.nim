@@ -35,12 +35,17 @@ proc main() =
     var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
     var compiled: Chunk
     var serializedBytes: seq[byte]
-    var serializedHex: string
     var lexer = initLexer()
     var parser = initParser()
-    var optimizer = initOptimizer(foldConstants=false)
+    var optimizer = initOptimizer(foldConstants=true)
     var compiler = initCompiler()
     var serializer = initSerializer()
+
+    var japlBranch = ""
+    var japlVersion = ""
+    var japlCommitHash = ""
+    var fileHash = ""
+    var compileDate = 0
     echo "NimVM REPL\n"
     while true:
         try:
@@ -88,14 +93,14 @@ proc main() =
             compiled = compiler.compile(optimized.tree, filename)
             echo "Compilation step:"
             echo &"\tRaw byte stream: [{compiled.code.join(\", \")}]"
-            echo "\n\nBytecode disassembler output below:\n"
+            echo "\tBytecode disassembler output below:\n"
             disassembleChunk(compiled, filename)
+            echo ""
             
             serializedBytes = serializer.dumpBytes(compiled, source, filename)
-            serializedHex = serializer.dumpHex(compiled, source, filename)
-            echo "Serialization step:"
+            echo "(De)Serialization step:"
+            echo "\t"
             echo &"\tRaw byte stream: [{serializedBytes.join(\", \")}]"
-            echo &"\tHex output: {serializedHex}"
         except:
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
             continue

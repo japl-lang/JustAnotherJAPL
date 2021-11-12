@@ -66,6 +66,7 @@ type
         UnaryNot,  # Pushes the result of ~x (bitwise not) onto the stack
         BinaryAs,   # Pushes the result of a as b onto the stack (converts a to the type of b. Explicit support from a is required)
         BinaryIs,   # Pushes the result of a is b onto the stack (true if a and b point to the same object, false otherwise)
+        BinaryIsNot,  # Pushes the result of not (a is b). This could be implemented in terms of BinaryIs, but it's more efficient this way
         BinaryOf,   # Pushes the result of a of b onto the stack (true if a is a subclass of b, false otherwise)
         BinarySlice, # Perform slicing on supported objects (like "hello"[0:2], which yields "he"). The result is pushed onto the stack
         BinarySubscript,  # Subscript operator, like "hello"[0] (which pushes 'h' onto the stack)

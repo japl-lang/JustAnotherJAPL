@@ -171,6 +171,8 @@ proc literal(self: Compiler, node: LiteralExpr) =
             self.emitByte(OpCode.Inf)
         of nanExpr:
             self.emitByte(OpCode.Nan)
+        of strExpr:
+            self.emitConstant(node)
         # The optimizer will emit warning
         # for overflowing numbers. Here, we
         # treat them as errors
@@ -194,7 +196,7 @@ proc literal(self: Compiler, node: LiteralExpr) =
                 assert parseHex(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("integer value out of range")
-            self.emitConstant(y)
+            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line, pos: (start: y.token.pos.start, stop: y.token.pos.start + len($x)))))
         of binExpr:
             var x: int
             var y = BinExpr(node)
@@ -202,6 +204,7 @@ proc literal(self: Compiler, node: LiteralExpr) =
                 assert parseBin(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("integer value out of range")
+            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line, pos: (start: y.token.pos.start, stop: y.token.pos.start + len($x)))))
         of octExpr:
             var x: int
             var y = OctExpr(node)
@@ -209,13 +212,15 @@ proc literal(self: Compiler, node: LiteralExpr) =
                 assert parseOct(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("integer value out of range")
+            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line, pos: (start: y.token.pos.start, stop: y.token.pos.start + len($x)))))
         of floatExpr:
             var x: float
             var y = FloatExpr(node)
             try:
                 assert parseFloat(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
-                self.error("floating point value out of range")             
+                self.error("floating point value out of range")
+            self.emitConstant(y)       
         else:
             self.error(&"invalid AST node of kind {node.kind} at literal(): {node} (This is an internal error and most likely a bug)")
 
@@ -265,12 +270,15 @@ proc binary(self: Compiler, node: BinaryExpr) =
             self.emitByte(BinaryAs)
         of Is:
             self.emitByte(BinaryIs)
+        of IsNot:
+            self.emitByte(BinaryIsNot)
         of Of:
             self.emitByte(BinaryOf)
         of RightShift:
             self.emitByte(BinaryShiftRight)
         of LeftShift:
             self.emitByte(BinaryShiftLeft)
+        # TODO: In-place operations
         else:
             self.error(&"invalid AST node of kind {node.kind} at binary(): {node} (This is an internal error and most likely a bug)")
 
@@ -282,7 +290,7 @@ proc expression(self: Compiler, node: ASTNode) =
         of binaryExpr:
             self.binary(BinaryExpr(node))
         of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr,
-        tupleExpr, dictExpr, setExpr, listExpr:
+            tupleExpr, dictExpr, setExpr, listExpr:
             self.literal(LiteralExpr(node))
         else:
             self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO

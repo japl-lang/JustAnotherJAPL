@@ -55,25 +55,61 @@ proc initSerializer*(): Serializer =
     result.chunk = nil
 
 
+proc toBytes(self: Serializer, s: string): seq[byte] =
+    for c in s:
+        result.add(byte(c))
+
+
+proc toBytes(self: Serializer, s: int): array[8, uint8] =
+    result = cast[array[8, uint8]](s)
+
+
+proc extend[T](s: var seq[T], a: openarray[T]) =
+    for e in a:
+        s.add(e)
+
+
 proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byte] =
     ## Dumps the given bytecode and file to a sequence of bytes and returns it.
     ## The file's content is needed to compute its SHA256 hash.
     self.file = file
     self.filename = filename
     self.chunk = chunk
-    for c in "JAPL_BYTECODE":
-        result.add(byte(c))
+    result.extend(self.toBytes("JAPL_BYTECODE"))
     result.add(byte(len(JAPL_BRANCH)))
-    for c in JAPL_BRANCH:
-        result.add(byte(c))
+    result.extend(self.toBytes(JAPL_BRANCH))
     if len(JAPL_COMMIT_HASH) != 40:
         self.error("the commit hash must be exactly 40 characters long")
-    for c in JAPL_COMMIT_HASH:
-        result.add(byte(c))
-    for b in cast[array[8, uint8]](getTime().toUnixFloat().int()):
-        result.add(b)
-    for c in computeSHA256(file):
-        result.add(byte(c))
+    result.extend(self.toBytes(JAPL_COMMIT_HASH))
+    result.extend(self.toBytes(getTime().toUnixFloat().int()))
+    result.extend(self.toBytes($computeSHA256(file)))
+    for constant in chunk.consts:
+        case constant.kind:
+            of intExpr:
+                result.add(0x1)
+                result.add(byte(len(constant.token.lexeme)))
+                result.extend(self.toBytes(constant.token.lexeme))
+            of strExpr:
+                var strip: int = 2
+                var offset: int = 1
+                result.add(0x2)
+                case constant.token.lexeme[0]:
+                    of 'f':
+                        strip = 3
+                        inc(offset)
+                        result.add(0x2)
+                    of 'b':
+                        strip = 3
+                        inc(offset)
+                        result.add(0x1)
+                    else:
+                        strip = 2
+                        result.add(0x0)
+                result.add(byte(len(constant.token.lexeme) - offset))  # Removes the quotes from the length count as they're not written
+                result.add(self.toBytes(constant.token.lexeme[offset..^2]))        
+            else:
+                self.error(&"unknown constant kind in chunk table ({constant.kind})")
+                
 
 
 proc dumpHex*(self: Serializer, chunk: Chunk, file, filename: string): string =
