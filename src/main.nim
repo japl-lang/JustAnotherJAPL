@@ -11,74 +11,87 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import backend/lexer as lx
-import backend/parser as ps
-import backend/optimizer as op
-import backend/compiler as cp
+import backend/lexer
+import backend/parser
+import backend/optimizer
+import backend/compiler
 import util/debugger
 
 
 import strformat
-
-var source: string
-var filename = "test.jpl"
-var tokens: seq[Token]
-var tree: seq[ASTNode]
-var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
-var compiled: Chunk
-var lexer = initLexer()
-var parser = initParser()
-var optimizer = initOptimizer()
-var compiler = initCompiler()
+import strutils
 
 
-echo "NimVM REPL\n"
-while true:
-    try:
-        stdout.write(">>> ")
-        source = stdin.readLine()
-    except IOError:
-        echo ""
-        break
+proc hook() {.noconv.} =
+    quit(1)
 
-    echo &"Processing: '{source}'\n"
-    try:
-        tokens = lexer.lex(source, filename)
-        echo "Tokenization step: "
-        for token in tokens:
-            echo "\t", token
-        echo ""
 
-        tree = parser.parse(tokens, filename)
-
-        # We run this now because the optimizer
-        # acts in-place on the AST so if we printed
-        # it later the parsed tree would equal the
-        # optimized one!
-        echo "Parsing step: "
-        for node in tree:
-            echo "\t", node
-        echo ""
-
-        optimized = optimizer.optimize(tree)
-
-        echo "Optimization step:"
-        for node in optimized.tree:
-            echo "\t", node
-        echo ""
-
-        stdout.write(&"Produced warnings: ")
-        if optimized.warnings.len() > 0:
+proc main() =
+    var source: string
+    const filename = "test.jpl"
+    var tokens: seq[Token]
+    var tree: seq[ASTNode]
+    var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
+    var compiled: Chunk
+    var lexer = initLexer()
+    var parser = initParser()
+    var optimizer = initOptimizer(foldConstants=false)
+    var compiler = initCompiler()
+    echo "NimVM REPL\n"
+    while true:
+        try:
+            stdout.write(">>> ")
+            source = stdin.readLine()
+        except IOError:
             echo ""
-            for warning in optimized.warnings:
-                echo "\t", warning
-        else:
-            stdout.write("No warnings produced\n")
-        echo ""
+            break
 
-        compiled = compiler.compile(optimized.tree, filename)
-        echo "Compilation step:"
-        disassembleChunk(compiled, filename)
-    except:
-        echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
-        continue
+        echo &"Processing: '{source}'\n"
+        try:
+            tokens = lexer.lex(source, filename)
+            echo "Tokenization step: "
+            for token in tokens:
+                echo "\t", token
+            echo ""
+
+            tree = parser.parse(tokens, filename)
+
+            # We run this now because the optimizer
+            # acts in-place on the AST so if we printed
+            # it later the parsed tree would equal the
+            # optimized one!
+            echo "Parsing step: "
+            for node in tree:
+                echo "\t", node
+            echo ""
+
+            optimized = optimizer.optimize(tree)
+
+            echo "Optimization step:"
+            for node in optimized.tree:
+                echo "\t", node
+            echo ""
+
+            stdout.write(&"Produced warnings: ")
+            if optimized.warnings.len() > 0:
+                echo ""
+                for warning in optimized.warnings:
+                    echo "\t", warning
+            else:
+                stdout.write("No warnings produced\n")
+            echo ""
+
+            compiled = compiler.compile(optimized.tree, filename)
+            echo "Compilation step:"
+            echo &"\tRaw byte stream: [{compiled.code.join(\", \")}]"
+            echo "\n\nBytecode disassembler output below:\n"
+            disassembleChunk(compiled, filename)
+        except:
+            echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
+            continue
+
+
+
+when isMainModule:
+    setControlCHook(hook)
+    main()

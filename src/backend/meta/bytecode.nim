@@ -62,7 +62,7 @@ type
         BinaryXor,  # Pushes the result of a ^ b (bitwise exclusive or) onto the stack
         BinaryOr,   # Pushes the result of a | b (bitwise or) onto the stack
         BinaryAnd,  # Pushes the result of a & b (bitwise and) onto the stack
-        BinaryNot,  # Pushes the result of ~x (bitwise not) onto the stack
+        BitwiseNot,  # Pushes the result of ~x (bitwise not) onto the stack
         BinaryAs,   # Pushes the result of a as b onto the stack (converts a to the type of b. Explicit support from a is required)
         BinaryIs,   # Pushes the result of a is b onto the stack (true if a and b point to the same object, false otherwise)
         BinaryOf,   # Pushes the result of a of b onto the stack (true if a is a subclass of b, false otherwise)
@@ -142,7 +142,7 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              BinarySlice, Pop, UnaryNegate,
                              BinaryIs, BinaryAs, GreaterOrEqual,
                              LessOrEqual, BinaryOr, BinaryAnd,
-                             BinaryNot, InPlaceAdd, InPlaceDivide,
+                             BitwiseNot, InPlaceAdd, InPlaceDivide,
                              InPlaceFloorDiv, InPlaceMod, InPlaceMultiply,
                              InPlaceSubtract, BinaryFloorDiv, BinaryOf, Raise,
                              ReRaise, BeginTry, FinishTry,

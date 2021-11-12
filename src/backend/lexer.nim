@@ -80,7 +80,7 @@ const keywords = to_table({
                 "lambda": Lambda, "class": Class,
                 "async": Async, "import": Import,
                 "isnot": IsNot, "from": From,
-                "const": Const,
+                "const": Const, "not": LogicalNot,
                 "assert": Assert, "or": LogicalOr,
                 "and": LogicalAnd, "del": Del,
                 "async": Async, "await": Await,

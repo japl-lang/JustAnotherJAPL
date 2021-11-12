@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import meta/token
 import meta/ast
 import meta/errors
 import meta/bytecode
@@ -55,14 +56,18 @@ proc initCompiler*(): Compiler =
     result.currentFunction = nil
 
 
+proc expression(self: Compiler, node: ASTNode)
+
+
+
 proc peek(self: Compiler, distance: int = 0): ASTNode =
     ## Peeks at the AST node at the given distance.
-    ## If the distance is out of bounds, a nil
-    ## AST node is returned. A negative distance may
-    ## be used to retrieve previously consumed
+    ## If the distance is out of bounds, the last
+    ## AST node in the tree is returned. A negative
+    ## distance may be used to retrieve previously consumed
     ## AST nodes
     if self.ast.high() == -1 or self.current + distance > self.ast.high() or self.current + distance < 0:
-        result = nil
+        result = self.ast[^1]
     else:
         result = self.ast[self.current + distance]
 
@@ -73,12 +78,39 @@ proc done(self: Compiler): bool =
     result = self.current > self.ast.high()
 
 
+proc check(self: Compiler, kind: NodeKind): bool =
+    if self.done():
+        return false
+    return self.peek().kind == kind
+
+
+proc check(self: Compiler, kinds: openarray[NodeKind]): bool =
+    for kind in kinds:
+        if self.check(kind):
+            return true
+    return false
+
+
 proc step(self: Compiler): ASTNode =
     ## Steps n nodes into the input,
     ## returning the last consumed one
     result = self.peek()
     if not self.done():
         self.current += 1
+
+
+proc match(self: Compiler, kind: NodeKind): bool =
+    if self.check(kind):
+        discard self.step()
+        return true
+    return false
+
+
+proc match(self: Compiler, kinds: openarray[NodeKind]): bool =
+    for kind in kinds:
+        if self.match(kind):
+            return true
+    return false
 
 
 proc error(self: Compiler, message: string) =
@@ -124,20 +156,17 @@ proc emitConstant(self: Compiler, obj: ASTNode) =
     self.emitBytes(self.makeConstant(obj))
 
 
-proc literal(self: Compiler) =
+proc literal(self: Compiler, node: LiteralExpr) =
     ## Emits instructions for literals such
     ## as singletons, strings, numbers and
     ## collections
-    if self.peek().kind != NodeKind.exprStmt or not ExprStmt(self.peek()).expression.isLiteral():
-        self.error(&"invalid or corrupted AST node '{self.peek()}' ({self.peek().kind})")
-    let stomp = LiteralExpr(ExprStmt(self.step()).expression)
-    case stomp.kind:
+    case node.kind:
         of trueExpr:
-            self.emitByte(True)
+            self.emitByte(OpCode.True)
         of falseExpr:
-            self.emitByte(False)
+            self.emitByte(OpCode.False)
         of nilExpr:
-            self.emitByte(Nil)
+            self.emitByte(OpCode.Nil)
         of infExpr:
             self.emitByte(OpCode.Inf)
         of nanExpr:
@@ -147,7 +176,7 @@ proc literal(self: Compiler) =
         # treat them as errors
         of intExpr:
             var x: int
-            var y = IntExpr(stomp)
+            var y = IntExpr(node)
             try:
                 assert parseInt(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
@@ -160,7 +189,7 @@ proc literal(self: Compiler) =
         # overflow errors before running any code
         of hexExpr:
             var x: int
-            var y = HexExpr(stomp)
+            var y = HexExpr(node)
             try:
                 assert parseHex(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
@@ -168,43 +197,71 @@ proc literal(self: Compiler) =
             self.emitConstant(y)
         of binExpr:
             var x: int
-            var y = BinExpr(stomp)
+            var y = BinExpr(node)
             try:
                 assert parseBin(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("integer value out of range")
         of octExpr:
             var x: int
-            var y = OctExpr(stomp)
+            var y = OctExpr(node)
             try:
                 assert parseOct(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("integer value out of range")
         of floatExpr:
             var x: float
-            var y = FloatExpr(stomp)
+            var y = FloatExpr(node)
             try:
                 assert parseFloat(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("floating point value out of range")             
         else:
+            self.error(&"Invalid AST node of kind {node.kind} at literal(): {node} (This is an internal error and most likely a bug)")
+
+
+proc unary(self: Compiler, node: UnaryExpr) =
+    ## Parses unary expressions such as negation or
+    ## bitwise inversion
+    # var node = UnaryExpr(self.unpackStmtExpr(node))
+    self.expression(node.a)
+    case node.token.kind:
+        of Minus:
+            self.emitByte(OpCode.UnaryNegate)
+        of Plus:
+            discard    # Unary + does nothing
+        of TokenType.LogicalNot:
+            self.emitByte(OpCode.LogicalNot)
+        of Tilde:
+            self.emitByte(OpCode.BitwiseNot)
+        else:
             discard
 
 
-proc expression(self: Compiler) =
-    self.literal()
+proc expression(self: Compiler, node: ASTNode) =
+    # var node = self.unpackStmtExpr(node)
+    case node.kind:
+        of unaryExpr:
+            self.unary(UnaryExpr(node))
+        else:
+            self.literal(LiteralExpr(node))
 
 
-proc expressionStatement(self: Compiler) =
-    self.expression()
+proc statement(self: Compiler, node: ASTNode) =
+    case self.peek().kind:
+        of exprStmt:
+            self.expression(ExprStmt(node).expression)
+            self.emitByte(OpCode.Pop)
+        else:
+            discard  # TODO
 
 
-proc statement(self: Compiler) =
-    self.expressionStatement()
-
-
-proc declaration(self: Compiler) =
-    self.statement()
+proc declaration(self: Compiler, node: ASTNode) =
+    case node.kind:
+        of classDecl, funDecl:
+            discard  # TODO
+        else:
+            self.statement(node)
 
 
 proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
@@ -216,6 +273,6 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.currentFunction = nil
     self.current = 0
     while not self.done():
-        self.declaration()
-        self.current += 1
+        self.declaration(self.step())
+    self.emitByte(OpCode.Return)
     result = self.chunk

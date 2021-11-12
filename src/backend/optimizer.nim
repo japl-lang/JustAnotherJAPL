@@ -28,6 +28,7 @@ type
         equalityWithSingleton,
         valueOverflow,
         implicitConversion,
+        invalidOperation
 
     Warning* = ref object
         kind*: WarningKind
@@ -103,7 +104,7 @@ proc optimizeConstant(self: Optimizer, node: ASTNode): ASTNode =
             var x: float
             var y = FloatExpr(node)
             try:
-                assert parseFloat(y.literal.lexeme, x) == len(y.literal.lexeme)
+                discard parseFloat(y.literal.lexeme, x)
             except ValueError:
                 self.newWarning(valueOverflow, node)
                 return node
@@ -121,7 +122,7 @@ proc optimizeUnary(self: Optimizer, node: UnaryExpr): ASTNode =
     case a.kind:
         of intExpr:
             var x: int
-            discard parseInt(IntExpr(a).literal.lexeme, x)
+            assert parseInt(IntExpr(a).literal.lexeme, x) == len(IntExpr(a).literal.lexeme)
             case node.operator.kind:
                 of Tilde:
                     x = not x
@@ -136,11 +137,14 @@ proc optimizeUnary(self: Optimizer, node: UnaryExpr): ASTNode =
             case node.operator.kind:
                 of Minus:
                     x = -x
+                of Tilde:
+                    self.newWarning(invalidOperation, node)
+                    return node
                 else:
                     discard
             result = FloatExpr(kind: floatExpr, literal: Token(kind: Float, lexeme: $x, line: node.operator.line, pos: (start: -1, stop: -1)))
         else:
-            discard  # Unreachable
+            result = node
 
 
 proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
@@ -165,8 +169,8 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
     if a.kind == intExpr and b.kind == intExpr:
         # Optimizes integer operations
         var x, y, z: int
-        discard parseInt(IntExpr(a).literal.lexeme, x)
-        discard parseInt(IntExpr(b).literal.lexeme, y)
+        assert parseInt(IntExpr(a).literal.lexeme, x) == IntExpr(a).literal.lexeme.len()
+        assert parseInt(IntExpr(b).literal.lexeme, y) == IntExpr(b).literal.lexeme.len()
         try:
             case node.operator.kind:
                 of Plus:
@@ -209,14 +213,14 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
         var x, y, z: float
         if a.kind == intExpr:
             var temp: int
-            discard parseInt(IntExpr(a).literal.lexeme, temp)
+            assert parseInt(IntExpr(a).literal.lexeme, temp) == IntExpr(a).literal.lexeme.len()
             x = float(temp)
             self.newWarning(implicitConversion, a)
         else:
             discard parseFloat(FloatExpr(a).literal.lexeme, x)
         if b.kind == intExpr:
             var temp: int
-            discard parseInt(IntExpr(b).literal.lexeme, temp)
+            assert parseInt(IntExpr(b).literal.lexeme, temp) == IntExpr(b).literal.lexeme.len()
             y = float(temp)
             self.newWarning(implicitConversion, b)
         else:
@@ -256,7 +260,7 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
         var a = StrExpr(a)
         var b = IntExpr(b)
         var bb: int
-        discard parseInt(b.literal.lexeme, bb)
+        assert parseInt(b.literal.lexeme, bb) == b.literal.lexeme.len()
         case node.operator.kind:
             of Asterisk:
                 result = StrExpr(kind: strExpr, literal: Token(kind: String, lexeme: "'" & a.literal.lexeme[1..<(^1)].repeat(bb) & "'"))
@@ -266,7 +270,7 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
         var b = StrExpr(b)
         var a = IntExpr(a)
         var aa: int
-        discard parseInt(a.literal.lexeme, aa)
+        assert parseInt(a.literal.lexeme, aa) == a.literal.lexeme.len()
         case node.operator.kind:
             of Asterisk:
                 result = StrExpr(kind: strExpr, literal: Token(kind: String, lexeme: "'" & b.literal.lexeme[1..<(^1)].repeat(aa) & "'"))
@@ -279,8 +283,9 @@ proc optimizeBinary(self: Optimizer, node: BinaryExpr): ASTNode =
 
 proc optimizeNode(self: Optimizer, node: ASTNode): ASTNode =
     ## Analyzes an AST node and attempts to perform
-    ## optimizations on it. If no optimization can be
-    ## applied, the same node is returned
+    ## optimizations on it. If no optimizations can be
+    ## applied or self.foldConstants is set to false,
+    ## then the same node is returned
     if not self.foldConstants:
         return node
     case node.kind:

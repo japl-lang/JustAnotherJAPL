@@ -60,11 +60,11 @@ proc constantInstruction(name: string, chunk: Chunk, offset: int): int =
     nl()
     let obj = chunk.consts[constant]
     setForegroundColor(fgGreen)
-    stdout.write(&"DEBUG - VM:\tOperand -> ") 
+    stdout.write(&"DEBUG - VM:\tOperand     -> ") 
     setForegroundColor(fgYellow)
     stdout.write($obj)
     setForegroundColor(fgGreen)
-    stdout.write("\nDEBUG - VM:\tValue kind -> ")
+    stdout.write("\nDEBUG - VM:\tValue kind  -> ")
     setForegroundColor(fgYellow)
     stdout.write(&"{obj.kind}\n")
     return offset + 4
@@ -107,11 +107,12 @@ proc disassembleInstruction*(chunk: Chunk, offset: int): int =
 
 proc disassembleChunk*(chunk: Chunk, name: string) =
     ## Takes a chunk of bytecode, and prints it
-    # echo &"==== JAPL Bytecode Debugger - Chunk '{name}' ===="
+    echo &"==== JAPL Bytecode Debugger - Chunk '{name}' ====\n"
     var index = 0
     while index < chunk.code.len:
         index = disassembleInstruction(chunk, index)
+        echo ""
     setForegroundColor(fgDefault)
-    # echo &"==== Debug session ended - Chunk '{name}' ===="
+    echo &"==== Debug session ended - Chunk '{name}' ===="
 
 

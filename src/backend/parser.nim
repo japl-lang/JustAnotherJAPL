@@ -373,7 +373,7 @@ proc call(self: Parser): ASTNode =
 
 proc unary(self: Parser): ASTNode = 
     ## Parses unary expressions
-    if self.match([Minus, Tilde]):
+    if self.match([Minus, Tilde, LogicalNot, Plus]):
         result = newUnaryExpr(self.peek(-1), self.unary())
     else:
         result = self.call()
