@@ -14,7 +14,7 @@
 
 import strformat
 
-
+const BYTECODE_MARKER* = "JAPL_BYTECODE"
 const MAP_LOAD_FACTOR* = 0.75  # Load factor for builtin hashmaps
 const HEAP_GROW_FACTOR* = 2   # How much extra memory to allocate for dynamic arrays and garbage collection when resizing
 const MAX_STACK_FRAMES* = 800   # The maximum number of stack frames at any one time. Acts as a recursion limiter (1 frame = 1 call)

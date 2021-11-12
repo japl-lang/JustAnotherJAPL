@@ -25,7 +25,6 @@ import times
 
 export ast
 
-
 type
     Serializer* = ref object
         file: string
@@ -80,7 +79,7 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
     self.file = file
     self.filename = filename
     self.chunk = chunk
-    result.extend(self.toBytes("JAPL_BYTECODE"))
+    result.extend(self.toBytes(BYTECODE_MARKER))
     result.add(byte(len(JAPL_BRANCH)))
     result.extend(self.toBytes(JAPL_BRANCH))
     if len(JAPL_COMMIT_HASH) != 40:
@@ -126,16 +125,18 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
                 self.error(&"unknown constant kind in chunk table ({constant.kind})")
 
 
-proc dumpHex*(self: Serializer, chunk: Chunk, file, filename: string): string =
-    ## Wrapper of dumpBytes that returns a hex string (using strutils.toHex)
-    ## instead of a seq[byte]
-    for b in self.dumpBytes(chunk, file, filename):
-        result.add(toHex(b))
-
-
-proc loadBytes(self: Serializer, stream: seq[byte]): Serialized =
+proc loadBytes*(self: Serializer, stream: seq[byte]): Serialized =
     ## Loads the result from dumpBytes to a Serializer object
     ## for use in the VM or for inspection
+    new(result)
+    result.chunk = newChunk()
+    var stream = stream
+    if stream[0..<len(BYTECODE_MARKER)] != self.toBytes(BYTECODE_MARKER):
+        self.error("malformed bytecode marker")
+    stream = stream[len(BYTECODE_MARKER)..^1]
+
+
+
     
 
 
