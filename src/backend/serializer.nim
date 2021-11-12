@@ -36,9 +36,10 @@ type
         ## procedures to store
         ## metadata
         fileHash*: string
-        japlVer*: string
+        japlVer*: tuple[major, minor, patch: int]
         japlBranch*: string
         commitHash*: string
+        compileDate*: int
         chunk*: Chunk
 
 
@@ -68,6 +69,15 @@ proc toBytes(self: Serializer, d: SHA256Digest): seq[byte] =
         result.add(b)
 
 
+proc bytesToString(self: Serializer, input: seq[byte]): string =
+    for b in input:
+        result.add(char(b))
+
+
+proc bytesToInt(self: Serializer, input: seq[byte]): int =
+    copyMem(result.addr, input.unsafeAddr, sizeof(int))
+
+
 proc extend[T](s: var seq[T], a: openarray[T]) =
     for e in a:
         s.add(e)
@@ -80,6 +90,9 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
     self.filename = filename
     self.chunk = chunk
     result.extend(self.toBytes(BYTECODE_MARKER))
+    result.add(byte(JAPL_VERSION.major))
+    result.add(byte(JAPL_VERSION.minor))
+    result.add(byte(JAPL_VERSION.patch))
     result.add(byte(len(JAPL_BRANCH)))
     result.extend(self.toBytes(JAPL_BRANCH))
     if len(JAPL_COMMIT_HASH) != 40:
@@ -131,12 +144,23 @@ proc loadBytes*(self: Serializer, stream: seq[byte]): Serialized =
     new(result)
     result.chunk = newChunk()
     var stream = stream
-    if stream[0..<len(BYTECODE_MARKER)] != self.toBytes(BYTECODE_MARKER):
-        self.error("malformed bytecode marker")
-    stream = stream[len(BYTECODE_MARKER)..^1]
-
-
-
+    try:
+        if stream[0..<len(BYTECODE_MARKER)] != self.toBytes(BYTECODE_MARKER):
+            self.error("malformed bytecode marker")
+        stream = stream[len(BYTECODE_MARKER) - 1..^1]
+        result.japlVer = (major: int(stream[0]), minor: int(stream[1]), patch: int(stream[2]))
+        stream = stream[2..^1]
+        let branchLength = stream[0]
+        stream = stream[1..^1]
+        result.japlBranch = self.bytesToString(stream[0..<branchLength])
+        stream = stream[branchLength..^1]
+        result.commitHash = self.bytesToString(stream[0..<40]).toHex()
+        stream = stream[39..^1]
+        result.compileDate = self.bytesToInt(stream[0..7])
+        stream = stream[7..^1]
+        result.fileHash = self.bytesToString(stream[0..<32]).toHex()
+    except IndexDefect:
+        self.error("truncated bytecode file")
     
 
 

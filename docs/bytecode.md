@@ -68,7 +68,7 @@ Once a JAPL source file (i.e. one with a ".jpl" extension, without quotes) has b
 
 An object file starts with the headers, namely:
 
-- A 13-byte constant string with the value `"JAPL_BYTECODE"` (without quotes)
+- A 13-byte constant string with the value `"JAPL_BYTECODE"` (without quotes) encoded as a sequence of integers of the ASCII encoding of each character in the string
 - A 3-byte version header composed of 3 unsigned integers representing the major, minor and patch version of the compiler used to generate the file, respectively. JAPL follows the SemVer standard for versioning
 - A string representing the branch name of the git repo from which JAPL was compiled, prepended with its size represented as a single 8-bit unsigned integer. Due to this encoding the branch name can't be longer than 256 characters, which is a length deemed appropriate for this purpose
 - A 40 bytes hexadecimal string, pinpointing the version of the compiler down to the exact commit hash in the JAPL repository, particularly useful when testing development versions
@@ -77,7 +77,7 @@ An object file starts with the headers, namely:
 
 ### Constant section
 
-This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are a compile-time view of the state of the VM's stack at runtime.
+This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant.
 
 
 ## Behavior

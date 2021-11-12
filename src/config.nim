@@ -18,7 +18,7 @@ const BYTECODE_MARKER* = "JAPL_BYTECODE"
 const MAP_LOAD_FACTOR* = 0.75  # Load factor for builtin hashmaps
 const HEAP_GROW_FACTOR* = 2   # How much extra memory to allocate for dynamic arrays and garbage collection when resizing
 const MAX_STACK_FRAMES* = 800   # The maximum number of stack frames at any one time. Acts as a recursion limiter (1 frame = 1 call)
-const JAPL_VERSION* = "0.4.0"
+const JAPL_VERSION* = (major: 0, minor: 4, patch: 0)
 const JAPL_RELEASE* = "alpha"
 const JAPL_COMMIT_HASH* = "b252749d0e5448b8fef64150299d8318362bc08c"
 const JAPL_BRANCH* = "master"
@@ -27,7 +27,7 @@ const SKIP_STDLIB_INIT* = false # Skips stdlib initialization (can be imported m
 const DEBUG_TRACE_GC* = false    # Traces the garbage collector (TODO)
 const DEBUG_TRACE_ALLOCATION* = false   # Traces memory allocation/deallocation
 const DEBUG_TRACE_COMPILER* = false  # Traces the compiler
-const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION} ({JAPL_RELEASE}, {CompileDate}, {CompileTime}) on branch {JAPL_BRANCH} ({JAPL_COMMIT_HASH[0..8]})"
+const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION.major}.{JAPL_VERSION.minor}.{JAPL_VERSION.patch} ({JAPL_RELEASE}, {CompileDate}, {CompileTime}) on branch {JAPL_BRANCH} ({JAPL_COMMIT_HASH[0..8]})"
 const HELP_MESSAGE* = """The JAPL language, Copyright (C) 2021 Mattia Giambirtone & All contributors
 
 This program is free software, see the license distributed with this program or check
