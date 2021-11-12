@@ -21,6 +21,9 @@ import backend/serializer
 
 import strformat
 import strutils
+import sequtils
+import times
+import nimSHA2
 
 
 proc hook() {.noconv.} =
@@ -34,18 +37,15 @@ proc main() =
     var tree: seq[ASTNode]
     var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
     var compiled: Chunk
-    var serializedBytes: seq[byte]
+    var serialized: Serialized
+    var serializedRaw: seq[byte]
     var lexer = initLexer()
     var parser = initParser()
     var optimizer = initOptimizer(foldConstants=false)
     var compiler = initCompiler()
     var serializer = initSerializer()
 
-    var japlBranch = ""
-    var japlVersion = ""
-    var japlCommitHash = ""
-    var fileHash = ""
-    var compileDate = 0
+    var hashMatches: bool
     echo "NimVM REPL\n"
     while true:
         try:
@@ -97,10 +97,17 @@ proc main() =
             disassembleChunk(compiled, filename)
             echo ""
             
-            serializedBytes = serializer.dumpBytes(compiled, source, filename)
-            echo "(De)Serialization step:"
-            echo "\t"
-            echo &"\tRaw byte stream: [{serializedBytes.join(\", \")}]"
+            serializedRaw = serializer.dumpBytes(compiled, source, filename)
+            echo "Serialization step: "
+            echo &"\tRaw hex output: {serializedRaw.mapIt(toHex(it)).join(\"\").toLowerAscii()}"
+            echo ""
+
+            serialized = serializer.loadBytes(serializedRaw)
+            hashMatches = if computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash: true else: false
+            echo "Deserialization step:"
+            echo &"\t\t- File hash: {serialized.fileHash} (matches: {hashMatches})"
+            echo &"\t\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..7]} on branch {serialized.japlBranch})"
+            echo &"\t\t- Compilation date & time: {fromUnix(serialized.compileDate).format(\"d/M/yyyy H:m:s\")}"
         except:
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
             continue

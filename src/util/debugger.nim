@@ -32,7 +32,7 @@ proc nl =
 
 
 proc simpleInstruction(name: string, offset: int): int =
-    write stdout, &"DEBUG - Disassembler->\tInstruction :"
+    write stdout, &"DEBUG - Disassembler->\tInstruction: "
     printName(name)
     nl()
     return offset + 1

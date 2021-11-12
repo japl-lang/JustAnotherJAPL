@@ -43,6 +43,10 @@ type
         chunk*: Chunk
 
 
+proc `$`*(self: Serialized): string =
+    result = &"Serialized(fileHash={self.fileHash}, version={self.japlVer.major}.{self.japlVer.minor}.{self.japlVer.patch}, branch={self.japlBranch}), commitHash={self.commitHash}, date={self.compileDate}, chunk={self.chunk[]}"
+
+
 proc error(self: Serializer, message: string) =
     ## Raises a formatted SerializationError exception
     raise newException(SerializationError, &"A fatal error occurred while serializing '{self.filename}' -> {message}")
@@ -74,7 +78,7 @@ proc bytesToString(self: Serializer, input: seq[byte]): string =
         result.add(char(b))
 
 
-proc bytesToInt(self: Serializer, input: seq[byte]): int =
+proc bytesToInt(self: Serializer, input: array[8, byte]): int =
     copyMem(result.addr, input.unsafeAddr, sizeof(int))
 
 
@@ -147,18 +151,18 @@ proc loadBytes*(self: Serializer, stream: seq[byte]): Serialized =
     try:
         if stream[0..<len(BYTECODE_MARKER)] != self.toBytes(BYTECODE_MARKER):
             self.error("malformed bytecode marker")
-        stream = stream[len(BYTECODE_MARKER) - 1..^1]
+        stream = stream[len(BYTECODE_MARKER)..^1]
         result.japlVer = (major: int(stream[0]), minor: int(stream[1]), patch: int(stream[2]))
-        stream = stream[2..^1]
+        stream = stream[3..^1]
         let branchLength = stream[0]
         stream = stream[1..^1]
         result.japlBranch = self.bytesToString(stream[0..<branchLength])
         stream = stream[branchLength..^1]
-        result.commitHash = self.bytesToString(stream[0..<40]).toHex()
-        stream = stream[39..^1]
-        result.compileDate = self.bytesToInt(stream[0..7])
-        stream = stream[7..^1]
-        result.fileHash = self.bytesToString(stream[0..<32]).toHex()
+        result.commitHash = self.bytesToString(stream[0..<40]).toLowerAscii()
+        stream = stream[40..^1]
+        result.compileDate = self.bytesToInt([stream[0], stream[1], stream[2], stream[3], stream[4], stream[5], stream[6], stream[7]])
+        stream = stream[8..^1]
+        result.fileHash = self.bytesToString(stream[0..<32]).toHex().toLowerAscii()
     except IndexDefect:
         self.error("truncated bytecode file")
     
