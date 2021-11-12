@@ -281,7 +281,8 @@ proc expression(self: Compiler, node: ASTNode) =
             self.unary(UnaryExpr(node))
         of binaryExpr:
             self.binary(BinaryExpr(node))
-        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr:
+        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr,
+        tupleExpr, dictExpr, setExpr, listExpr:
             self.literal(LiteralExpr(node))
         else:
             self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO
