@@ -217,43 +217,83 @@ proc literal(self: Compiler, node: LiteralExpr) =
             except ValueError:
                 self.error("floating point value out of range")             
         else:
-            self.error(&"Invalid AST node of kind {node.kind} at literal(): {node} (This is an internal error and most likely a bug)")
+            self.error(&"invalid AST node of kind {node.kind} at literal(): {node} (This is an internal error and most likely a bug)")
 
 
 proc unary(self: Compiler, node: UnaryExpr) =
     ## Parses unary expressions such as negation or
     ## bitwise inversion
-    # var node = UnaryExpr(self.unpackStmtExpr(node))
     self.expression(node.a)
-    case node.token.kind:
+    case node.operator.kind:
         of Minus:
-            self.emitByte(OpCode.UnaryNegate)
+            self.emitByte(UnaryNegate)
         of Plus:
             discard    # Unary + does nothing
         of TokenType.LogicalNot:
             self.emitByte(OpCode.LogicalNot)
         of Tilde:
-            self.emitByte(OpCode.BitwiseNot)
+            self.emitByte(UnaryNot)
         else:
-            discard
+            self.error(&"invalid AST node of kind {node.kind} at unary(): {node} (This is an internal error and most likely a bug)")
+
+
+proc binary(self: Compiler, node: BinaryExpr) =
+    self.expression(node.a)
+    self.expression(node.b)
+    case node.operator.kind:
+        of Plus:
+            self.emitByte(BinaryAdd)
+        of Minus:
+            self.emitByte(BinarySubtract)
+        of Asterisk:
+            self.emitByte(BinaryMultiply)
+        of DoubleAsterisk:
+            self.emitByte(BinaryPow)
+        of Percentage:
+            self.emitByte(BinaryMod)
+        of FloorDiv:
+            self.emitByte(BinaryFloorDiv)
+        of Slash:
+            self.emitByte(BinaryDivide)
+        of Ampersand:
+            self.emitByte(BinaryAnd)
+        of Caret:
+            self.emitByte(BinaryXor)
+        of Pipe:
+            self.emitByte(BinaryOr)
+        of As:
+            self.emitByte(BinaryAs)
+        of Is:
+            self.emitByte(BinaryIs)
+        of Of:
+            self.emitByte(BinaryOf)
+        of RightShift:
+            self.emitByte(BinaryShiftRight)
+        of LeftShift:
+            self.emitByte(BinaryShiftLeft)
+        else:
+            self.error(&"invalid AST node of kind {node.kind} at binary(): {node} (This is an internal error and most likely a bug)")
 
 
 proc expression(self: Compiler, node: ASTNode) =
-    # var node = self.unpackStmtExpr(node)
     case node.kind:
         of unaryExpr:
             self.unary(UnaryExpr(node))
-        else:
+        of binaryExpr:
+            self.binary(BinaryExpr(node))
+        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr:
             self.literal(LiteralExpr(node))
+        else:
+            self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO
 
 
 proc statement(self: Compiler, node: ASTNode) =
     case self.peek().kind:
         of exprStmt:
             self.expression(ExprStmt(node).expression)
-            self.emitByte(OpCode.Pop)
+            self.emitByte(Pop)
         else:
-            discard  # TODO
+            self.error(&"invalid AST node of kind {node.kind} at statement(): {node} (This is an internal error and most likely a bug)")  # TODO
 
 
 proc declaration(self: Compiler, node: ASTNode) =
@@ -274,5 +314,5 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.current = 0
     while not self.done():
         self.declaration(self.step())
-    self.emitByte(OpCode.Return)
+    self.emitByte(OpCode.Return)   # Exits the VM's main loop
     result = self.chunk

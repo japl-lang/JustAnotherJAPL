@@ -21,7 +21,19 @@ proc toDouble*(input: int | uint | uint16): array[2, uint8] =
     result = cast[array[2, uint8]](uint16(input))
 
 
+proc toTriple*(input: uint | int): array[3, uint8] =
+    ## Converts an unsigned integer (int is converted
+    ## to an uint and sign is lost!) to an array[3, uint8]
+    result = cast[array[3, uint8]](uint(input))
+
+
 proc fromDouble*(input: array[2, uint8]): uint16 =
     ## Rebuilds the output of toDouble into
     ## an uint16
     copyMem(result.addr, unsafeAddr(input), sizeof(uint16))
+
+
+proc fromTriple*(input: array[3, uint8]): uint =
+    ## Rebuilds the output of toTriple into
+    ## an uint
+    copyMem(result.addr, unsafeAddr(input), sizeof(uint8) * 3)

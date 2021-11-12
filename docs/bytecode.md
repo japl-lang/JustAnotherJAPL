@@ -61,9 +61,10 @@ Once a JAPL source file (i.e. one with a ".jpl" extension, without quotes) has b
 
 An object file starts with the headers, namely:
 
-- The literal string `"JAPL_BYTECODE"` (without quotes)
-- A 3-byte version header composed by 3 unsigned integers representing the major, minor and patch version of the compiler used to generate the file, respectively. JAPL follows the SemVer standard for versioning
-- A 41 bytes hexadecimal string, pinpointing the version of the compiler down to the exact commit hash in the JAPL repository, particularly useful when testing development versions
+- A 13-byte constant string with the value `"JAPL_BYTECODE"` (without quotes)
+- A 3-byte version header composed of 3 unsigned integers representing the major, minor and patch version of the compiler used to generate the file, respectively. JAPL follows the SemVer standard for versioning
+- A string representing the branch name of the git repo from which JAPL was compiled, prepended with its size represented as a single 8-bit unsigned integer. Due to this encoding the branch name can't be longer than 256 characters, which is a length deemed appropriate for this purpose
+- A 40 bytes hexadecimal string, pinpointing the version of the compiler down to the exact commit hash in the JAPL repository, particularly useful when testing development versions
 - An 8 byte (64 bit) UNIX timestamp (starting from the Unix Epoch of January 1st 1970 at 00:00), representing the date and time when the file was created
 - A 32 bytes SHA256 checksum of the source file's contents, used to track file changes
 
@@ -78,7 +79,7 @@ The main reason to serialize bytecode to a file is for porting JAPL code to othe
 
 When JAPL finds an existing object file whose name matches the one of the source file that has to be ran, it will skip processing the source file and use the existing object file only if:
 
-- The object file has been procuded by the same JAPL version as the running interpreter. Both the 3-byte version field and the commit hash are checked in this step
+- The object file has been produced by the same JAPL version as the running interpreter: the 3-byte version header, the branch name and the commit hash must be the same
 - The object file is not older than an hour (this delay can be customized)
 - The SHA256 checksum of the source file matches the SHA256 checksum contained in the object file
 

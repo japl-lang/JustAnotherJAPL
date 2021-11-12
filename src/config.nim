@@ -16,17 +16,19 @@ import strformat
 
 
 const MAP_LOAD_FACTOR* = 0.75  # Load factor for builtin hashmaps
-const ARRAY_GROW_FACTOR* = 2   # How much extra memory to allocate for dynamic arrays when resizing
-const FRAMES_MAX* = 800  # The maximum recursion limit
+const HEAP_GROW_FACTOR* = 2   # How much extra memory to allocate for dynamic arrays and garbage collection when resizing
+const MAX_STACK_FRAMES* = 800   # The maximum number of stack frames at any one time. Acts as a recursion limiter (1 frame = 1 call)
 const JAPL_VERSION* = "0.4.0"
 const JAPL_RELEASE* = "alpha"
+const JAPL_COMMIT_HASH* = "ac8b21f21b33e157d62e4d942a65f5957d58ff8e"
+const JAPL_BRANCH* = "master"
 const DEBUG_TRACE_VM* = false # Traces VM execution
-const SKIP_STDLIB_INIT* = false # Skips stdlib initialization in debug mode
+const SKIP_STDLIB_INIT* = false # Skips stdlib initialization (can be imported manually)
 const DEBUG_TRACE_GC* = false    # Traces the garbage collector (TODO)
 const DEBUG_TRACE_ALLOCATION* = false   # Traces memory allocation/deallocation
 const DEBUG_TRACE_COMPILER* = false  # Traces the compiler
-const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION} ({JAPL_RELEASE}, {CompileDate} {CompileTime})"
-const HELP_MESSAGE* = """The JAPL runtime interface, Copyright (C) 2021 Mattia Giambirtone
+const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION} ({JAPL_RELEASE}, {CompileDate}, {CompileTime}) on branch {JAPL_BRANCH} ({JAPL_COMMIT_HASH[0..8]})"
+const HELP_MESSAGE* = """The JAPL language, Copyright (C) 2021 Mattia Giambirtone & All contributors
 
 This program is free software, see the license distributed with this program or check
 http://www.apache.org/licenses/LICENSE-2.0 for more info.
@@ -42,8 +44,10 @@ $ jpl filename.jpl -> Runs filename.jpl
 Command-line options
 --------------------
 
--h, --help  -> Shows this help text and exit
--v, --version -> Prints the JAPL version number and exit
+-h, --help  -> Shows this help text and exits
+-v, --version -> Prints the JAPL version number and exits
 -s, --string -> Executes the passed string as if it was a file
 -i, --interactive -> Enables interactive mode, which opens a REPL session after execution of a file or source string
+-nc, --nocache -> Disables dumping the result of bytecode compilation to files
+-cd, --cache-delay -> Configures the bytecode cache invalidation threshold, in minutes (defaults to 60)
 """

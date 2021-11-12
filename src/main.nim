@@ -16,6 +16,7 @@ import backend/parser
 import backend/optimizer
 import backend/compiler
 import util/debugger
+import backend/serializer
 
 
 import strformat
@@ -33,10 +34,13 @@ proc main() =
     var tree: seq[ASTNode]
     var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
     var compiled: Chunk
+    var serializedBytes: seq[byte]
+    var serializedHex: string
     var lexer = initLexer()
     var parser = initParser()
     var optimizer = initOptimizer(foldConstants=false)
     var compiler = initCompiler()
+    var serializer = initSerializer()
     echo "NimVM REPL\n"
     while true:
         try:
@@ -86,6 +90,12 @@ proc main() =
             echo &"\tRaw byte stream: [{compiled.code.join(\", \")}]"
             echo "\n\nBytecode disassembler output below:\n"
             disassembleChunk(compiled, filename)
+            
+            serializedBytes = serializer.dumpBytes(compiled, source, filename)
+            serializedHex = serializer.dumpHex(compiled, source, filename)
+            echo "Serialization step:"
+            echo &"\tRaw byte stream: [{serializedBytes.join(\", \")}]"
+            echo &"\tHex output: {serializedHex}"
         except:
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
             continue

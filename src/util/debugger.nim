@@ -32,7 +32,7 @@ proc nl =
 
 
 proc simpleInstruction(name: string, offset: int): int =
-    write stdout, &"DEBUG - VM:\tInstruction -> "
+    write stdout, &"DEBUG - Disassembler:\tInstruction -> "
     printName(name)
     nl()
     return offset + 1
@@ -40,7 +40,7 @@ proc simpleInstruction(name: string, offset: int): int =
 
 proc byteInstruction(name: string, chunk: Chunk, offset: int): int =
     var slot = chunk.code[offset + 1]
-    write stdout, &"DEBUG - VM:\tInstruction -> "
+    write stdout, &"DEBUG - Disassembler:\tInstruction -> "
     printName(name)
     write stdout, &", points to slot {slot}"
     nl()
@@ -49,10 +49,8 @@ proc byteInstruction(name: string, chunk: Chunk, offset: int): int =
 
 proc constantInstruction(name: string, chunk: Chunk, offset: int): int =
     # Rebuild the index
-    var constantArray: array[3, uint8] = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]]
-    var constant: int
-    copyMem(constant.addr, constantArray.addr, sizeof(constantArray))
-    write stdout, &"DEBUG - VM:\tInstruction -> "
+    var constant = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple()
+    write stdout, &"DEBUG - Disassembler:\tInstruction -> "
     printName(name)
     write stdout, &", points to slot "
     setForegroundColor(fgYellow)
@@ -60,11 +58,11 @@ proc constantInstruction(name: string, chunk: Chunk, offset: int): int =
     nl()
     let obj = chunk.consts[constant]
     setForegroundColor(fgGreen)
-    stdout.write(&"DEBUG - VM:\tOperand     -> ") 
+    stdout.write(&"DEBUG - Disassembler:\tOperand     -> ") 
     setForegroundColor(fgYellow)
     stdout.write($obj)
     setForegroundColor(fgGreen)
-    stdout.write("\nDEBUG - VM:\tValue kind  -> ")
+    stdout.write("\nDEBUG - Disassembler:\tValue kind  -> ")
     setForegroundColor(fgYellow)
     stdout.write(&"{obj.kind}\n")
     return offset + 4
@@ -72,9 +70,9 @@ proc constantInstruction(name: string, chunk: Chunk, offset: int): int =
 
 proc jumpInstruction(name: string, chunk: Chunk, offset: int): int =
     var jumpArray: array[2, uint8] = [chunk.code[offset + 1], chunk.code[offset + 2]]
-    write stdout, &"DEBUG - VM:\tInstruction -> "
+    write stdout, &"DEBUG - Disassembler:\tInstruction -> "
     printName(name)
-    write stdout, &"\nDEBUG - VM:\tJump size -> {jumpArray.fromDouble()} ( = {$jumpArray[0]}, {$jumpArray[1]})"
+    write stdout, &"\nDEBUG - Disassembler:\tJump size -> {jumpArray.fromDouble()} ( = {$jumpArray[0]}, {$jumpArray[1]})"
     nl()
     return offset + 3
 
@@ -82,11 +80,11 @@ proc jumpInstruction(name: string, chunk: Chunk, offset: int): int =
 proc disassembleInstruction*(chunk: Chunk, offset: int): int =
     ## Takes one bytecode instruction and prints it
     setForegroundColor(fgGreen)
-    stdout.write(&"DEBUG - VM:\tOffset: ")
+    stdout.write(&"DEBUG - Disassembler:\tOffset: ")
     setForegroundColor(fgYellow)
     stdout.write(&"{offset}")
     setForegroundColor(fgGreen)
-    stdout.write("\nDEBUG - VM:\tLine: ")
+    stdout.write("\nDEBUG - Disassembler:\tLine: ")
     setForegroundColor(fgYellow)
     stdout.write(&"{chunk.getLine(offset)}\n")
     setForegroundColor(fgGreen)
