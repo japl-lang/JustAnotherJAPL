@@ -22,6 +22,11 @@ To distinguish the different kinds of values that JAPL can represent at compile 
 
 Below a list of all type specifiers:
 
+- `0xC` -> true
+- `0xD` -> false
+- `0xF` -> nil
+- `0xA` -> nan
+- `0xB` -> inf
 - `0x01` -> Number
 - `0x02` -> String
 - `0x03` -> List literal (An heterogeneous dynamic array)

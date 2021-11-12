@@ -37,7 +37,7 @@ proc main() =
     var serializedBytes: seq[byte]
     var lexer = initLexer()
     var parser = initParser()
-    var optimizer = initOptimizer(foldConstants=true)
+    var optimizer = initOptimizer(foldConstants=false)
     var compiler = initCompiler()
     var serializer = initSerializer()
 

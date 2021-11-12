@@ -64,6 +64,11 @@ proc toBytes(self: Serializer, s: int): array[8, uint8] =
     result = cast[array[8, uint8]](s)
 
 
+proc toBytes(self: Serializer, d: SHA256Digest): seq[byte] =
+    for b in d:
+        result.add(b)
+
+
 proc extend[T](s: var seq[T], a: openarray[T]) =
     for e in a:
         s.add(e)
@@ -82,7 +87,7 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
         self.error("the commit hash must be exactly 40 characters long")
     result.extend(self.toBytes(JAPL_COMMIT_HASH))
     result.extend(self.toBytes(getTime().toUnixFloat().int()))
-    result.extend(self.toBytes($computeSHA256(file)))
+    result.extend(self.toBytes(computeSHA256(file)))
     for constant in chunk.consts:
         case constant.kind:
             of intExpr:
@@ -106,7 +111,17 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
                         strip = 2
                         result.add(0x0)
                 result.add(byte(len(constant.token.lexeme) - offset))  # Removes the quotes from the length count as they're not written
-                result.add(self.toBytes(constant.token.lexeme[offset..^2]))        
+                result.add(self.toBytes(constant.token.lexeme[offset..^2]))
+            of trueExpr:
+                result.add(0xC)
+            of falseExpr:
+                result.add(0xD)
+            of nilExpr:
+                result.add(0xF)
+            of nanExpr:
+                result.add(0xA)
+            of infExpr:
+                result.add(0xB)
             else:
                 self.error(&"unknown constant kind in chunk table ({constant.kind})")
                 

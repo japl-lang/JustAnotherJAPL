@@ -961,7 +961,7 @@ proc declaration(self: Parser): ASTNode =
                         discard self.step()
                         result = self.funDecl(isStatic=isStatic, isPrivate=isPrivate) 
                     else:
-                        self.error("invalid syntax")
+                        self.error("expecting declaration")
         of Static, Dynamic:
             discard self.step()
             let isStatic: bool = if self.peek(-1).kind == Static: true else: false
@@ -980,7 +980,7 @@ proc declaration(self: Parser): ASTNode =
                         discard self.step()
                         result = self.funDecl(isStatic=isStatic, isPrivate=true)
                     else:
-                        self.error("invalid syntax")
+                        self.error("expecting declaration")
         of Async:
             discard self.step()
             self.expect(Fun)
