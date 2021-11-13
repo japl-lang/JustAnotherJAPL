@@ -109,7 +109,7 @@ proc main() =
             hashMatches = if computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash: true else: false
             echo "Deserialization step:"
             echo &"\t\t- File hash: {serialized.fileHash} (matches: {hashMatches})"
-            echo &"\t\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..7]} on branch {serialized.japlBranch})"
+            echo &"\t\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..8]} on branch {serialized.japlBranch})"
             compileDate = fromUnix(serialized.compileDate).format("d/M/yyyy H:mm:ss")
             echo &"\t\t- Compilation date & time: {compileDate}"
         except:
