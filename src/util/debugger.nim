@@ -18,86 +18,123 @@ import multibyte
 
 
 import strformat
+import strutils
 import terminal
 
 
-proc printName(name: string) =
+proc nl = stdout.write("\n")
+
+
+proc printDebug(s: string, newline: bool = false) =
+    stdout.write(&"DEBUG - Disassembler -> {s}")
+    if newline:
+        nl()
+
+
+proc printName(name: string, newline: bool = false) =
     setForegroundColor(fgRed)
-    write stdout, name
+    stdout.write(name)
     setForegroundColor(fgGreen)
+    if newline:
+        nl()
 
 
-proc nl =
-    write stdout, "\n"
+proc printInstruction(instruction: OpCode, newline: bool = false) =
+    printDebug("Instruction: ")
+    printName($instruction)
+    if newline:
+        nl()
 
 
-proc simpleInstruction(name: string, offset: int): int =
-    write stdout, &"DEBUG - Disassembler->\tInstruction: "
-    printName(name)
+
+proc simpleInstruction(instruction: OpCode, offset: int): int =
+    printInstruction(instruction)
     nl()
     return offset + 1
 
 
-proc byteInstruction(name: string, chunk: Chunk, offset: int): int =
+proc byteInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
     var slot = chunk.code[offset + 1]
-    write stdout, &"DEBUG - Disassembler->\tInstruction: "
-    printName(name)
-    write stdout, &", points to slot {slot}"
+    printInstruction(instruction)
+    stdout.write(&", points to slot {slot}")
     nl()
     return offset + 2
 
 
-proc constantInstruction(name: string, chunk: Chunk, offset: int): int =
+proc constantInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
     # Rebuild the index
     var constant = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple()
-    write stdout, &"DEBUG - Disassembler ->\tInstruction: "
-    printName(name)
-    write stdout, &", points to slot "
+    printInstruction(instruction)
+    stdout.write(&", points to slot ")
     setForegroundColor(fgYellow)
-    write stdout, &"{constant}"
+    stdout.write(&"{constant}")
     nl()
     let obj = chunk.consts[constant]
     setForegroundColor(fgGreen)
-    stdout.write(&"DEBUG - Disassembler ->\tOperand: ") 
+    printDebug("Operand: ") 
     setForegroundColor(fgYellow)
-    stdout.write($obj)
+    stdout.write(&"{obj}\n")
     setForegroundColor(fgGreen)
-    stdout.write("\nDEBUG - Disassembler ->\tValue kind: ")
+    printDebug("Value kind: ")
     setForegroundColor(fgYellow)
     stdout.write(&"{obj.kind}\n")
     return offset + 4
 
 
-proc jumpInstruction(name: string, chunk: Chunk, offset: int): int =
-    var jumpArray: array[2, uint8] = [chunk.code[offset + 1], chunk.code[offset + 2]]
-    write stdout, &"DEBUG - Disassembler ->\tInstruction: "
-    printName(name)
-    write stdout, &"\nDEBUG - Disassembler ->:\tJump size: {jumpArray.fromDouble()} ( = {$jumpArray[0]}, {$jumpArray[1]})"
+proc jumpInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
+    var jump = [chunk.code[offset + 1], chunk.code[offset + 2]].fromDouble()
+    printInstruction(instruction)
+    printDebug(&"Jump size: {jump}")
     nl()
     return offset + 3
+
+
+proc collectionInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
+    var elemCount = int([chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple())
+    printInstruction(instruction)
+    case instruction:
+        of BuildList, BuildTuple, BuildSet:
+            var elements: seq[ASTNode] = @[]
+            for n in countup(0, elemCount - 1):
+                elements.add(chunk.consts[n])
+            printDebug("")
+            setForegroundColor(fgYellow)
+            stdout.write(&"""Elements: [{elements.join(", ")}]""")
+            setForegroundColor(fgGreen)
+        of BuildDict:
+            var elements: seq[tuple[key: ASTNode, value: ASTNode]] = @[]
+            for n in countup(0, (elemCount - 1) * 2):
+                elements.add((key: chunk.consts[n], value: chunk.consts[n + 1]))
+            setForegroundColor(fgYellow)
+            printDebug(&"""Elements: [{elements.join(", ")}]""")
+        else:
+            discard  # Unreachable
+    return offset + 2 + elemCount
 
 
 proc disassembleInstruction*(chunk: Chunk, offset: int): int =
     ## Takes one bytecode instruction and prints it
     setForegroundColor(fgGreen)
-    stdout.write(&"DEBUG - Disassembler ->\tOffset: ")
+    printDebug("Offset: ")
     setForegroundColor(fgYellow)
-    stdout.write(&"{offset}")
+    echo &"{offset}"
     setForegroundColor(fgGreen)
-    stdout.write("\nDEBUG - Disassembler ->\tLine: ")
+    printDebug("Line: ")
     setForegroundColor(fgYellow)
     stdout.write(&"{chunk.getLine(offset)}\n")
     setForegroundColor(fgGreen)
     var opcode = OpCode(chunk.code[offset])
     case opcode:
         of simpleInstructions:
-            result = simpleInstruction($opcode, offset)
+            result = simpleInstruction(opcode, offset)
         of constantInstructions:
-            result = constantInstruction($opcode, chunk, offset)
+            result = constantInstruction(opcode, chunk, offset)
         of byteInstructions:
-            result = byteInstruction($opcode, chunk, offset)
+            result = byteInstruction(opcode, chunk, offset)
         of jumpInstructions:
-            result = jumpInstruction($opcode, chunk, offset)
+            result = jumpInstruction(opcode, chunk, offset)
+        of collectionInstructions:
+            result = collectionInstruction(opcode, chunk, offset)
         else:
             echo &"DEBUG - Unknown opcode {opcode} at index {offset}"
             result = offset + 1
