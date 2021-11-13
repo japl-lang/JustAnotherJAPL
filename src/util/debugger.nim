@@ -91,15 +91,15 @@ proc jumpInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
 
 proc collectionInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
     var elemCount = int([chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple())
-    printInstruction(instruction)
+    printInstruction(instruction, true)
     case instruction:
         of BuildList, BuildTuple, BuildSet:
             var elements: seq[ASTNode] = @[]
             for n in countup(0, elemCount - 1):
                 elements.add(chunk.consts[n])
-            printDebug("")
+            printDebug("Elements: ")
             setForegroundColor(fgYellow)
-            stdout.write(&"""Elements: [{elements.join(", ")}]""")
+            stdout.write(&"""[{elements.join(", ")}]""")
             setForegroundColor(fgGreen)
         of BuildDict:
             var elements: seq[tuple[key: ASTNode, value: ASTNode]] = @[]
@@ -109,7 +109,8 @@ proc collectionInstruction(instruction: OpCode, chunk: Chunk, offset: int): int 
             printDebug(&"""Elements: [{elements.join(", ")}]""")
         else:
             discard  # Unreachable
-    return offset + 2 + elemCount
+    echo ""
+    return offset + 4
 
 
 proc disassembleInstruction*(chunk: Chunk, offset: int): int =
@@ -117,7 +118,7 @@ proc disassembleInstruction*(chunk: Chunk, offset: int): int =
     setForegroundColor(fgGreen)
     printDebug("Offset: ")
     setForegroundColor(fgYellow)
-    echo &"{offset}"
+    echo offset
     setForegroundColor(fgGreen)
     printDebug("Line: ")
     setForegroundColor(fgYellow)

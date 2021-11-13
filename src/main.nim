@@ -95,7 +95,7 @@ proc main() =
             echo "Compilation step:"
             stdout.write("\t")
             echo &"""Raw byte stream: [{compiled.code.join(", ")}]"""
-            echo "\n\nBytecode disassembler output below:\n"
+            echo "\nBytecode disassembler output below:\n"
             disassembleChunk(compiled, filename)
             echo ""
             
@@ -113,6 +113,7 @@ proc main() =
             compileDate = fromUnix(serialized.compileDate).format("d/M/yyyy H:mm:ss")
             echo &"\t\t- Compilation date & time: {compileDate}"
         except:
+            raise
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
             continue
 

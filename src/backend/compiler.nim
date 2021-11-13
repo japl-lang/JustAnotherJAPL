@@ -77,7 +77,7 @@ proc peek(self: Compiler, distance: int = 0): ASTNode =
 proc done(self: Compiler): bool =
     ## Returns if the compiler is done
     ## compiling
-    result = self.current >= self.ast.high()
+    result = self.current > self.ast.high()
 
 
 proc check(self: Compiler, kind: NodeKind): bool =
@@ -225,29 +225,29 @@ proc literal(self: Compiler, node: ASTNode) =
             self.emitConstant(y)
         of listExpr:
             var y = ListExpr(node)
+            for member in y.members:
+                self.expression(member)
             self.emitByte(BuildList)
             self.emitBytes(y.members.len().toTriple())  # 24-bit integer, meaning list literals can have up to 2^24 elements
-            for member in y.members:
-                self.expression(member)
         of tupleExpr:
             var y = TupleExpr(node)
+            for member in y.members:
+                self.expression(member)
             self.emitByte(BuildTuple)
             self.emitBytes(y.members.len().toTriple())
-            for member in y.members:
-                self.expression(member)
         of setExpr:
             var y = SetExpr(node)
-            self.emitByte(BuildSet)
-            self.emitBytes(y.members.len().toTriple())
             for member in y.members:
                 self.expression(member)
+            self.emitByte(BuildSet)
+            self.emitBytes(y.members.len().toTriple())
         of dictExpr:
             var y = DictExpr(node)
-            self.emitByte(BuildDict)
-            self.emitBytes(y.keys.len().toTriple())
             for (key, value) in zip(y.keys, y.values):
                 self.expression(key)
                 self.expression(value)
+            self.emitByte(BuildDict)
+            self.emitBytes(y.keys.len().toTriple())
         else:
             self.error(&"invalid AST node of kind {node.kind} at literal(): {node} (This is an internal error and most likely a bug)")
 
