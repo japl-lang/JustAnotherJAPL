@@ -213,6 +213,7 @@ proc primary(self: Parser): ASTNode =
             result = newFloatExpr(self.step())
         of Integer:
             result = newIntExpr(self.step())
+            echo result.token
         of Identifier:
             result = newIdentExpr(self.step())
         of LeftParen:

@@ -15,6 +15,10 @@ import ast
 import ../../util/multibyte
 
 
+import strutils
+import strformat
+
+
 export ast
 
 
@@ -47,7 +51,10 @@ type
         # argument to unary opcodes, while
         # a and b represent arguments to binary
         # opcodes. Other variable names may be
-        # used for more complex opcodes        
+        # used for more complex opcodes. All
+        # arguments to opcodes (if they take
+        # arguments) come from popping off the
+        # stack   
         LoadConstant = 0u8,  # Pushes constant at position x in the constant table onto the stack
         # Binary operators
         UnaryNegate,  # Pushes the result of -x onto the stack
@@ -132,8 +139,6 @@ type
         BuildTuple
 
 
-
-
 const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              BinaryDivide, BinarySubtract,
                              BinaryMod, BinaryPow, Nil,
@@ -147,14 +152,14 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              UnaryNot, InPlaceAdd, InPlaceDivide,
                              InPlaceFloorDiv, InPlaceMod, InPlaceMultiply,
                              InPlaceSubtract, BinaryFloorDiv, BinaryOf, Raise,
-                             ReRaise, BeginTry, FinishTry,
-                             Yield, Await}
+                             ReRaise, BeginTry, FinishTry, Yield, Await}
 const constantInstructions* = {LoadConstant, DeclareName,
                                LoadName, UpdateName,
                                DeleteName}
 const byteInstructions* = {UpdateNameFast, LoadNameFast, 
                            DeleteNameFast, Call}
 const jumpInstructions* = {JumpIfFalse, Jump}
+const collectionInstructions* = {BuildList, BuildDict, BuildSet, BuildTuple}
 
 
 proc newChunk*(): Chunk =
@@ -162,9 +167,13 @@ proc newChunk*(): Chunk =
     result = Chunk(consts: @[], code: @[], lines: @[])
 
 
+proc `$`*(self: Chunk): string = &"""Chunk(consts=[{self.consts.join(", ")}], code=[{self.code.join(", ")}], lines=[{self.lines.join(", ")}])"""
+
+
 proc write*(self: Chunk, newByte: uint8, line: int) =
     ## Adds the given instruction at the provided line number
     ## to the given chunk object
+    assert line > 0
     if self.lines.high() >= 1 and self.lines[^2] == line:
         self.lines[^1] += 1
     else:

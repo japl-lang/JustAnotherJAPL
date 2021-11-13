@@ -312,6 +312,7 @@ proc isLiteral*(self: ASTNode): bool {.inline.} = self.isConst() or self.kind in
 proc newIntExpr*(literal: Token): IntExpr =
     result = IntExpr(kind: intExpr)
     result.literal = literal
+    result.token = literal
 
 
 proc newOctExpr*(literal: Token): OctExpr =
@@ -625,7 +626,7 @@ proc `$`*(self: ASTNode): string =
             result &= &"SetItem(obj={self.obj}, name={self.value}, value={self.value})"
         of callExpr:
             var self = CallExpr(self)
-            result &= &"Call({self.callee}, arguments=(positionals=[{self.arguments.positionals.join(\", \")}], keyword=[{self.arguments.keyword.join(\", \")}]))"
+            result &= &"""Call({self.callee}, arguments=(positionals=[{self.arguments.positionals.join(", ")}], keyword=[{self.arguments.keyword.join(", ")}]))"""
         of unaryExpr:
             var self = UnaryExpr(self)
             result &= &"Unary(Operator('{self.operator.lexeme}'), {self.a})"
@@ -643,7 +644,7 @@ proc `$`*(self: ASTNode): string =
             result &= &"Import({self.moduleName})"
         of fromImportStmt:
             var self = FromImportStmt(self)
-            result &= &"FromImport(fromModule={self.fromModule}, fromAttributes=[{self.fromAttributes.join(\", \")}])"
+            result &= &"""FromImport(fromModule={self.fromModule}, fromAttributes=[{self.fromAttributes.join(", ")}])"""
         of delStmt:
             var self = DelStmt(self)
             result &= &"Del({self.name})"
@@ -655,7 +656,7 @@ proc `$`*(self: ASTNode): string =
             result &= &"Raise({self.exception})"
         of blockStmt:
             var self = BlockStmt(self)
-            result &= &"Block([{self.code.join(\", \")}])"
+            result &= &"""Block([{self.code.join(", ")}])"""
         of whileStmt:
             var self = WhileStmt(self)
             result &= &"While(condition={self.condition}, body={self.body})"
@@ -688,31 +689,31 @@ proc `$`*(self: ASTNode): string =
             result &= &"Var(name={self.name}, value={self.value}, const={self.isConst}, static={self.isStatic}, private={self.isPrivate})"
         of funDecl:
             var self = FunDecl(self)
-            result &= &"FunDecl(name={self.name}, body={self.body}, arguments=[{self.arguments.join(\", \")}], defaults=[{self.defaults.join(\", \")}], async={self.isAsync}, generator={self.isGenerator}, static={self.isStatic}, private={self.isPrivate})"
+            result &= &"""FunDecl(name={self.name}, body={self.body}, arguments=[{self.arguments.join(", ")}], defaults=[{self.defaults.join(", ")}], async={self.isAsync}, generator={self.isGenerator}, static={self.isStatic}, private={self.isPrivate})"""
         of classDecl:
             var self = ClassDecl(self)
-            result &= &"Class(name={self.name}, body={self.body}, parents=[{self.parents.join(\", \")}], static={self.isStatic}, private={self.isPrivate})"
+            result &= &"""Class(name={self.name}, body={self.body}, parents=[{self.parents.join(", ")}], static={self.isStatic}, private={self.isPrivate})"""
         of tupleExpr:
             var self = TupleExpr(self)
-            result &= &"Tuple([{self.members.join(\", \")}])"
+            result &= &"""Tuple([{self.members.join(", ")}])"""
         of setExpr:
             var self = SetExpr(self)
-            result &= &"Set([{self.members.join(\", \")}])"
+            result &= &"""Set([{self.members.join(", ")}])"""
         of listExpr:
             var self = ListExpr(self)
-            result &= &"List([{self.members.join(\", \")}])"
+            result &= &"""List([{self.members.join(", ")}])"""
         of dictExpr:
             var self = DictExpr(self)
-            result &= &"Dict(keys=[{self.keys.join(\", \")}], values=[{self.values.join(\", \")}])"
+            result &= &"""Dict(keys=[{self.keys.join(", ")}], values=[{self.values.join(", ")}])"""
         of lambdaExpr:
             var self = LambdaExpr(self)
-            result &= &"Lambda(body={self.body}, arguments=[{self.arguments.join(\", \")}], defaults=[{self.defaults.join(\", \")}], generator={self.isGenerator})"
+            result &= &"""Lambda(body={self.body}, arguments=[{self.arguments.join(", ")}], defaults=[{self.defaults.join(", ")}], generator={self.isGenerator})"""
         of deferStmt:
             var self = DeferStmt(self)
             result &= &"Defer({self.deferred})"
         of sliceExpr:
             var self = SliceExpr(self)
-            result &= &"Slice({self.slicee}, ends=[{self.ends.join(\", \")}])"
+            result &= &"""Slice({self.slicee}, ends=[{self.ends.join(", ")}])"""
         of tryStmt:
             var self = TryStmt(self)
             result &= &"TryStmt(body={self.body}, handlers={self.handlers}"

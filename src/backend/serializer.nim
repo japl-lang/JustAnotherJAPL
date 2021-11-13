@@ -106,7 +106,7 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
     result.extend(self.toBytes(computeSHA256(file)))
     for constant in chunk.consts:
         case constant.kind:
-            of intExpr:
+            of intExpr, floatExpr:
                 result.add(0x1)
                 result.add(byte(len(constant.token.lexeme)))
                 result.extend(self.toBytes(constant.token.lexeme))

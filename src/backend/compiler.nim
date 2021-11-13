@@ -16,10 +16,12 @@ import meta/ast
 import meta/errors
 import meta/bytecode
 import ../config
+import ../util/multibyte
 
 
 import strformat
 import parseutils
+import sequtils
 
 
 export ast
@@ -124,7 +126,7 @@ proc emitByte(self: Compiler, byt: OpCode|uint8) =
     ## to the current chunk being compiled
     when DEBUG_TRACE_COMPILER:
         echo &"DEBUG - Compiler: Emitting {$byt}"
-    self.chunk.write(uint8 byt, self.peek(-1).token.line)
+    self.chunk.write(uint8 byt, self.peek().token.line)
 
 
 proc emitBytes(self: Compiler, byt1: OpCode|uint8, byt2: OpCode|uint8) =
@@ -156,7 +158,7 @@ proc emitConstant(self: Compiler, obj: ASTNode) =
     self.emitBytes(self.makeConstant(obj))
 
 
-proc literal(self: Compiler, node: LiteralExpr) =
+proc literal(self: Compiler, node: ASTNode) =
     ## Emits instructions for literals such
     ## as singletons, strings, numbers and
     ## collections
@@ -188,7 +190,7 @@ proc literal(self: Compiler, node: LiteralExpr) =
         # will collapse all these other literals
         # to nodes of kind intExpr, that can be
         # disabled. This also allows us to catch
-        # overflow errors before running any code
+        # basic overflow errors before running any code
         of hexExpr:
             var x: int
             var y = HexExpr(node)
@@ -220,7 +222,32 @@ proc literal(self: Compiler, node: LiteralExpr) =
                 assert parseFloat(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("floating point value out of range")
-            self.emitConstant(y)       
+            self.emitConstant(y)
+        of listExpr:
+            var y = ListExpr(node)
+            self.emitByte(BuildList)
+            self.emitBytes(y.members.len().toTriple())  # 24-bit integer, meaning list literals can have up to 2^24 elements
+            for member in y.members:
+                self.expression(member)
+        of tupleExpr:
+            var y = TupleExpr(node)
+            self.emitByte(BuildTuple)
+            self.emitBytes(y.members.len().toTriple())
+            for member in y.members:
+                self.expression(member)
+        of setExpr:
+            var y = SetExpr(node)
+            self.emitByte(BuildSet)
+            self.emitBytes(y.members.len().toTriple())
+            for member in y.members:
+                self.expression(member)
+        of dictExpr:
+            var y = DictExpr(node)
+            self.emitByte(BuildDict)
+            self.emitBytes(y.keys.len().toTriple())
+            for (key, value) in zip(y.keys, y.values):
+                self.expression(key)
+                self.expression(value)
         else:
             self.error(&"invalid AST node of kind {node.kind} at literal(): {node} (This is an internal error and most likely a bug)")
 
@@ -289,9 +316,12 @@ proc expression(self: Compiler, node: ASTNode) =
             self.unary(UnaryExpr(node))
         of binaryExpr:
             self.binary(BinaryExpr(node))
-        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr,
-            tupleExpr, dictExpr, setExpr, listExpr:
+        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr:
             self.literal(LiteralExpr(node))
+        of tupleExpr, setExpr, listExpr:
+            self.literal(ListExpr(node))
+        of dictExpr:
+            self.literal(DictExpr(node))
         else:
             self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO
 
