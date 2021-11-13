@@ -1,4 +1,4 @@
-# Copyright 2021 Mattia Giambirtone
+# Copyright 2021 Mattia Giambirtone & All Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,8 +44,9 @@ proc main() =
     var optimizer = initOptimizer(foldConstants=false)
     var compiler = initCompiler()
     var serializer = initSerializer()
-
     var hashMatches: bool
+    var compileDate: string
+
     echo "NimVM REPL\n"
     while true:
         try:
@@ -107,7 +108,8 @@ proc main() =
             echo "Deserialization step:"
             echo &"\t\t- File hash: {serialized.fileHash} (matches: {hashMatches})"
             echo &"\t\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..7]} on branch {serialized.japlBranch})"
-            echo &"\t\t- Compilation date & time: {fromUnix(serialized.compileDate).format(\"d/M/yyyy H:m:s\")}"
+            compileDate = fromUnix(serialized.compileDate).format("d/M/yyyy H:mm:ss")
+            echo &"\t\t- Compilation date & time: {compileDate}"
         except:
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
             continue

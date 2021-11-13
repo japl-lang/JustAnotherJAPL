@@ -1,4 +1,4 @@
-# Copyright 2020 Mattia Giambirtone
+# Copyright 2021 Mattia Giambirtone & All Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ const DEBUG_TRACE_GC* = false    # Traces the garbage collector (TODO)
 const DEBUG_TRACE_ALLOCATION* = false   # Traces memory allocation/deallocation
 const DEBUG_TRACE_COMPILER* = false  # Traces the compiler
 const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION.major}.{JAPL_VERSION.minor}.{JAPL_VERSION.patch} ({JAPL_RELEASE}, {CompileDate}, {CompileTime}) on branch {JAPL_BRANCH} ({JAPL_COMMIT_HASH[0..8]})"
-const HELP_MESSAGE* = """The JAPL language, Copyright (C) 2021 Mattia Giambirtone & All contributors
+const HELP_MESSAGE* = """The JAPL programming language, Copyright (C) 2021 Mattia Giambirtone & All Contributors
 
 This program is free software, see the license distributed with this program or check
 http://www.apache.org/licenses/LICENSE-2.0 for more info.
