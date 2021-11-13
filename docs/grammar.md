@@ -1,7 +1,7 @@
-# NimVM - Formal Grammar Specification
+# JAPL - Formal Grammar Specification
 
 ## Rationale
-The purpose of this document is to provide an unambiguous formal specification of NimVM's syntax for use in automated
+The purpose of this document is to provide an unambiguous formal specification of JAPL's syntax for use in automated
 compiler generators (known as "compiler compilers") and parsers.
 
 Our grammar is inspired by (and extended from) the Lox language as described in Bob Nystrom's book "Crafting Interpreters", 

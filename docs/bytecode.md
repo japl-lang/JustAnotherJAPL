@@ -1,8 +1,8 @@
-# NimVM - Bytecode Serialization Standard
+# JAPL - Bytecode Serialization Standard
 
 ## Rationale
 This document aims to lay down a simple, extensible and linear format for serializing and deserializing
-compiled NimVM's code to a buffer (be it an actual OS file or an in-memory stream).
+compiled JAPL's code to a buffer (be it an actual OS file or an in-memory stream).
 
 ## Disclaimer
 ----------------------------------------------
@@ -77,7 +77,7 @@ An object file starts with the headers, namely:
 
 ### Constant section
 
-This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant.
+This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are just an ordered sequence of compile-time types as described in the sections above.
 
 
 ## Behavior
@@ -86,8 +86,8 @@ The main reason to serialize bytecode to a file is for porting JAPL code to othe
 
 When JAPL finds an existing object file whose name matches the one of the source file that has to be ran, it will skip processing the source file and use the existing object file only if:
 
-- The object file has been produced by the same JAPL version as the running interpreter: the 3-byte version header, the branch name and the commit hash must be the same
-- The object file is not older than an hour (this delay can be customized)
+- The object file has been produced by the same JAPL version as the running interpreter: the 3-byte version header, the branch name and the commit hash must be the same for this check to succeed
+- The object file is not older than an hour (this delay can be customized with the `--cache-delay` option)
 - The SHA256 checksum of the source file matches the SHA256 checksum contained in the object file
 
 If any of those checks fail, the object file is discarded and subsequently replaced by an updated one after the compiler is done processing the source file again. Since none of those checks are absolutely bulletproof, a `--nocache` option can be provided to the JAPL executable to instruct it to not load nor produce any object files.
