@@ -77,7 +77,7 @@ proc peek(self: Compiler, distance: int = 0): ASTNode =
 proc done(self: Compiler): bool =
     ## Returns if the compiler is done
     ## compiling
-    result = self.current > self.ast.high()
+    result = self.current >= self.ast.high()
 
 
 proc check(self: Compiler, kind: NodeKind): bool =
@@ -353,5 +353,7 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.current = 0
     while not self.done():
         self.declaration(self.step())
-    self.emitByte(OpCode.Return)   # Exits the VM's main loop
+    if self.ast.len() > 0:
+        # *Technically* an empty program is a valid program
+        self.emitByte(OpCode.Return)   # Exits the VM's main loop
     result = self.chunk
