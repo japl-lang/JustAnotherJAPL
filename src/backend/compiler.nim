@@ -26,10 +26,11 @@ import sequtils
 
 export ast
 export bytecode
+export token
+export multibyte
 
 
-type
-    
+type    
     Name = ref object
         ## A wrapper around declared names.
         ## Depth indicates to which scope
