@@ -30,19 +30,29 @@ export bytecode
 
 type
     
-    Local = ref object
+    Name = ref object
+        ## A wrapper around declared names.
+        ## Depth indicates to which scope
+        ## the variable belongs, zero meaning
+        ## the global one. Note that all names
+        ## are resolved statically unless the
+        ## dynamic specifier is used, hence if
+        ## the compiler cannot resolve a name
+        ## at compile-time it will error out even
+        ## if everything would be fine at runtime
         name: ASTNode
         isStatic: bool
         isPrivate: bool
         depth: int
 
     Compiler* = ref object
+        ## A wrapper around the compiler's state
         chunk: Chunk
         ast: seq[ASTNode]
         enclosing: Compiler
         current: int
         file: string
-        locals: seq[Local]
+        names: seq[Name]
         scopeDepth: int
         currentFunction: FunDecl
     
@@ -53,11 +63,13 @@ proc initCompiler*(): Compiler =
     result.ast = @[]
     result.current = 0
     result.file = ""
-    result.locals = @[]
+    result.names = @[]
     result.scopeDepth = 0
     result.currentFunction = nil
 
 
+
+## Forward declarations
 proc expression(self: Compiler, node: ASTNode)
 
 
@@ -66,8 +78,8 @@ proc peek(self: Compiler, distance: int = 0): ASTNode =
     ## Peeks at the AST node at the given distance.
     ## If the distance is out of bounds, the last
     ## AST node in the tree is returned. A negative
-    ## distance may be used to retrieve previously consumed
-    ## AST nodes
+    ## distance may be used to retrieve previously
+    ## consumed AST nodes
     if self.ast.high() == -1 or self.current + distance > self.ast.high() or self.current + distance < 0:
         result = self.ast[^1]
     else:
@@ -81,12 +93,16 @@ proc done(self: Compiler): bool =
 
 
 proc check(self: Compiler, kind: NodeKind): bool =
+    ## Returns if the current node is of the
+    ## expected kind
     if self.done():
         return false
     return self.peek().kind == kind
 
 
 proc check(self: Compiler, kinds: openarray[NodeKind]): bool =
+    ## Returns if the current node's kind matches any
+    ## of the given ones. Bails out at the first match
     for kind in kinds:
         if self.check(kind):
             return true
@@ -94,14 +110,16 @@ proc check(self: Compiler, kinds: openarray[NodeKind]): bool =
 
 
 proc step(self: Compiler): ASTNode =
-    ## Steps n nodes into the input,
-    ## returning the last consumed one
+    ## Steps to the next node and returns
+    ## the consumed one
     result = self.peek()
     if not self.done():
         self.current += 1
 
 
 proc match(self: Compiler, kind: NodeKind): bool =
+    ## Same as self.check(), but it calls self.step()
+    ## internally if self.check() returns true
     if self.check(kind):
         discard self.step()
         return true
@@ -109,6 +127,8 @@ proc match(self: Compiler, kind: NodeKind): bool =
 
 
 proc match(self: Compiler, kinds: openarray[NodeKind]): bool =
+    ## Same as match, but can match more than one node
+    ## kind at a time
     for kind in kinds:
         if self.match(kind):
             return true
@@ -117,13 +137,13 @@ proc match(self: Compiler, kinds: openarray[NodeKind]): bool =
 
 proc error(self: Compiler, message: string) =
     ## Raises a formatted CompileError exception
-    let tok = if not self.done(): self.peek().token else: self.peek(-1).token
+    let tok = self.peek().token
     raise newException(CompileError, &"A fatal error occurred while compiling '{self.file}', line {tok.line} at '{tok.lexeme}' -> {message}")
 
 
 proc emitByte(self: Compiler, byt: OpCode|uint8) =
-    ## Emits a single bytecode instruction and writes it
-    ## to the current chunk being compiled
+    ## Emits a single byte, writing it to
+    ## the current chunk being compiled
     when DEBUG_TRACE_COMPILER:
         echo &"DEBUG - Compiler: Emitting {$byt}"
     self.chunk.write(uint8 byt, self.peek().token.line)
@@ -139,7 +159,7 @@ proc emitBytes(self: Compiler, byt1: OpCode|uint8, byt2: OpCode|uint8) =
 
 proc emitBytes(self: Compiler, bytarr: array[3, uint8]) =
     ## Handy helper method to write an array of 3 bytes into
-    ## the current chunk, calling emiteByte(s) on each of its
+    ## the current chunk, calling emitByte on each of its
     ## elements
     self.emitBytes(bytarr[0], bytarr[1])
     self.emitByte(bytarr[2])
@@ -253,9 +273,9 @@ proc literal(self: Compiler, node: ASTNode) =
 
 
 proc unary(self: Compiler, node: UnaryExpr) =
-    ## Parses unary expressions such as negation or
+    ## Compiles unary expressions such as negation or
     ## bitwise inversion
-    self.expression(node.a)
+    self.expression(node.a)  # Pushes the operand onto the stack
     case node.operator.kind:
         of Minus:
             self.emitByte(UnaryNegate)
@@ -270,6 +290,10 @@ proc unary(self: Compiler, node: UnaryExpr) =
 
 
 proc binary(self: Compiler, node: BinaryExpr) =
+    ## Compiles all binary expressions
+
+    # These two lines prepare the stack by pushing the
+    # opcode's operands onto it
     self.expression(node.a)
     self.expression(node.b)
     case node.operator.kind:
@@ -305,12 +329,13 @@ proc binary(self: Compiler, node: BinaryExpr) =
             self.emitByte(BinaryShiftRight)
         of LeftShift:
             self.emitByte(BinaryShiftLeft)
-        # TODO: In-place operations
+        # TODO: In-place operations (requires variables)
         else:
             self.error(&"invalid AST node of kind {node.kind} at binary(): {node} (This is an internal error and most likely a bug)")
 
 
 proc expression(self: Compiler, node: ASTNode) =
+    ## Compiles all expressions
     case node.kind:
         of unaryExpr:
             self.unary(UnaryExpr(node))
@@ -327,6 +352,7 @@ proc expression(self: Compiler, node: ASTNode) =
 
 
 proc statement(self: Compiler, node: ASTNode) =
+    ## Compiles all statements
     case self.peek().kind:
         of exprStmt:
             self.expression(ExprStmt(node).expression)
@@ -336,6 +362,7 @@ proc statement(self: Compiler, node: ASTNode) =
 
 
 proc declaration(self: Compiler, node: ASTNode) =
+    ## Compiles all declarations
     case node.kind:
         of classDecl, funDecl:
             discard  # TODO
@@ -344,10 +371,12 @@ proc declaration(self: Compiler, node: ASTNode) =
 
 
 proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
+    ## Compiles a sequence of AST nodes into a chunk
+    ## object
     self.chunk = newChunk()
     self.ast = ast
     self.file = file
-    self.locals = @[]
+    self.names = @[]
     self.scopeDepth = 0
     self.currentFunction = nil
     self.current = 0
@@ -355,5 +384,5 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
         self.declaration(self.step())
     if self.ast.len() > 0:
         # *Technically* an empty program is a valid program
-        self.emitByte(OpCode.Return)   # Exits the VM's main loop
+        self.emitByte(OpCode.Return)   # Exits the VM's main loop when used at the global scope
     result = self.chunk
