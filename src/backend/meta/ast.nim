@@ -253,15 +253,18 @@ type
 
     YieldStmt* = ref object of ASTNode
         expression*: ASTNode
+    
+    Declaration* = ref object of ASTNode
+        owner*: string   # Used for determining if a module can access a given field
 
-    VarDecl* = ref object of ASTNode
+    VarDecl* = ref object of Declaration
         name*: ASTNode
         value*: ASTNode
         isConst*: bool
         isStatic*: bool
         isPrivate*: bool
 
-    FunDecl* = ref object of ASTNode
+    FunDecl* = ref object of Declaration
         name*: ASTNode
         body*: ASTNode
         arguments*: seq[ASTNode]
@@ -276,7 +279,7 @@ type
         isStatic*: bool
         isPrivate*: bool
 
-    ClassDecl* = ref object of ASTNode
+    ClassDecl* = ref object of Declaration
         name*: ASTNode
         body*: ASTNode
         parents*: seq[ASTNode]
@@ -290,7 +293,6 @@ type
     Statement* = ExprStmt | ImportStmt | FromImportStmt | DelStmt | AssertStmt | RaiseStmt | BlockStmt | ForStmt | WhileStmt |
                  ForStmt | BreakStmt | ContinueStmt | ReturnStmt | IfStmt
 
-    Declaration* = VarDecl | FunDecl | ClassDecl
 
 
 
@@ -568,7 +570,7 @@ proc newIfStmt*(condition: ASTNode, thenBranch, elseBranch: ASTNode, token: Toke
 
 proc newVarDecl*(name: ASTNode, value: ASTNode = newNilExpr(Token()),
                  isStatic: bool = true, isConst: bool = false,
-                 isPrivate: bool = true, token: Token): VarDecl =
+                 isPrivate: bool = true, token: Token, owner: string): VarDecl =
     result = VarDecl(kind: varDecl)
     result.name = name
     result.value = value
@@ -576,11 +578,12 @@ proc newVarDecl*(name: ASTNode, value: ASTNode = newNilExpr(Token()),
     result.isStatic = isStatic
     result.isPrivate = isPrivate
     result.token = token
+    result.owner = owner
 
 
 proc newFunDecl*(name: ASTNode, arguments, defaults: seq[ASTNode],
                  body: ASTNode, isStatic: bool = true, isAsync,
-                 isGenerator: bool, isPrivate: bool = true, token: Token): FunDecl =
+                 isGenerator: bool, isPrivate: bool = true, token: Token, owner: string): FunDecl =
     result = FunDecl(kind: funDecl)
     result.name = name
     result.arguments = arguments
@@ -591,11 +594,12 @@ proc newFunDecl*(name: ASTNode, arguments, defaults: seq[ASTNode],
     result.isStatic = isStatic
     result.isPrivate = isPrivate
     result.token = token
+    result.owner = owner
 
 
 proc newClassDecl*(name: ASTNode, body: ASTNode,
                    parents: seq[ASTNode], isStatic: bool = true,
-                   isPrivate: bool = true, token: Token): ClassDecl =
+                   isPrivate: bool = true, token: Token, owner: string): ClassDecl =
     result = ClassDecl(kind: classDecl)
     result.name = name
     result.body = body
@@ -603,6 +607,7 @@ proc newClassDecl*(name: ASTNode, body: ASTNode,
     result.isStatic = isStatic
     result.isPrivate = isPrivate
     result.token = token
+    result.owner = owner
 
 
 proc `$`*(self: ASTNode): string = 

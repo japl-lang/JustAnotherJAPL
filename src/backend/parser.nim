@@ -795,9 +795,9 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
     self.expect(Semicolon, &"expecting semicolon after {keyword} declaration")
     case varKind.kind:
         of Var:
-            result = newVarDecl(name, value, isStatic=isStatic, isPrivate=isPrivate, token=varKind)
+            result = newVarDecl(name, value, isStatic=isStatic, isPrivate=isPrivate, token=varKind, owner=self.file)
         of Const:
-            result = newVarDecl(name, value, isConst=true, isPrivate=isPrivate, isStatic=true, token=varKind)
+            result = newVarDecl(name, value, isConst=true, isPrivate=isPrivate, isStatic=true, token=varKind, owner=self.file)
         else:
             discard  # Unreachable
 
@@ -809,7 +809,7 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
     var arguments: seq[ASTNode] = @[]
     var defaults: seq[ASTNode] = @[]
     if not isLambda:
-        self.currentFunction = newFunDecl(nil, arguments, defaults, newBlockStmt(@[], Token()), isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate, token=tok)
+        self.currentFunction = newFunDecl(nil, arguments, defaults, newBlockStmt(@[], Token()), isAsync=isAsync, isGenerator=false, isStatic=isStatic, isPrivate=isPrivate, token=tok, owner=self.file)
     else:
         self.currentFunction = newLambdaExpr(arguments, defaults, newBlockStmt(@[], Token()), isGenerator=false, token=tok)
     if not isLambda:
@@ -858,7 +858,7 @@ proc classDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): AST
             if not self.match(Comma):
                 break
     self.expect(LeftBrace)
-    result = newClassDecl(name, self.blockStmt(), isPrivate=isPrivate, isStatic=isStatic, parents=parents, token=tok)
+    result = newClassDecl(name, self.blockStmt(), isPrivate=isPrivate, isStatic=isStatic, parents=parents, token=tok, owner=self.file)
 
 
 proc expression(self: Parser): ASTNode = 
