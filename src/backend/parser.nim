@@ -735,8 +735,8 @@ proc forStmt(self: Parser): ASTNode =
     self.expect(RightParen, "unterminated for loop condition")
     var body = self.statement()
     if increment != nil:
-        # The increment runs at each iteration, so we
-        # inject it into the block as the first statement
+        # The increment runs after each iteration, so we
+        # inject it into the block as the last statement
         body = newBlockStmt(@[body, increment], tok)
     if condition == nil:
         ## An empty condition is functionally
@@ -778,6 +778,10 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
             keyword = "constant"
         else:
             keyword = "variable"
+    if not isStatic and self.currentFunction != nil:
+        self.error("dynamic declarations are illegal inside functions")
+    if not isPrivate and self.currentFunction != nil:
+        self.error("public declarations are illegal inside functions")
     self.expect(Identifier, &"expecting {keyword} name after '{varKind.lexeme}'")
     var name = newIdentExpr(self.peek(-1))
     if self.match(Equal):
