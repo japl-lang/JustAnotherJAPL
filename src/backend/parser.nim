@@ -213,7 +213,6 @@ proc primary(self: Parser): ASTNode =
             result = newFloatExpr(self.step())
         of Integer:
             result = newIntExpr(self.step())
-            echo result.token
         of Identifier:
             result = newIdentExpr(self.step())
         of LeftParen:
@@ -229,7 +228,6 @@ proc primary(self: Parser): ASTNode =
                         tupleObject.members.add(self.expression())
                         if not self.match(Comma):
                             break
-                    echo self.peek()
                     result = tupleObject
                     self.expect(RightParen, "unterminated tuple literal")
                 else:
