@@ -107,7 +107,7 @@ foreachStmt    → "foreach" "(" (IDENTIFIER ":" expression) ")" statement; // F
 
 // Expressions (rules that produce a value and have side effects)
 expression     → assignment;  // Assignment is the highest-level expression
-assignment     → (call ".")? IDENTIFIER "=" assignment | lambdaExpr;
+assignment     → (call ".")? IDENTIFIER ASSIGNTOKENS assignment | lambdaExpr;
 lambdaExpr     → "lambda" lambda;  // Lambdas are anonymous functions, so they act as expressions
 yieldExpr      → "yield" expression?; // Empty yield equals yield nil
 awaitExpr      → "await" expression;
@@ -153,4 +153,5 @@ DOUBLEQUOTE    → "\"";
 ALPHA          → "a" ... "z" | "A" ... "Z" | "_";  // Alphanumeric characters
 UNICODE        → 0x00 ... 0x10FFFD;  // This covers the whole unicode range
 DIGIT          → "0" ... "9";  // Arabic digits
+ASSIGNTOKENS   → '+=' | '-=' | '*='  | '/=' | '%=' | '&=' | '|=' | '^=' | '<<=' | '>>=' | '**=' | '//=' 
 ```
