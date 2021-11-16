@@ -128,6 +128,11 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
                         result.add(0x0)
                 result.add(byte(len(constant.token.lexeme) - offset))  # Removes the quotes from the length count as they're not written
                 result.add(self.toBytes(constant.token.lexeme[offset..^2]))
+            of identExpr:
+                result.add(0x2)
+                result.add(0x0)
+                result.add(byte(len(constant.token.lexeme)))
+                result.add(self.toBytes(constant.token.lexeme))
             of trueExpr:
                 result.add(0xC)
             of falseExpr:

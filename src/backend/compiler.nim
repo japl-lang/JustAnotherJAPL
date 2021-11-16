@@ -72,7 +72,19 @@ proc initCompiler*(): Compiler =
 
 ## Forward declarations
 proc expression(self: Compiler, node: ASTNode)
+proc statement(self: Compiler, node: ASTNode)
+proc declaration(self: Compiler, node: ASTNode)
+proc peek(self: Compiler, distance: int = 0): ASTNode
+## End of forward declarations
 
+
+
+## Utility functions
+
+proc error(self: Compiler, message: string) =
+    ## Raises a formatted CompileError exception
+    let tok = self.peek().token
+    raise newException(CompileError, &"A fatal error occurred while compiling '{self.file}', line {tok.line} at '{tok.lexeme}' -> {message}")
 
 
 proc peek(self: Compiler, distance: int = 0): ASTNode =
@@ -88,8 +100,8 @@ proc peek(self: Compiler, distance: int = 0): ASTNode =
 
 
 proc done(self: Compiler): bool =
-    ## Returns if the compiler is done
-    ## compiling
+    ## Returns true if the compiler is done
+    ## compiling, false otherwise
     result = self.current > self.ast.high()
 
 
@@ -99,15 +111,6 @@ proc check(self: Compiler, kind: NodeKind): bool =
     if self.done():
         return false
     return self.peek().kind == kind
-
-
-proc check(self: Compiler, kinds: openarray[NodeKind]): bool =
-    ## Returns if the current node's kind matches any
-    ## of the given ones. Bails out at the first match
-    for kind in kinds:
-        if self.check(kind):
-            return true
-    return false
 
 
 proc step(self: Compiler): ASTNode =
@@ -127,19 +130,15 @@ proc match(self: Compiler, kind: NodeKind): bool =
     return false
 
 
-proc match(self: Compiler, kinds: openarray[NodeKind]): bool =
-    ## Same as match, but can match more than one node
-    ## kind at a time
-    for kind in kinds:
-        if self.match(kind):
-            return true
-    return false
-
-
-proc error(self: Compiler, message: string) =
-    ## Raises a formatted CompileError exception
-    let tok = self.peek().token
-    raise newException(CompileError, &"A fatal error occurred while compiling '{self.file}', line {tok.line} at '{tok.lexeme}' -> {message}")
+proc expect(self: Compiler, kind: NodeKind, message: string): ASTNode =
+    ## Same as self.match(), but returns the consumed
+    ## AST node instead of a boolean and errors out
+    ## with the given error message if the token
+    ## doesn't match
+    if self.match(kind):
+        result = self.peek(-1)
+    else:
+        self.error(message)
 
 
 proc emitByte(self: Compiler, byt: OpCode|uint8) =
@@ -178,6 +177,15 @@ proc emitConstant(self: Compiler, obj: ASTNode) =
     self.emitByte(LoadConstant)
     self.emitBytes(self.makeConstant(obj))
 
+
+proc identifierConstant(self: Compiler, identifier: IdentExpr): array[3, uint8] =
+    ## Emits an identifier name as a string in the current chunk's constant
+    ## table. This is used to load globals declared as dynamic that cannot
+    ## be resolved statically by the compiler
+    result = self.makeConstant(identifier)
+
+
+## End of utility functions
 
 proc literal(self: Compiler, node: ASTNode) =
     ## Emits instructions for literals such
@@ -268,7 +276,7 @@ proc literal(self: Compiler, node: ASTNode) =
                 self.expression(key)
                 self.expression(value)
             self.emitByte(BuildDict)
-            self.emitBytes(y.keys.len().toTriple())
+            self.emitBytes(y.keys.len().toTriple())            
         else:
             self.error(&"invalid AST node of kind {node.kind} at literal(): {node} (This is an internal error and most likely a bug)")
 
@@ -339,12 +347,21 @@ proc expression(self: Compiler, node: ASTNode) =
     ## Compiles all expressions
     case node.kind:
         of unaryExpr:
+            # Unary expressions such as ~5 and -3
             self.unary(UnaryExpr(node))
         of binaryExpr:
+            # Binary expressions such as 2 ^ 5 and 0.66 * 3.14
             self.binary(BinaryExpr(node))
-        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr:
+        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr, nilExpr:
+            # Fortunately for us, all of these AST nodes types inherit from the base LiteralExpr
+            # type
             self.literal(LiteralExpr(node))
         of tupleExpr, setExpr, listExpr:
+            # Since all of these AST nodes share
+            # the same structure, and the kind
+            # discriminant is enough to tell one
+            # from the other, why bother with
+            # specialized cases when one is enough?
             self.literal(ListExpr(node))
         of dictExpr:
             self.literal(DictExpr(node))
@@ -352,12 +369,61 @@ proc expression(self: Compiler, node: ASTNode) =
             self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO
 
 
+proc defineVariable(self: Compiler, index: array[3, uint8]) =
+    ## Defines a variable
+    self.emitByte(DeclareName)
+    self.emitBytes(index)
+
+
+proc varDecl(self: Compiler, node: VarDecl) = 
+    ## Compiles variable declarations
+    self.expression(node.value)
+    if not node.isStatic:
+        self.defineVariable(self.identifierConstant(IdentExpr(node.name)))
+    # TODO
+
+
 proc statement(self: Compiler, node: ASTNode) =
     ## Compiles all statements
-    case self.peek().kind:
+    case node.kind:
         of exprStmt:
             self.expression(ExprStmt(node).expression)
-            self.emitByte(Pop)
+            self.emitByte(Pop)   # Expression statements discard their value. Their main use case is side effects in function calls
+        # TODO
+        of ifStmt:
+            discard
+        of delStmt:
+            discard
+        of assertStmt:
+            discard
+        of raiseStmt:
+            discard
+        of breakStmt:
+            discard
+        of continueStmt:
+            discard
+        of returnStmt:
+            discard
+        of importStmt:
+            discard
+        of fromImportStmt:
+            discard
+        of whileStmt:
+            discard
+        of forStmt:
+            discard
+        of forEachStmt:
+            discard
+        of blockStmt:
+            discard
+        of yieldStmt:
+            discard
+        of awaitStmt:
+            discard
+        of deferStmt:
+            discard
+        of tryStmt:
+            discard 
         else:
             self.error(&"invalid AST node of kind {node.kind} at statement(): {node} (This is an internal error and most likely a bug)")  # TODO
 
@@ -365,7 +431,9 @@ proc statement(self: Compiler, node: ASTNode) =
 proc declaration(self: Compiler, node: ASTNode) =
     ## Compiles all declarations
     case node.kind:
-        of classDecl, funDecl:
+        of NodeKind.varDecl:
+            self.varDecl(VarDecl(node))
+        of funDecl, classDecl:
             discard  # TODO
         else:
             self.statement(node)

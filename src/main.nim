@@ -77,7 +77,7 @@ proc main() =
 
             optimized = optimizer.optimize(tree)
 
-            echo "Optimization step:"
+            echo &"Optimization step (constant folding enabled {optimizer.foldConstants}):"
             for node in optimized.tree:
                 echo "\t", node
             echo ""
@@ -113,6 +113,7 @@ proc main() =
             compileDate = fromUnix(serialized.compileDate).format("d/M/yyyy H:mm:ss")
             echo &"\t\t- Compilation date & time: {compileDate}"
         except:
+            raise
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
             continue
 

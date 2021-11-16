@@ -36,7 +36,7 @@ type
 
     Optimizer* = ref object
         warnings: seq[Warning]
-        foldConstants: bool
+        foldConstants*: bool
 
 
 proc initOptimizer*(foldConstants: bool = true): Optimizer =
