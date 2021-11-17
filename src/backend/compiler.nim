@@ -363,7 +363,7 @@ proc declareName(self: Compiler, node: ASTNode) =
         of varDecl:
             var node = VarDecl(node)
             if not node.isStatic:
-                # This emits code for dynamically-resolved variables (i.e. just globals declared as dynamic)
+                # This emits code for dynamically-resolved variables (i.e. globals declared as dynamic and unresolvable names)
                 self.emitByte(DeclareName)
                 self.emitBytes(self.identifierConstant(IdentExpr(node.name)))
                 self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
@@ -423,18 +423,21 @@ proc resolveStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth
 proc getStaticIndex(self: Compiler, name: IdentExpr): int =
     ## Gets the predicted stack position of the given variable
     ## if it is static, returns -1 if it is to be bound dynamically
-    for i, variable in self.staticNames:
+    var i: int = self.staticNames.high()
+    for variable in reversed(self.staticNames):
         if name.name.lexeme == variable.name.name.lexeme:
             return i
+        dec(i)
     return -1
 
 
 proc identifier(self: Compiler, node: IdentExpr) =
     ## Compiles access to identifiers
-    let r = self.resolveDynamic(node)
-    if r == nil and self.scopeDepth == 0:
+    let s = self.resolveStatic(node)
+    let d = self.resolveDynamic(node)
+    if s == nil and d == nil and self.scopeDepth == 0:
         # Usage of undeclared globals is easy to detect at the top level
-        self.error(&"reference to undeclared name '{r.name.name.lexeme}'")
+        self.error(&"reference to undeclared name '{node.name.lexeme}'")
     let index = self.getStaticIndex(node)
     if index != -1:
         self.emitByte(LoadNameFast)   # Scoping/static resolution
@@ -492,8 +495,8 @@ proc blockStmt(self: Compiler, node: BlockStmt) =
     ## Compiles block statements, which create a new
     ## local scope.
     self.beginScope()
-    while not self.done():
-        self.declaration(self.step())
+    for decl in node.code:
+        self.declaration(decl)
     self.endScope()
 
 

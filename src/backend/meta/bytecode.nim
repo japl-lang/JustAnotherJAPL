@@ -154,9 +154,8 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              InPlaceFloorDiv, InPlaceMod, InPlaceMultiply,
                              InPlaceSubtract, BinaryFloorDiv, BinaryOf, Raise,
                              ReRaise, BeginTry, FinishTry, Yield, Await}
-const constantInstructions* = {LoadConstant, DeclareName, LoadName, UpdateName, DeleteName,
-                               UpdateNameFast, DeleteNameFast}
-const byteInstructions* = {Call}
+const constantInstructions* = {LoadConstant, DeclareName, LoadName, UpdateName, DeleteName}
+const stackInstructions* = {Call, UpdateNameFast, DeleteNameFast, LoadNameFast}
 const jumpInstructions* = {JumpIfFalse, Jump}
 const collectionInstructions* = {BuildList, BuildDict, BuildSet, BuildTuple}
 

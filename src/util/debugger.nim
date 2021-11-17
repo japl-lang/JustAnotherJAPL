@@ -53,21 +53,21 @@ proc simpleInstruction(instruction: OpCode, offset: int): int =
     return offset + 1
 
 
-proc byteInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
-    var slot = chunk.code[offset + 1]
+proc stackInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
+    var slot = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple()
     printInstruction(instruction)
-    stdout.write(&", points to slot ")
+    stdout.write(&", points to stack index ")
     setForegroundColor(fgYellow)
     stdout.write(&"{slot}")
     nl()
-    return offset + 2
+    return offset + 4
 
 
 proc constantInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
     # Rebuild the index
     var constant = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple()
     printInstruction(instruction)
-    stdout.write(&", points to slot ")
+    stdout.write(&", points to constant at position ")
     setForegroundColor(fgYellow)
     stdout.write(&"{constant}")
     nl()
@@ -132,8 +132,8 @@ proc disassembleInstruction*(chunk: Chunk, offset: int): int =
             result = simpleInstruction(opcode, offset)
         of constantInstructions:
             result = constantInstruction(opcode, chunk, offset)
-        of byteInstructions:
-            result = byteInstruction(opcode, chunk, offset)
+        of stackInstructions:
+            result = stackInstruction(opcode, chunk, offset)
         of jumpInstructions:
             result = jumpInstruction(opcode, chunk, offset)
         of collectionInstructions:
