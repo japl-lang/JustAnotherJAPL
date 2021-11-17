@@ -56,7 +56,9 @@ proc simpleInstruction(instruction: OpCode, offset: int): int =
 proc byteInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
     var slot = chunk.code[offset + 1]
     printInstruction(instruction)
-    stdout.write(&", points to slot {slot}")
+    stdout.write(&", points to slot ")
+    setForegroundColor(fgYellow)
+    stdout.write(&"{slot}")
     nl()
     return offset + 2
 

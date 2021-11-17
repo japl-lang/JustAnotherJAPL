@@ -39,13 +39,12 @@ proc main() =
     var compiled: Chunk
     var serialized: Serialized
     var serializedRaw: seq[byte]
+
     var lexer = initLexer()
     var parser = initParser()
     var optimizer = initOptimizer(foldConstants=false)
     var compiler = initCompiler()
     var serializer = initSerializer()
-    var hashMatches: bool
-    var compileDate: string
 
     echo "NimVM REPL\n"
     while true:
@@ -77,7 +76,7 @@ proc main() =
 
             optimized = optimizer.optimize(tree)
 
-            echo &"Optimization step (constant folding enabled {optimizer.foldConstants}):"
+            echo &"Optimization step (constant folding enabled: {optimizer.foldConstants}):"
             for node in optimized.tree:
                 echo "\t", node
             echo ""
@@ -106,14 +105,12 @@ proc main() =
             echo ""
 
             serialized = serializer.loadBytes(serializedRaw)
-            hashMatches = if computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash: true else: false
             echo "Deserialization step:"
-            echo &"\t\t- File hash: {serialized.fileHash} (matches: {hashMatches})"
+            echo &"\t\t- File hash: {serialized.fileHash} (matches: {computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash})"
             echo &"\t\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..8]} on branch {serialized.japlBranch})"
-            compileDate = fromUnix(serialized.compileDate).format("d/M/yyyy H:mm:ss")
-            echo &"\t\t- Compilation date & time: {compileDate}"
+            stdout.write("\t\t")
+            echo &"""- Compilation date & time: {fromUnix(serialized.compileDate).format("d/M/yyyy H:mm:ss")}"""
         except:
-            raise
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
             continue
 

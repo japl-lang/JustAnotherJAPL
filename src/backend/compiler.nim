@@ -20,6 +20,7 @@ import ../util/multibyte
 
 
 import strformat
+import algorithm
 import parseutils
 import sequtils
 
@@ -30,9 +31,9 @@ export token
 export multibyte
 
 
-type    
-    Name = ref object
-        ## A wrapper around declared names.
+type
+    Name = ref object of RootObj
+        ## A compile-time wrapper around names.
         ## Depth indicates to which scope
         ## the variable belongs, zero meaning
         ## the global one. Note that all names
@@ -41,11 +42,15 @@ type
         ## the compiler cannot resolve a name
         ## at compile-time it will error out even
         ## if everything would be fine at runtime
-        name: ASTNode
-        isStatic: bool
-        isPrivate: bool
+        name: IdentExpr
+        owner: string
         depth: int
-
+        isPrivate: bool
+ 
+    StaticName = ref object of Name
+        ## A wrapper around statically bound names.
+        isConst: bool
+        
     Compiler* = ref object
         ## A wrapper around the compiler's state
         chunk: Chunk
@@ -54,6 +59,11 @@ type
         current: int
         file: string
         names: seq[Name]
+        # This differentiation is needed for a few things, namely:
+        # - To forbid assignment to constants
+        # - To error out on name resolution for a never-declared variable (static or dynamic)
+        # - To correctly predict where locals will be on the stack at runtime
+        staticNames: seq[StaticName]
         scopeDepth: int
         currentFunction: FunDecl
     
@@ -65,6 +75,7 @@ proc initCompiler*(): Compiler =
     result.current = 0
     result.file = ""
     result.names = @[]
+    result.staticNames = @[]
     result.scopeDepth = 0
     result.currentFunction = nil
 
@@ -182,8 +193,10 @@ proc identifierConstant(self: Compiler, identifier: IdentExpr): array[3, uint8] 
     ## Emits an identifier name as a string in the current chunk's constant
     ## table. This is used to load globals declared as dynamic that cannot
     ## be resolved statically by the compiler
-    result = self.makeConstant(identifier)
-
+    try:
+        result = self.makeConstant(identifier)
+    except CompileError:
+        self.error(getCurrentExceptionMsg())
 
 ## End of utility functions
 
@@ -343,12 +356,167 @@ proc binary(self: Compiler, node: BinaryExpr) =
             self.error(&"invalid AST node of kind {node.kind} at binary(): {node} (This is an internal error and most likely a bug)")
 
 
+proc declareName(self: Compiler, node: ASTNode) =
+    ## Compiles all name declarations (constants, static,
+    ## and dynamic)
+    case node.kind:
+        of varDecl:
+            var node = VarDecl(node)
+            if not node.isStatic:
+                # This emits code for dynamically-resolved variables (i.e. just globals declared as dynamic)
+                self.emitByte(DeclareName)
+                self.emitBytes(self.identifierConstant(IdentExpr(node.name)))
+                self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
+                                    isPrivate: node.isPrivate, owner: node.owner))
+            elif node.isConst:
+                # Constants are emitted as, you guessed it, constant instructions
+                # no matter the scope depth. Also, name resolution specifiers do not
+                # apply to them (because what would it mean for a constant to be dynamic
+                # anyway?)
+                self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
+                                    isPrivate: node.isPrivate, owner: node.owner))
+                self.emitConstant(node.value)
+            else:
+                # Statically resolved variable here
+                if self.staticNames.high() > 16777215:
+                    # If someone ever hits this limit in real-world scenarios, I swear I'll
+                    # slap myself 100 times with a sign saying "I'm dumb". Mark my words
+                    self.error("cannot declare more than 16777215 static variables at a time")
+                self.staticNames.add(StaticName(depth: self.scopeDepth, name: IdentExpr(node.name),
+                                                isPrivate: node.isPrivate, owner: node.owner, isConst: node.isConst))
+        else:
+            discard  # TODO: Classes, functions
+
+    
+proc varDecl(self: Compiler, node: VarDecl) = 
+    ## Compiles variable declarations
+    self.expression(node.value)
+    self.declareName(node)
+
+
+proc resolveDynamic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth): Name =
+    ## Traverses self.names backwards and returns the
+    ## first name object with the given name at the given
+    ## depth. The default depth is the current one. Returns
+    ## nil when the name can't be found. This helper function
+    ## is only useful when detecting a few errors and edge
+    ## cases
+    for obj in reversed(self.names):
+        if obj.name.token.lexeme == name.token.lexeme and obj.depth == depth:
+            return obj
+    return nil
+
+
+proc resolveStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth): StaticName =
+    ## Traverses self.staticNames backwards and returns the
+    ## first name object with the given name at the given
+    ## depth. The default depth is the current one. Returns
+    ## nil when the name can't be found. This helper function
+    ## is only useful when detecting a few errors and edge
+    ## cases
+    for obj in reversed(self.staticNames):
+        if obj.name.token.lexeme == name.token.lexeme and obj.depth == depth:
+            return obj
+    return nil
+
+
+proc getStaticIndex(self: Compiler, name: IdentExpr): int =
+    ## Gets the predicted stack position of the given variable
+    ## if it is static, returns -1 if it is to be bound dynamically
+    for i, variable in self.staticNames:
+        if name.name.lexeme == variable.name.name.lexeme:
+            return i
+    return -1
+
+
+proc identifier(self: Compiler, node: IdentExpr) =
+    ## Compiles access to identifiers
+    let r = self.resolveDynamic(node)
+    if r == nil and self.scopeDepth == 0:
+        # Usage of undeclared globals is easy to detect at the top level
+        self.error(&"reference to undeclared name '{r.name.name.lexeme}'")
+    let index = self.getStaticIndex(node)
+    if index != -1:
+        self.emitByte(LoadNameFast)   # Scoping/static resolution
+        self.emitBytes(index.toTriple())
+    else:
+        self.emitByte(LoadName)
+        self.emitBytes(self.identifierConstant(node))
+
+
+proc assignment(self: Compiler, node: ASTNode) =
+    ## Compiles assignment expressions
+    case node.kind:
+        of assignExpr:
+            var node = AssignExpr(node)
+            var name = IdentExpr(node.name)
+            let r = self.resolveStatic(name)
+            if r != nil and r.isConst:
+                self.error("cannot assign to constant")
+            # Assignment only encompasses variable assignments
+            # so we can ensure the name is a constant
+            self.expression(node.value)
+            let index = self.getStaticIndex(name)
+            if index != -1:
+                self.emitByte(UpdateNameFast)
+                self.emitBytes(index.toTriple())
+            else:
+                self.emitByte(UpdateName)
+                self.emitBytes(self.makeConstant(name))
+        of setItemExpr:
+            var node = SetItemExpr(node)
+            # TODO
+        else:
+            self.error(&"invalid AST node of kind {node.kind} at assignment(): {node} (This is an internal error and most likely a bug)")
+
+
+proc beginScope(self: Compiler) =
+    ## Begins a new local scope
+    inc(self.scopeDepth)
+
+
+proc endScope(self: Compiler) = 
+    ## Ends the current local scope
+    if self.scopeDepth <= 0:
+        self.error("cannot call endScope with scopeDepth <= 0 (This is an internal error and most likely a bug)")
+    for ident in reversed(self.staticNames):
+        if ident.depth > self.scopeDepth:
+            # All variables with a scope depth larger than the current one
+            # are now out of scope. Begone, you're now homeless!
+            self.emitByte(Pop)
+            discard self.staticNames.pop()
+    dec(self.scopeDepth)
+
+
+proc blockStmt(self: Compiler, node: BlockStmt) =
+    ## Compiles block statements, which create a new
+    ## local scope.
+    self.beginScope()
+    while not self.done():
+        self.declaration(self.step())
+    self.endScope()
+
+
 proc expression(self: Compiler, node: ASTNode) =
     ## Compiles all expressions
     case node.kind:
+        of getItemExpr:
+            discard
+        # Note that for setItem and assign we don't convert
+        # the node to its true type because that type information
+        # would be lost in the call anyway. The differentiation
+        # happens in self.assignment
+        of setItemExpr:
+            self.assignment(node)
+        of assignExpr:
+            self.assignment(node)
+        of identExpr:
+            self.identifier(IdentExpr(node))
         of unaryExpr:
             # Unary expressions such as ~5 and -3
             self.unary(UnaryExpr(node))
+        of groupingExpr:
+            self.expression(GroupingExpr(node).expression)
         of binaryExpr:
             # Binary expressions such as 2 ^ 5 and 0.66 * 3.14
             self.binary(BinaryExpr(node))
@@ -367,20 +535,6 @@ proc expression(self: Compiler, node: ASTNode) =
             self.literal(DictExpr(node))
         else:
             self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO
-
-
-proc defineVariable(self: Compiler, index: array[3, uint8]) =
-    ## Defines a variable
-    self.emitByte(DeclareName)
-    self.emitBytes(index)
-
-
-proc varDecl(self: Compiler, node: VarDecl) = 
-    ## Compiles variable declarations
-    self.expression(node.value)
-    if not node.isStatic:
-        self.defineVariable(self.identifierConstant(IdentExpr(node.name)))
-    # TODO
 
 
 proc statement(self: Compiler, node: ASTNode) =
@@ -414,8 +568,8 @@ proc statement(self: Compiler, node: ASTNode) =
             discard
         of forEachStmt:
             discard
-        of blockStmt:
-            discard
+        of NodeKind.blockStmt:
+            self.blockStmt(BlockStmt(node))
         of yieldStmt:
             discard
         of awaitStmt:
@@ -446,6 +600,7 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.ast = ast
     self.file = file
     self.names = @[]
+    self.staticNames = @[]
     self.scopeDepth = 0
     self.currentFunction = nil
     self.current = 0

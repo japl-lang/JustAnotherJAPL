@@ -59,6 +59,8 @@ proc initSerializer*(): Serializer =
     result.chunk = nil
 
 
+## Basic routines and helpers to convert various objects from and to to their byte representation
+
 proc toBytes(self: Serializer, s: string): seq[byte] =
     for c in s:
         result.add(byte(c))
@@ -83,13 +85,14 @@ proc bytesToInt(self: Serializer, input: array[8, byte]): int =
 
 
 proc extend[T](s: var seq[T], a: openarray[T]) =
+    ## Extends s with the elements of a
     for e in a:
         s.add(e)
 
 
 proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byte] =
     ## Dumps the given bytecode and file to a sequence of bytes and returns it.
-    ## The file's content is needed to compute its SHA256 hash.
+    ## The file argument must be the actual file's content and is needed to compute its SHA256 hash.
     self.file = file
     self.filename = filename
     self.chunk = chunk

@@ -13,6 +13,7 @@
 # limitations under the License.
 import ast
 import ../../util/multibyte
+import errors
 
 
 import strutils
@@ -43,6 +44,7 @@ type
         consts*: seq[ASTNode]
         code*: seq[uint8]
         lines*: seq[int]
+        reuseConsts*: bool
 
     OpCode* {.pure.} = enum
         ## Enum of possible opcodes.
@@ -114,7 +116,6 @@ type
         # Name resolution/handling
         LoadAttribute,
         DeclareName,
-        DeclareNameFast,
         LoadName,
         LoadNameFast,  # Compile-time optimization for statically resolved global variables
         UpdateName,
@@ -153,18 +154,16 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              InPlaceFloorDiv, InPlaceMod, InPlaceMultiply,
                              InPlaceSubtract, BinaryFloorDiv, BinaryOf, Raise,
                              ReRaise, BeginTry, FinishTry, Yield, Await}
-const constantInstructions* = {LoadConstant, DeclareName,
-                               LoadName, UpdateName,
-                               DeleteName}
-const byteInstructions* = {UpdateNameFast, LoadNameFast, 
-                           DeleteNameFast, Call}
+const constantInstructions* = {LoadConstant, DeclareName, LoadName, UpdateName, DeleteName,
+                               UpdateNameFast, DeleteNameFast}
+const byteInstructions* = {Call}
 const jumpInstructions* = {JumpIfFalse, Jump}
 const collectionInstructions* = {BuildList, BuildDict, BuildSet, BuildTuple}
 
 
-proc newChunk*(): Chunk =
+proc newChunk*(reuseConsts: bool = true): Chunk =
     ## Initializes a new, empty chunk
-    result = Chunk(consts: @[], code: @[], lines: @[])
+    result = Chunk(consts: @[], code: @[], lines: @[], reuseConsts: reuseConsts)
 
 
 proc `$`*(self: Chunk): string = &"""Chunk(consts=[{self.consts.join(", ")}], code=[{self.code.join(", ")}], lines=[{self.lines.join(", ")}])"""
@@ -218,8 +217,43 @@ proc getLine*(self: Chunk, idx: int): int =
     raise newException(IndexDefect, "index out of range")
 
 
+proc findOrAddConstant(self: Chunk, constant: ASTNode): int =
+    ## Small optimization function that reuses the same constant
+    ## if it's already been written before (only if self.reuseConstants
+    ## equals true)
+    if self.reuseConsts:
+        for i, c in self.consts:
+            # We cannot use simple equality because the nodes likely have
+            # different token objects with different values
+            if c.kind != constant.kind:
+                continue
+            if constant.isConst():
+                var c = LiteralExpr(c)
+                var constant = LiteralExpr(constant)
+                if c.literal.lexeme == constant.literal.lexeme:
+                    # This woldn't work for stuff like 2e3 and 2000.0, but those
+                    # forms are collapsed in the compiler before being written
+                    # to the constants table
+                    return i
+            elif constant.kind == identExpr:
+                var c = IdentExpr(c)
+                var constant = IdentExpr(constant)
+                if c.name.lexeme == constant.name.lexeme:
+                    return i 
+            else:
+                continue
+    self.consts.add(constant)
+    result = self.consts.high()
+
+
 proc addConstant*(self: Chunk, constant: ASTNode): array[3, uint8] =
     ## Writes a constant to a chunk. Returns its index casted to a 3-byte
-    ## sequence (array)
-    self.consts.add(constant)
-    result = self.consts.high().toTriple()
+    ## sequence (array). Constant indexes are reused if a constant is used
+    ## more than once!
+    if self.consts.len() == 16777215:
+        # The constant index is a 24 bit unsigned integer, so that's as far
+        # as we can index into the constant table (the same applies
+        # to our stack by the way). Not that anyone's ever gonna hit this
+        # limit in the real world, but you know, just in case
+        raise newException(CompileError, "cannot encode more than 16777215 constants")
+    result = self.findOrAddConstant(constant).toTriple()
