@@ -609,6 +609,10 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.current = 0
     while not self.done():
         self.declaration(self.step())
+    while self.staticNames.len() > 0:
+        # Gets rid of statically resolved locals
+        self.emitByte(Pop)
+        discard self.staticNames.pop()
     if self.ast.len() > 0:
         # *Technically* an empty program is a valid program
         self.emitByte(OpCode.Return)   # Exits the VM's main loop when used at the global scope
