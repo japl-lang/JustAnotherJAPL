@@ -4,6 +4,18 @@
 This document aims to lay down a simple, extensible and linear format for serializing and deserializing
 compiled JAPL's code to a buffer (be it an actual OS file or an in-memory stream).
 
+
+The main reason to serialize bytecode to a file is for porting JAPL code to other machines, but also to avoid processing the same file every time if it hasn't changed, therefore using it as a sort of cache. If this cache-like behavior is abused though, it may lead to unexpected behavior, hence we define how the JAPL toolchain will deal with local object files.
+
+When JAPL finds an existing object file whose name matches the one of the source file that has to be ran, it will skip processing the source file and use the existing object file only if (Note: both filenames are stripped of their respective file extension):
+
+- The object file has been produced by the same JAPL version as the running interpreter: the 3-byte version header, the branch name and the commit hash must be the same for this check to succeed
+- The object file is not older than an hour (this delay can be customized with the `--cache-delay` option)
+- The SHA256 checksum of the source file matches the SHA256 checksum contained in the object file
+
+If any of those checks fail, the object file is discarded and subsequently replaced by an updated version after the compiler is done processing the source file again. Since none of those checks are absolutely bulletproof, a `--nocache` option can be provided to the JAPL executable to instruct it to not load nor produce any object files.
+
+
 ## Disclaimer
 ----------------------------------------------
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and
@@ -30,7 +42,7 @@ Below a list of all type specifiers:
 - `0x01` -> Number
 - `0x02` -> String
 - `0x03` -> List literal (An heterogeneous dynamic array)
-- `0x04` -> Set literal  (An heterogeneous dynamic array without duplicates. Mirrors the mathematical definition of a set)
+- `0x04` -> Set literal  (An heterogeneous and unordered dynamic array without duplicates. Mirrors the mathematical definition of a set)
 - `0x05` -> Dictionary literal  (An associative array, also known as mapping)
 - `0x06` -> Tuple literal (An heterogeneous, static array)
 - `0x07` -> Function declaration
@@ -41,13 +53,13 @@ Below a list of all type specifiers:
 
 __Note__: The types whose name is followed by an asterisk require no size specifier, as they're 1 byte long and adding one would only waste space.
 
-### Object representation
+## Object representation
 
-#### Numbers
+### Numbers
 
 For simplicity purposes, numbers in object files are serialized as strings of decimal digits and optionally a dot followed by 1 or more decimal digits (for floats). The number `2.718`, for example, would just be serialized as the string `"2.718"` (without quotes). JAPL supports scientific notation such as `2e3`, but numbers in this form are collapsed to their decimal representation before being written to a file, therefore `2e3` becomes `2000.0`. Other decimal number representations such as hexadecimal, binary and octal are also converted to base 10 during compilation.
 
-#### Strings
+### Strings
 
 Strings are a little more complex than numbers because JAPL supports string modifiers. The first byte of a string object represents its modifier, and can be any of:
 
@@ -55,10 +67,17 @@ Strings are a little more complex than numbers because JAPL supports string modi
 - `0x01` -> Byte string (begins with a "b", without quotes, before the quote)
 - `0x02` -> Format string (begins with an "f", without quotes, before the quote)
 
-The "r" (without quotes) string modifier, used to mark raw strings where escape sequences are not interpreted, does not need to have an explicit code because it is already interpreted by the tokenizer and has no other compile-time meaning. Note that in format strings, values are interpolated in them by using matching pairs of braces enclosing an expression and that the same name resolution strategy is used as for the rest of JAPL.
+The "r" (without quotes) string modifier, used to mark raw strings where escape sequences are not interpreted, does not need to have an explicit code because it is already interpreted by the tokenizer and has no other compile-time meaning. Note that in format strings, values are interpolated in them by using matching pairs of braces enclosing an expression and that the same name resolution strategy and scoping rules as for the rest of JAPL apply.
 
-After the modifier follows the string encoded in UTF-8.
+After the modifier follows the string encoded in UTF-8, __without__ quotes.
 
+
+### List-like collections (sets, lists and tuples)
+List-like collections (or _sequences_)-- namely sets, lists and tuples-- encode their length first: for lists and sets this only denotes the _starting_ size of the container, while a tuple's size is fixed once it is created. The length may be 0, in which case it is interpreted as the sequence being empty; After the length, which expresses the __number of elements__ in the collection (just the count!), follows a number of compile-time objects equal to the specified length, with their respective encoding.
+
+### Mappings (or associative arrays)
+
+Mappings (also called _associative arrays_ or, more informally, _dictionaries_) also encode their length first, but the difference lies in the element list that follows it: instead of there being n elements, with n being the length of the map, there are n _pairs_  (hence 2n elements) of objects that represent the key-value relation in the map.
 
 ## File structure
 
@@ -79,17 +98,7 @@ An object file starts with the headers, namely:
 
 This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are just an ordered sequence of compile-time types as described in the sections above.
 
+### Modules
 
-## Behavior
-
-The main reason to serialize bytecode to a file is for porting JAPL code to other machines, but also to avoid processing the same file every time if it hasn't changed, therefore using it as a sort of cache. If this cache-like behavior is abused though, it may lead to unexpected behavior, hence we define how the JAPL toolchain will deal with local object files.
-
-When JAPL finds an existing object file whose name matches the one of the source file that has to be ran, it will skip processing the source file and use the existing object file only if:
-
-- The object file has been produced by the same JAPL version as the running interpreter: the 3-byte version header, the branch name and the commit hash must be the same for this check to succeed
-- The object file is not older than an hour (this delay can be customized with the `--cache-delay` option)
-- The SHA256 checksum of the source file matches the SHA256 checksum contained in the object file
-
-If any of those checks fail, the object file is discarded and subsequently replaced by an updated one after the compiler is done processing the source file again. Since none of those checks are absolutely bulletproof, a `--nocache` option can be provided to the JAPL executable to instruct it to not load nor produce any object files.
-
-
+When compiling source files, one bytecode file is produced per source file. These bytecode dumps are stored inside `~/.cache` under *nix systems and `C:\Windows\Temp` under windows systems. Since JAPL allows explicit visibility specifiers that alter the way namespaces are built at runtime (and, partially, resolved at compile-time) by selectively
+(not) exporting symbols to the outside world, these directives need to be specified in the bytecode file
