@@ -80,17 +80,18 @@ type
         BinarySlice, # Perform slicing on supported objects (like "hello"[0:2], which yields "he"). The result is pushed onto the stack
         BinarySubscript,  # Subscript operator, like "hello"[0] (which pushes 'h' onto the stack)
         # Binary comparison operators
-        GreaterThan,
-        LessThan,
-        EqualTo,
-        GreaterOrEqual,
-        LessOrEqual,
+        GreaterThan,  # Pushes the result of a > b onto the stack
+        LessThan,     # Pushes the result of a < b onto the stack
+        EqualTo,      # Pushes the result of a == b onto the stack
+        NotEqualTo,   # Pushes the result of a != b onto the stack (optimization for not (a == b))
+        GreaterOrEqual,  # Pushes the result of a >= b onto the stack
+        LessOrEqual,     # Pushes the result of a <= b onto the stack
         # Logical operators
         LogicalNot,
         LogicalAnd,
         LogicalOr,
         # Binary in-place operators. Same as their non in-place counterparts
-        # except they operate on already existing names.
+        # except they operate on already existing names
         InPlaceAdd,
         InPlaceSubtract,
         InPlaceDivide,
@@ -111,35 +112,52 @@ type
         Nan,
         Inf,
         # Basic stack operations
-        Pop, 
+        Pop,
         Push,
+        PopN,  # Pops N elements off the stack (optimization for exiting scopes and returning from functions)
         # Name resolution/handling
-        LoadAttribute,
-        DeclareName,
-        LoadName,
-        LoadNameFast,  # Compile-time optimization for statically resolved global variables
-        UpdateName,
-        UpdateNameFast,
-        DeleteName,
-        DeleteNameFast,
+        LoadAttribute, 
+        DeclareName,   # Declares a global dynamically bound name in the current scope
+        LoadName,      # Loads a dynamically bound variable 
+        LoadNameFast,  # Loads a statically bound variable
+        UpdateName,    # Updates a dynamically bound variable's value
+        UpdateNameFast, # Updates a statically bound variable's value
+        DeleteName,    # Unbinds a dynamically bound variable's name from the current scope
+        DeleteNameFast,  # Unbinds a statically bound variable's name from the current scope
         # Looping and jumping
-        JumpIfFalse,   # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
-        Jump,    # Relative unconditional jump in the bytecode. This is how instructions like break and continue are implemented
+        JumpIfFalse,     # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
+        JumpIfFalsePop,  # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
+        JumpForwards,    # Relative, unconditional, positive jump in the bytecode
+        JumpBackwards,   # Relative, unconditional, negative jump into the bytecode
+        ## Long variants of jumps (they use a 24-bit operand instead of a 16-bit one)
+        LongJumpIfFalse,
+        LongJumpIfFalsePop,
+        LongJumpForwards,
+        LongJumpBackwards,
+        # Functions
         Call,
         Return
-        # Misc
+        # Exception handling
         Raise,
         ReRaise,   # Re-raises active exception
         BeginTry,
         FinishTry, 
+        # Generators
         Yield,
+        # Coroutines
         Await,
+        # Collection literals
         BuildList,
         BuildDict,
         BuildSet,
         BuildTuple
 
 
+# We group instructions by their operation/operand types for easier handling when debugging
+
+# Simple instructions encompass:
+# - Instructions that push onto/pop off the stack unconditionally (True, False, PopN, Pop, etc.)
+# - Unary and binary operators
 const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              BinaryDivide, BinarySubtract,
                              BinaryMod, BinaryPow, Nil,
@@ -147,16 +165,26 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              BinaryShiftLeft, BinaryShiftRight,
                              BinaryXor, LogicalNot, EqualTo,
                              GreaterThan, LessThan, LoadAttribute,
-                             BinarySlice, Pop, UnaryNegate,
+                             BinarySlice, Pop, PopN, UnaryNegate,
                              BinaryIs, BinaryAs, GreaterOrEqual,
                              LessOrEqual, BinaryOr, BinaryAnd,
                              UnaryNot, InPlaceAdd, InPlaceDivide,
                              InPlaceFloorDiv, InPlaceMod, InPlaceMultiply,
                              InPlaceSubtract, BinaryFloorDiv, BinaryOf, Raise,
                              ReRaise, BeginTry, FinishTry, Yield, Await}
+
+# Constant instructions are instructions that operate on the bytecode constant table
 const constantInstructions* = {LoadConstant, DeclareName, LoadName, UpdateName, DeleteName}
+
+# Stack instructions operate on the stack at arbitrary offsets
 const stackInstructions* = {Call, UpdateNameFast, DeleteNameFast, LoadNameFast}
-const jumpInstructions* = {JumpIfFalse, Jump}
+
+# Jump instructions jump at relative or absolute bytecode offsets
+const jumpInstructions* = {JumpIfFalse, JumpIfFalsePop, JumpForwards, JumpBackwards, 
+                           LongJumpIfFalse, LongJumpIfFalsePop, LongJumpForwards,
+                           LongJumpBackwards}
+
+# Collection instructions push a built-in collection type onto the stack
 const collectionInstructions* = {BuildList, BuildDict, BuildSet, BuildTuple}
 
 
@@ -171,7 +199,7 @@ proc `$`*(self: Chunk): string = &"""Chunk(consts=[{self.consts.join(", ")}], co
 proc write*(self: Chunk, newByte: uint8, line: int) =
     ## Adds the given instruction at the provided line number
     ## to the given chunk object
-    assert line > 0
+    assert line > 0, "line must be greater than zero"
     if self.lines.high() >= 1 and self.lines[^2] == line:
         self.lines[^1] += 1
     else:
@@ -218,7 +246,7 @@ proc getLine*(self: Chunk, idx: int): int =
 
 proc findOrAddConstant(self: Chunk, constant: ASTNode): int =
     ## Small optimization function that reuses the same constant
-    ## if it's already been written before (only if self.reuseConstants
+    ## if it's already been written before (only if self.reuseConsts
     ## equals true)
     if self.reuseConsts:
         for i, c in self.consts:
@@ -230,7 +258,7 @@ proc findOrAddConstant(self: Chunk, constant: ASTNode): int =
                 var c = LiteralExpr(c)
                 var constant = LiteralExpr(constant)
                 if c.literal.lexeme == constant.literal.lexeme:
-                    # This woldn't work for stuff like 2e3 and 2000.0, but those
+                    # This wouldn't work for stuff like 2e3 and 2000.0, but those
                     # forms are collapsed in the compiler before being written
                     # to the constants table
                     return i
@@ -248,7 +276,7 @@ proc findOrAddConstant(self: Chunk, constant: ASTNode): int =
 proc addConstant*(self: Chunk, constant: ASTNode): array[3, uint8] =
     ## Writes a constant to a chunk. Returns its index casted to a 3-byte
     ## sequence (array). Constant indexes are reused if a constant is used
-    ## more than once!
+    ## more than once and self.reuseConsts equals true
     if self.consts.len() == 16777215:
         # The constant index is a 24 bit unsigned integer, so that's as far
         # as we can index into the constant table (the same applies

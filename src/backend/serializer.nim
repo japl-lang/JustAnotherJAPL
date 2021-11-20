@@ -90,23 +90,28 @@ proc extend[T](s: var seq[T], a: openarray[T]) =
         s.add(e)
 
 
+proc writeHeaders(self: Serializer, stream: var seq[byte], file: string) = 
+    ## Writes the JAPL bytecode headers in-place into a byte stream
+    stream.extend(self.toBytes(BYTECODE_MARKER))
+    stream.add(byte(JAPL_VERSION.major))
+    stream.add(byte(JAPL_VERSION.minor))
+    stream.add(byte(JAPL_VERSION.patch))
+    stream.add(byte(len(JAPL_BRANCH)))
+    stream.extend(self.toBytes(JAPL_BRANCH))
+    if len(JAPL_COMMIT_HASH) != 40:
+        self.error("the commit hash must be exactly 40 characters long")
+    stream.extend(self.toBytes(JAPL_COMMIT_HASH))
+    stream.extend(self.toBytes(getTime().toUnixFloat().int()))
+    stream.extend(self.toBytes(computeSHA256(file)))
+
+
 proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byte] =
     ## Dumps the given bytecode and file to a sequence of bytes and returns it.
     ## The file argument must be the actual file's content and is needed to compute its SHA256 hash.
     self.file = file
     self.filename = filename
     self.chunk = chunk
-    result.extend(self.toBytes(BYTECODE_MARKER))
-    result.add(byte(JAPL_VERSION.major))
-    result.add(byte(JAPL_VERSION.minor))
-    result.add(byte(JAPL_VERSION.patch))
-    result.add(byte(len(JAPL_BRANCH)))
-    result.extend(self.toBytes(JAPL_BRANCH))
-    if len(JAPL_COMMIT_HASH) != 40:
-        self.error("the commit hash must be exactly 40 characters long")
-    result.extend(self.toBytes(JAPL_COMMIT_HASH))
-    result.extend(self.toBytes(getTime().toUnixFloat().int()))
-    result.extend(self.toBytes(computeSHA256(file)))
+    self.writeHeaders(result, self.file)
     for constant in chunk.consts:
         case constant.kind:
             of intExpr, floatExpr:
@@ -114,9 +119,9 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
                 result.add(byte(len(constant.token.lexeme)))
                 result.extend(self.toBytes(constant.token.lexeme))
             of strExpr:
+                result.add(0x2)
                 var strip: int = 2
                 var offset: int = 1
-                result.add(0x2)
                 case constant.token.lexeme[0]:
                     of 'f':
                         strip = 3

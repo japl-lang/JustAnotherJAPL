@@ -66,9 +66,10 @@ type
         staticNames: seq[StaticName]
         scopeDepth: int
         currentFunction: FunDecl
+        enableOptimizations*: bool
     
 
-proc initCompiler*(): Compiler =
+proc initCompiler*(enableOptimizations: bool = true): Compiler =
     ## Initializes a new Compiler object
     new(result)
     result.ast = @[]
@@ -78,6 +79,7 @@ proc initCompiler*(): Compiler =
     result.staticNames = @[]
     result.scopeDepth = 0
     result.currentFunction = nil
+    result.enableOptimizations = enableOptimizations
 
 
 
@@ -377,7 +379,9 @@ proc declareName(self: Compiler, node: ASTNode) =
                                     isPrivate: node.isPrivate, owner: node.owner))
                 self.emitConstant(node.value)
             else:
-                # Statically resolved variable here
+                # Statically resolved variable here. Only creates a new StaticName entry
+                # so that self.identifier (and, by extension, self.getStaticIndex) emit the
+                # proper stack offset
                 if self.staticNames.high() > 16777215:
                     # If someone ever hits this limit in real-world scenarios, I swear I'll
                     # slap myself 100 times with a sign saying "I'm dumb". Mark my words
@@ -480,8 +484,8 @@ proc beginScope(self: Compiler) =
 
 proc endScope(self: Compiler) = 
     ## Ends the current local scope
-    if self.scopeDepth <= 0:
-        self.error("cannot call endScope with scopeDepth <= 0 (This is an internal error and most likely a bug)")
+    if self.scopeDepth < 0:
+        self.error("cannot call endScope with scopeDepth < 0 (This is an internal error and most likely a bug)")
     for ident in reversed(self.staticNames):
         if ident.depth > self.scopeDepth:
             # All variables with a scope depth larger than the current one
@@ -609,11 +613,8 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.current = 0
     while not self.done():
         self.declaration(self.step())
-    while self.staticNames.len() > 0:
-        # Gets rid of statically resolved locals
-        self.emitByte(Pop)
-        discard self.staticNames.pop()
     if self.ast.len() > 0:
         # *Technically* an empty program is a valid program
+        self.endScope()
         self.emitByte(OpCode.Return)   # Exits the VM's main loop when used at the global scope
     result = self.chunk

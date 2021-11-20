@@ -98,7 +98,7 @@ awaitStmt      → "await" expression ";";    // Pauses the execution of the cal
 // to the given name. The finally clause, if present, is executed regardless of whether the try block raises an exception, meaning it even overrides return,
 // break and continue statements and it must be below all except clauses. The else clause, if present, is executed when the try block doesn't raise an exception.
 // It must be the last statement of the block. A bare except clause without an exception name acts as a catch-all and must be placed below any other except clauses
-tryStmt        → "try" statement (("except" IDENTIFIER? ("as" IDENTIFIER)? statement)+ "finally" statement | "finally" statement)? ("else" statement)?;
+tryStmt        → "try" statement (("except" expression? statement)+ "finally" statement | "finally" statement)? ("else" statement)?;
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
 ifStmt         → "if" "(" expression ")" statement ("else" statement)?;  // If statements are conditional jumps
 whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy

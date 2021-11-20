@@ -65,9 +65,12 @@ type
         # yield expression(s). This attribute
         # is nil when the parser is at the top-level
         # code and is what allows the parser to detect
-        # errors like return outside functions before
+        # errors like return outside functions and attempts
+        # to declare public names inside them before
         # compilation even begins
         currentFunction: ASTNode
+        # Stores the current scope depth (0 = global, > 0 local)
+        scopeDepth: int
 
 
 proc initParser*(): Parser = 
@@ -78,6 +81,7 @@ proc initParser*(): Parser =
     result.tokens = @[]
     result.currentFunction = nil
     result.currentLoop = None
+    result.scopeDepth = 0
 
 
 # Handy templates to make our life easier, thanks nim!
@@ -529,12 +533,14 @@ proc blockStmt(self: Parser): ASTNode =
     ## Parses block statements. A block
     ## statement simply opens a new local
     ## scope
+    inc(self.scopeDepth)
     let tok = self.peek(-1)
     var code: seq[ASTNode] = @[]
     while not self.check(RightBrace) and not self.done():
         code.add(self.declaration())
     self.expect(RightBrace, "unterminated block statement")
     result = newBlockStmt(code, tok)
+    dec(self.scopeDepth)
 
 
 proc breakStmt(self: Parser): ASTNode =
@@ -674,15 +680,25 @@ proc tryStmt(self: Parser): ASTNode =
     var excName: ASTNode
     var handlerBody: ASTNode
     while self.match(Except):
-        if self.check(Identifier):
-            excName = self.expression()
-            if excName.kind == identExpr:
-                discard
-            elif excName.kind == binaryExpr and BinaryExpr(excName).operator.kind == As:
-                asName = BinaryExpr(excName).b
-                if BinaryExpr(excName).a.kind != identExpr:
-                    self.error("expecting alias name after 'except ... as'")
-                excName = BinaryExpr(excName).a
+        excName = self.expression()
+        if excName.kind == identExpr:
+            continue
+        elif excName.kind == binaryExpr and BinaryExpr(excName).operator.kind == As:
+            asName = BinaryExpr(excName).b
+            if BinaryExpr(excName).b.kind != identExpr:
+                self.error("expecting alias name after 'except ... as'")
+            excName = BinaryExpr(excName).a
+        # Note how we don't use elif here: when the if above sets excName to As'
+        # first operand, that might be a tuple, which we unpack below
+        if excName.kind == tupleExpr:
+            # This allows to do except (a, b, c) as SomeError {...}
+            # TODO: Consider adding the ability to make exc a sequence
+            # instead of adding the same body with different exception
+            # types each time
+            handlerBody = self.statement()
+            for element in TupleExpr(excName).members:
+                handlers.add((body: handlerBody, exc: element, name: asName))
+            continue
         else:
             excName = nil
         handlerBody = self.statement()
@@ -776,10 +792,10 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
             keyword = "constant"
         else:
             keyword = "variable"
-    if not isStatic and self.currentFunction != nil:
-        self.error("dynamic declarations are illegal inside functions")
     if not isPrivate and self.currentFunction != nil:
-        self.error("public declarations are illegal inside functions")
+        self.error("cannot bind public names inside functions")
+    elif not isPrivate and self.scopeDepth > 0:
+        self.error("cannot bind public names in local scopes")
     self.expect(Identifier, &"expecting {keyword} name after '{varKind.lexeme}'")
     var name = newIdentExpr(self.peek(-1))
     if self.match(Equal):
@@ -999,5 +1015,7 @@ proc parse*(self: Parser, tokens: seq[Token], file: string): seq[ASTNode] =
     self.file = file
     self.current = 0
     self.currentLoop = None
+    self.currentFunction = nil
+    self.scopeDepth = 0
     while not self.done():
         result.add(self.declaration())

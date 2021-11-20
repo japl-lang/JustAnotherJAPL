@@ -46,7 +46,6 @@ proc printInstruction(instruction: OpCode, newline: bool = false) =
         nl()
 
 
-
 proc simpleInstruction(instruction: OpCode, offset: int): int =
     printInstruction(instruction)
     nl()
@@ -54,6 +53,7 @@ proc simpleInstruction(instruction: OpCode, offset: int): int =
 
 
 proc stackInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
+    ## Debugs instructions that operate on a single value on the stack
     var slot = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple()
     printInstruction(instruction)
     stdout.write(&", points to stack index ")
@@ -64,7 +64,7 @@ proc stackInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
 
 
 proc constantInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
-    # Rebuild the index
+    ## Debugs instructions that operate on a constant
     var constant = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple()
     printInstruction(instruction)
     stdout.write(&", points to constant at position ")
@@ -84,7 +84,15 @@ proc constantInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
 
 
 proc jumpInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
-    var jump = [chunk.code[offset + 1], chunk.code[offset + 2]].fromDouble()
+    ## Debugs jumps
+    var jump: int
+    case instruction:
+        of JumpIfFalse, JumpIfFalsePop, JumpForwards, JumpBackwards:
+            jump = [chunk.code[offset + 1], chunk.code[offset + 2]].fromDouble().int()
+        of LongJumpIfFalse, LongJumpIfFalsePop, LongJumpForwards, LongJumpBackwards:
+            jump = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple().int()
+        else:
+            discard  # Unreachable
     printInstruction(instruction)
     printDebug(&"Jump size: {jump}")
     nl()
@@ -92,6 +100,7 @@ proc jumpInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
 
 
 proc collectionInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
+    ## Debugs instructions that push collection types on the stack
     var elemCount = int([chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple())
     printInstruction(instruction, true)
     case instruction:
