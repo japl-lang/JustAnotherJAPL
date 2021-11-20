@@ -170,6 +170,13 @@ proc emitBytes(self: Compiler, byt1: OpCode|uint8, byt2: OpCode|uint8) =
     self.emitByte(uint8 byt2)
 
 
+proc emitBytes(self: Compiler, bytarr: array[2, uint8]) =
+    ## Handy helper method to write an array of 2 bytes into
+    ## the current chunk, calling emitByte on each of its
+    ## elements
+    self.emitBytes(bytarr[0], bytarr[1])
+
+
 proc emitBytes(self: Compiler, bytarr: array[3, uint8]) =
     ## Handy helper method to write an array of 3 bytes into
     ## the current chunk, calling emitByte on each of its
@@ -370,14 +377,6 @@ proc declareName(self: Compiler, node: ASTNode) =
                 self.emitBytes(self.identifierConstant(IdentExpr(node.name)))
                 self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
                                     isPrivate: node.isPrivate, owner: node.owner))
-            elif node.isConst:
-                # Constants are emitted as, you guessed it, constant instructions
-                # no matter the scope depth. Also, name resolution specifiers do not
-                # apply to them (because what would it mean for a constant to be dynamic
-                # anyway?)
-                self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
-                                    isPrivate: node.isPrivate, owner: node.owner))
-                self.emitConstant(node.value)
             else:
                 # Statically resolved variable here. Only creates a new StaticName entry
                 # so that self.identifier (and, by extension, self.getStaticIndex) emit the
@@ -442,13 +441,20 @@ proc identifier(self: Compiler, node: IdentExpr) =
     if s == nil and d == nil and self.scopeDepth == 0:
         # Usage of undeclared globals is easy to detect at the top level
         self.error(&"reference to undeclared name '{node.name.lexeme}'")
-    let index = self.getStaticIndex(node)
-    if index != -1:
-        self.emitByte(LoadNameFast)   # Scoping/static resolution
-        self.emitBytes(index.toTriple())
+    if s.isConst:
+        # Constants are emitted as, you guessed it, constant instructions
+        # no matter the scope depth. Also, name resolution specifiers do not
+        # apply to them (because what would it mean for a constant to be dynamic
+        # anyway?)
+        self.emitConstant(node)
     else:
-        self.emitByte(LoadName)
-        self.emitBytes(self.identifierConstant(node))
+        let index = self.getStaticIndex(node)
+        if index != -1:
+            self.emitByte(LoadNameFast)   # Static name resolution
+            self.emitBytes(index.toTriple())
+        else:
+            self.emitByte(LoadName)
+            self.emitBytes(self.identifierConstant(node))
 
 
 proc assignment(self: Compiler, node: ASTNode) =
@@ -478,7 +484,8 @@ proc assignment(self: Compiler, node: ASTNode) =
 
 
 proc beginScope(self: Compiler) =
-    ## Begins a new local scope
+    ## Begins a new local scope by incrementing the current
+    ## scope's depth
     inc(self.scopeDepth)
 
 
@@ -486,12 +493,35 @@ proc endScope(self: Compiler) =
     ## Ends the current local scope
     if self.scopeDepth < 0:
         self.error("cannot call endScope with scopeDepth < 0 (This is an internal error and most likely a bug)")
+    var popped: int = 0
     for ident in reversed(self.staticNames):
-        if ident.depth > self.scopeDepth:
-            # All variables with a scope depth larger than the current one
-            # are now out of scope. Begone, you're now homeless!
-            self.emitByte(Pop)
-            discard self.staticNames.pop()
+        if not self.enableOptimizations:
+            if ident.depth > self.scopeDepth:
+                # All variables with a scope depth larger than the current one
+                # are now out of scope. Begone, you're now homeless!
+                self.emitByte(Pop)
+        inc(popped)
+    if self.enableOptimizations and popped > 1:
+        # If we're popping less than 65535 variables, then
+        # we can emit a PopN instruction. This is true for
+        # 99.99999% of the use cases of the language (who the
+        # hell is going to use 65 THOUSAND local variables?), but
+        # if you'll ever use more then JAPL will emit a PopN instruction
+        # for the first 65 thousand and change local variables and then
+        # emit another batch of plain ol' Pop instructions for the rest
+        if popped <= uint16.high().int():
+            self.emitByte(PopN)
+            self.emitBytes(popped.toDouble())
+        else:
+            self.emitByte(PopN)
+            self.emitBytes(uint16.high().toDouble())
+            for i in countdown(self.staticNames.high(), popped - uint16.high().int()):
+                if self.staticNames[i].depth > self.scopeDepth:
+                    self.emitByte(Pop)
+    elif popped == 1:
+        self.emitByte(Pop)
+    for _ in countup(0, popped - 1):
+        discard self.staticNames.pop()
     dec(self.scopeDepth)
 
 
@@ -618,3 +648,5 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
         self.endScope()
         self.emitByte(OpCode.Return)   # Exits the VM's main loop when used at the global scope
     result = self.chunk
+    if self.scopeDepth != -1:
+        self.error(&"internal error: invalid scopeDepth state (expected -1, got {self.scopeDepth}), did you forget to call endScope/beginScope?")

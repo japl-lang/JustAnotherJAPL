@@ -779,8 +779,22 @@ proc ifStmt(self: Parser): ASTNode =
     result = newIfStmt(condition, thenBranch, elseBranch, tok)
 
 
+proc checkDecl(self: Parser, isStatic, isPrivate: bool) =
+    ## Handy utility function that avoids us from copy
+    ## pasting the same checks to all declaration handlers
+    if not isStatic and self.currentFunction != nil:
+        self.error("dynamic declarations are not allowed inside functions")
+    if not isStatic and self.scopeDepth > 0:
+        self.error("dynamic declarations are not allowed inside local scopes")
+    if not isPrivate and self.currentFunction != nil:
+        self.error("cannot bind public names inside functions")
+    if not isPrivate and self.scopeDepth > 0:
+        self.error("cannot bind public names inside local scopes")
+
+
 proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNode =
     ## Parses variable declarations
+    self.checkDecl(isStatic, isPrivate)
     var varKind = self.peek(-1)
     var keyword = ""
     var value: ASTNode
@@ -792,10 +806,6 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
             keyword = "constant"
         else:
             keyword = "variable"
-    if not isPrivate and self.currentFunction != nil:
-        self.error("cannot bind public names inside functions")
-    elif not isPrivate and self.scopeDepth > 0:
-        self.error("cannot bind public names in local scopes")
     self.expect(Identifier, &"expecting {keyword} name after '{varKind.lexeme}'")
     var name = newIdentExpr(self.peek(-1))
     if self.match(Equal):

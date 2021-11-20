@@ -52,8 +52,8 @@ proc simpleInstruction(instruction: OpCode, offset: int): int =
     return offset + 1
 
 
-proc stackInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
-    ## Debugs instructions that operate on a single value on the stack
+proc stackTripleInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
+    ## Debugs instructions that operate on a single value on the stack using a 24-bit operand
     var slot = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple()
     printInstruction(instruction)
     stdout.write(&", points to stack index ")
@@ -63,8 +63,30 @@ proc stackInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
     return offset + 4
 
 
+proc stackDoubleInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
+    ## Debugs instructions that operate on a single value on the stack using a 16-bit operand
+    var slot = [chunk.code[offset + 1], chunk.code[offset + 2]].fromDouble()
+    printInstruction(instruction)
+    stdout.write(&", points to stack index ")
+    setForegroundColor(fgYellow)
+    stdout.write(&"{slot}")
+    nl()
+    return offset + 3
+
+
+proc argumentDoubleInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
+    ## Debugs instructions that operate on a hardcoded value value on the stack using a 16-bit operand
+    var slot = [chunk.code[offset + 1], chunk.code[offset + 2]].fromDouble()
+    printInstruction(instruction)
+    stdout.write(&", has argument ")
+    setForegroundColor(fgYellow)
+    stdout.write(&"{slot}")
+    nl()
+    return offset + 3
+
+
 proc constantInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
-    ## Debugs instructions that operate on a constant
+    ## Debugs instructions that operate on the constant table
     var constant = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple()
     printInstruction(instruction)
     stdout.write(&", points to constant at position ")
@@ -141,8 +163,12 @@ proc disassembleInstruction*(chunk: Chunk, offset: int): int =
             result = simpleInstruction(opcode, offset)
         of constantInstructions:
             result = constantInstruction(opcode, chunk, offset)
-        of stackInstructions:
-            result = stackInstruction(opcode, chunk, offset)
+        of stackDoubleInstructions:
+            result = stackDoubleInstruction(opcode, chunk, offset)
+        of stackTripleInstructions:
+            result = stackTripleInstruction(opcode, chunk, offset)
+        of argumentDoubleInstructions:
+            result = argumentDoubleInstruction(opcode, chunk, offset)
         of jumpInstructions:
             result = jumpInstruction(opcode, chunk, offset)
         of collectionInstructions:

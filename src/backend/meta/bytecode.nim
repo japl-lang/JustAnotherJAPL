@@ -165,7 +165,7 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              BinaryShiftLeft, BinaryShiftRight,
                              BinaryXor, LogicalNot, EqualTo,
                              GreaterThan, LessThan, LoadAttribute,
-                             BinarySlice, Pop, PopN, UnaryNegate,
+                             BinarySlice, Pop, UnaryNegate,
                              BinaryIs, BinaryAs, GreaterOrEqual,
                              LessOrEqual, BinaryOr, BinaryAnd,
                              UnaryNot, InPlaceAdd, InPlaceDivide,
@@ -176,8 +176,16 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
 # Constant instructions are instructions that operate on the bytecode constant table
 const constantInstructions* = {LoadConstant, DeclareName, LoadName, UpdateName, DeleteName}
 
-# Stack instructions operate on the stack at arbitrary offsets
-const stackInstructions* = {Call, UpdateNameFast, DeleteNameFast, LoadNameFast}
+# Stack triple instructions operate on the stack at arbitrary offsets and pop arguments off of it in the form
+# of 24 bit integers
+const stackTripleInstructions* = {Call, UpdateNameFast, DeleteNameFast, LoadNameFast}
+
+# Stack Double instructions operate on the stack at arbitrary offsets and pop arguments off of it in the form
+# of 16 bit integers
+const stackDoubleInstructions* = {}
+
+# Argument double argument instructions take hardcoded arguments on the stack as 16 bit integers
+const argumentDoubleInstructions* = {PopN, }
 
 # Jump instructions jump at relative or absolute bytecode offsets
 const jumpInstructions* = {JumpIfFalse, JumpIfFalsePop, JumpForwards, JumpBackwards, 
