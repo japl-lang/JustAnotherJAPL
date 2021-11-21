@@ -98,6 +98,10 @@ An object file starts with the headers, namely:
 
 This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are just an ordered sequence of compile-time types as described in the sections above.
 
+### Code section
+
+After the headers and the constant section follows the code section, which stores the actual bytecode instructions the compiler has emitted. They're encoded as a linear sequence of bytes.
+
 ### Modules
 
 When compiling source files, one bytecode file is produced per source file. These bytecode dumps are stored inside `~/.cache` under *nix systems and `C:\Windows\Temp` under windows systems. Since JAPL allows explicit visibility specifiers that alter the way namespaces are built at runtime (and, partially, resolved at compile-time) by selectively

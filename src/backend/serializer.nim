@@ -105,6 +105,56 @@ proc writeHeaders(self: Serializer, stream: var seq[byte], file: string) =
     stream.extend(self.toBytes(computeSHA256(file)))
 
 
+proc writeConstants(self: Serializer, chunk: Chunk, stream: var seq[byte]) =
+    for constant in chunk.consts:
+        case constant.kind:
+            of intExpr, floatExpr:
+                stream.add(0x1)
+                stream.add(byte(len(constant.token.lexeme)))
+                stream.extend(self.toBytes(constant.token.lexeme))
+            of strExpr:
+                stream.add(0x2)
+                var strip: int = 2
+                var offset: int = 1
+                case constant.token.lexeme[0]:
+                    of 'f':
+                        strip = 3
+                        inc(offset)
+                        stream.add(0x2)
+                    of 'b':
+                        strip = 3
+                        inc(offset)
+                        stream.add(0x1)
+                    else:
+                        strip = 2
+                        stream.add(0x0)
+                stream.add(byte(len(constant.token.lexeme) - offset))  # Removes the quotes from the length count as they're not written
+                stream.add(self.toBytes(constant.token.lexeme[offset..^2]))
+            of identExpr:
+                stream.add(0x2)
+                stream.add(0x0)
+                stream.add(byte(len(constant.token.lexeme)))
+                stream.add(self.toBytes(constant.token.lexeme))
+            of trueExpr:
+                stream.add(0xC)
+            of falseExpr:
+                stream.add(0xD)
+            of nilExpr:
+                stream.add(0xF)
+            of nanExpr:
+                stream.add(0xA)
+            of infExpr:
+                stream.add(0xB)
+            else:
+                self.error(&"unknown constant kind in chunk table ({constant.kind})")
+
+
+proc writeCode(self: Serializer, chunk: Chunk, stream: var seq[byte]) =
+    ## Writes the bytecode from the given chunk to the given source
+    ## stream
+    stream.extend(chunk.code)
+
+
 proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byte] =
     ## Dumps the given bytecode and file to a sequence of bytes and returns it.
     ## The file argument must be the actual file's content and is needed to compute its SHA256 hash.
@@ -112,47 +162,8 @@ proc dumpBytes*(self: Serializer, chunk: Chunk, file, filename: string): seq[byt
     self.filename = filename
     self.chunk = chunk
     self.writeHeaders(result, self.file)
-    for constant in chunk.consts:
-        case constant.kind:
-            of intExpr, floatExpr:
-                result.add(0x1)
-                result.add(byte(len(constant.token.lexeme)))
-                result.extend(self.toBytes(constant.token.lexeme))
-            of strExpr:
-                result.add(0x2)
-                var strip: int = 2
-                var offset: int = 1
-                case constant.token.lexeme[0]:
-                    of 'f':
-                        strip = 3
-                        inc(offset)
-                        result.add(0x2)
-                    of 'b':
-                        strip = 3
-                        inc(offset)
-                        result.add(0x1)
-                    else:
-                        strip = 2
-                        result.add(0x0)
-                result.add(byte(len(constant.token.lexeme) - offset))  # Removes the quotes from the length count as they're not written
-                result.add(self.toBytes(constant.token.lexeme[offset..^2]))
-            of identExpr:
-                result.add(0x2)
-                result.add(0x0)
-                result.add(byte(len(constant.token.lexeme)))
-                result.add(self.toBytes(constant.token.lexeme))
-            of trueExpr:
-                result.add(0xC)
-            of falseExpr:
-                result.add(0xD)
-            of nilExpr:
-                result.add(0xF)
-            of nanExpr:
-                result.add(0xA)
-            of infExpr:
-                result.add(0xB)
-            else:
-                self.error(&"unknown constant kind in chunk table ({constant.kind})")
+    self.writeConstants(chunk, result)
+    self.writeCode(chunk, result)
 
 
 proc loadBytes*(self: Serializer, stream: seq[byte]): Serialized =
@@ -176,6 +187,8 @@ proc loadBytes*(self: Serializer, stream: seq[byte]): Serialized =
         result.compileDate = self.bytesToInt([stream[0], stream[1], stream[2], stream[3], stream[4], stream[5], stream[6], stream[7]])
         stream = stream[8..^1]
         result.fileHash = self.bytesToString(stream[0..<32]).toHex().toLowerAscii()
+        result.chunk = newChunk()
+
     except IndexDefect:
         self.error("truncated bytecode file")
     
