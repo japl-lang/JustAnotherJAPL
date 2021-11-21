@@ -32,23 +32,16 @@ export multibyte
 
 
 type
-    Name = ref object of RootObj
-        ## A compile-time wrapper around names.
+    Name = ref object
+        ## A compile-time wrapper around 
+        ## statically resolved names.
         ## Depth indicates to which scope
         ## the variable belongs, zero meaning
-        ## the global one. Note that all names
-        ## are resolved statically unless the
-        ## dynamic specifier is used, hence if
-        ## the compiler cannot resolve a name
-        ## at compile-time it will error out even
-        ## if everything would be fine at runtime
+        ## the global one
         name: IdentExpr
         owner: string
         depth: int
         isPrivate: bool
- 
-    StaticName = ref object of Name
-        ## A wrapper around statically bound names.
         isConst: bool
         
     Compiler* = ref object
@@ -59,11 +52,6 @@ type
         current: int
         file: string
         names: seq[Name]
-        # This differentiation is needed for a few things, namely:
-        # - To forbid assignment to constants
-        # - To error out on name resolution for a never-declared variable (static or dynamic)
-        # - To correctly predict where locals will be on the stack at runtime
-        staticNames: seq[StaticName]
         scopeDepth: int
         currentFunction: FunDecl
         enableOptimizations*: bool
@@ -76,7 +64,6 @@ proc initCompiler*(enableOptimizations: bool = true): Compiler =
     result.current = 0
     result.file = ""
     result.names = @[]
-    result.staticNames = @[]
     result.scopeDepth = 0
     result.currentFunction = nil
     result.enableOptimizations = enableOptimizations
@@ -118,40 +105,12 @@ proc done(self: Compiler): bool =
     result = self.current > self.ast.high()
 
 
-proc check(self: Compiler, kind: NodeKind): bool =
-    ## Returns if the current node is of the
-    ## expected kind
-    if self.done():
-        return false
-    return self.peek().kind == kind
-
-
 proc step(self: Compiler): ASTNode =
     ## Steps to the next node and returns
     ## the consumed one
     result = self.peek()
     if not self.done():
         self.current += 1
-
-
-proc match(self: Compiler, kind: NodeKind): bool =
-    ## Same as self.check(), but it calls self.step()
-    ## internally if self.check() returns true
-    if self.check(kind):
-        discard self.step()
-        return true
-    return false
-
-
-proc expect(self: Compiler, kind: NodeKind, message: string): ASTNode =
-    ## Same as self.match(), but returns the consumed
-    ## AST node instead of a boolean and errors out
-    ## with the given error message if the token
-    ## doesn't match
-    if self.match(kind):
-        result = self.peek(-1)
-    else:
-        self.error(message)
 
 
 proc emitByte(self: Compiler, byt: OpCode|uint8) =
@@ -206,6 +165,63 @@ proc identifierConstant(self: Compiler, identifier: IdentExpr): array[3, uint8] 
         result = self.makeConstant(identifier)
     except CompileError:
         self.error(getCurrentExceptionMsg())
+
+
+proc emitJump(self: Compiler, opcode: OpCode): int =
+    ## Emits a dummy jump offset to be patched later. Assumes
+    ## the largest offset (emits 4 bytes, one for given jump
+    ## opcode, while the other 3 are for the jump offset which is set
+    ## to the maximum unsigned 24 bit integer). If the shorter
+    ## 16 bit alternative is later found to be better suited, patchJump
+    ## will fix this. This function returns the absolute index into the
+    ## chunk's bytecode array where the given placeholder instruction was written
+    self.emitByte(opcode)
+    self.emitBytes((16777215).toTriple())
+    result = self.chunk.code.len() - 4
+
+
+proc patchJump(self: Compiler, offset: int) =
+    ## Patches a previously emitted jump
+    ## using emitJump. Since emitJump assumes
+    ## a long jump, this also shrinks the jump
+    ## offset and changes the bytecode instruction if possible
+    ## (i.e. jump is in 16 bit range), but the converse is also
+    ## true (i.e. it might change a regular jump into a long one)
+    let jump: int = self.chunk.code.len() - offset - 4
+    if jump > 16777215:
+        self.error("cannot jump more than 16777215 bytecode instructions")
+    if jump < uint16.high().int:
+        case OpCode(self.chunk.code[offset]):
+            of LongJumpForwards:
+                self.chunk.code[offset] = JumpForwards.uint8()
+            of LongJumpBackwards:
+                self.chunk.code[offset] = JumpBackwards.uint8()
+            of LongJumpIfFalse:
+                self.chunk.code[offset] = JumpIfFalse.uint8()
+            of LongJumpIfFalsePop:
+                self.chunk.code[offset] = JumpIfFalsePop.uint8()     
+            else:
+                discard  # Unreachable
+        self.chunk.code.delete(offset + 1)   # Discards the first byte of the 24 bit integer
+        let offsetArray = jump.toDouble()
+        self.chunk.code[offset + 1] = offsetArray[0]
+        self.chunk.code[offset + 2] = offsetArray[1]
+    else:
+        case OpCode(self.chunk.code[offset]):
+            of JumpForwards:
+                self.chunk.code[offset] = LongJumpForwards.uint8()
+            of JumpBackwards:
+                self.chunk.code[offset] = LongJumpBackwards.uint8()
+            of JumpIfFalse:
+                self.chunk.code[offset] = LongJumpIfFalse.uint8()
+            of JumpIfFalsePop:
+                self.chunk.code[offset] = LongJumpIfFalsePop.uint8()     
+            else:
+                discard  # Unreachable
+        let offsetArray = jump.toTriple()
+        self.chunk.code[offset + 1] = offsetArray[0]
+        self.chunk.code[offset + 2] = offsetArray[1]
+        self.chunk.code[offset + 3] = offsetArray[2]
 
 ## End of utility functions
 
@@ -322,7 +338,6 @@ proc unary(self: Compiler, node: UnaryExpr) =
 
 proc binary(self: Compiler, node: BinaryExpr) =
     ## Compiles all binary expressions
-
     # These two lines prepare the stack by pushing the
     # opcode's operands onto it
     self.expression(node.a)
@@ -360,7 +375,28 @@ proc binary(self: Compiler, node: BinaryExpr) =
             self.emitByte(BinaryShiftRight)
         of LeftShift:
             self.emitByte(BinaryShiftLeft)
-        # TODO: In-place operations (requires variables)
+        of TokenType.LessThan:
+            self.emitByte(OpCode.LessThan)
+        of TokenType.GreaterThan:
+            self.emitByte(OpCode.GreaterThan)
+        of TokenType.DoubleEqual:
+            self.emitByte(EqualTo)
+        of TokenType.LessOrEqual:
+            self.emitByte(OpCode.LessOrEqual)
+        of TokenType.GreaterOrEqual:
+            self.emitByte(OpCode.GreaterOrEqual)
+        of TokenType.LogicalAnd:
+            self.expression(node.a)
+            let jump = self.emitJump(JumpIfFalse)
+            self.emitByte(Pop)
+            self.expression(node.b)
+            self.patchJump(jump)
+        of TokenType.LogicalOr:
+            self.expression(node.a)
+            let jump = self.emitJump(JumpIfTrue)
+            self.expression(node.b)
+            self.patchJump(jump)
+        # TODO: In-place operations
         else:
             self.error(&"invalid AST node of kind {node.kind} at binary(): {node} (This is an internal error and most likely a bug)")
 
@@ -375,17 +411,15 @@ proc declareName(self: Compiler, node: ASTNode) =
                 # This emits code for dynamically-resolved variables (i.e. globals declared as dynamic and unresolvable names)
                 self.emitByte(DeclareName)
                 self.emitBytes(self.identifierConstant(IdentExpr(node.name)))
-                self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
-                                    isPrivate: node.isPrivate, owner: node.owner))
             else:
                 # Statically resolved variable here. Only creates a new StaticName entry
                 # so that self.identifier (and, by extension, self.getStaticIndex) emit the
                 # proper stack offset
-                if self.staticNames.high() > 16777215:
+                if self.names.high() > 16777215:
                     # If someone ever hits this limit in real-world scenarios, I swear I'll
                     # slap myself 100 times with a sign saying "I'm dumb". Mark my words
                     self.error("cannot declare more than 16777215 static variables at a time")
-                self.staticNames.add(StaticName(depth: self.scopeDepth, name: IdentExpr(node.name),
+                self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
                                                 isPrivate: node.isPrivate, owner: node.owner, isConst: node.isConst))
         else:
             discard  # TODO: Classes, functions
@@ -397,8 +431,8 @@ proc varDecl(self: Compiler, node: VarDecl) =
     self.declareName(node)
 
 
-proc resolveDynamic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth): Name =
-    ## Traverses self.names backwards and returns the
+proc resolveStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth): Name =
+    ## Traverses self.staticNames backwards and returns the
     ## first name object with the given name at the given
     ## depth. The default depth is the current one. Returns
     ## nil when the name can't be found. This helper function
@@ -410,24 +444,11 @@ proc resolveDynamic(self: Compiler, name: IdentExpr, depth: int = self.scopeDept
     return nil
 
 
-proc resolveStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth): StaticName =
-    ## Traverses self.staticNames backwards and returns the
-    ## first name object with the given name at the given
-    ## depth. The default depth is the current one. Returns
-    ## nil when the name can't be found. This helper function
-    ## is only useful when detecting a few errors and edge
-    ## cases
-    for obj in reversed(self.staticNames):
-        if obj.name.token.lexeme == name.token.lexeme and obj.depth == depth:
-            return obj
-    return nil
-
-
 proc getStaticIndex(self: Compiler, name: IdentExpr): int =
     ## Gets the predicted stack position of the given variable
     ## if it is static, returns -1 if it is to be bound dynamically
-    var i: int = self.staticNames.high()
-    for variable in reversed(self.staticNames):
+    var i: int = self.names.high()
+    for variable in reversed(self.names):
         if name.name.lexeme == variable.name.name.lexeme:
             return i
         dec(i)
@@ -437,11 +458,7 @@ proc getStaticIndex(self: Compiler, name: IdentExpr): int =
 proc identifier(self: Compiler, node: IdentExpr) =
     ## Compiles access to identifiers
     let s = self.resolveStatic(node)
-    let d = self.resolveDynamic(node)
-    if s == nil and d == nil and self.scopeDepth == 0:
-        # Usage of undeclared globals is easy to detect at the top level
-        self.error(&"reference to undeclared name '{node.name.lexeme}'")
-    if s.isConst:
+    if s != nil and s.isConst:
         # Constants are emitted as, you guessed it, constant instructions
         # no matter the scope depth. Also, name resolution specifiers do not
         # apply to them (because what would it mean for a constant to be dynamic
@@ -450,7 +467,7 @@ proc identifier(self: Compiler, node: IdentExpr) =
     else:
         let index = self.getStaticIndex(node)
         if index != -1:
-            self.emitByte(LoadNameFast)   # Static name resolution
+            self.emitByte(LoadFast)   # Static name resolution
             self.emitBytes(index.toTriple())
         else:
             self.emitByte(LoadName)
@@ -471,13 +488,13 @@ proc assignment(self: Compiler, node: ASTNode) =
             self.expression(node.value)
             let index = self.getStaticIndex(name)
             if index != -1:
-                self.emitByte(UpdateNameFast)
+                self.emitByte(UpdateFast)
                 self.emitBytes(index.toTriple())
             else:
                 self.emitByte(UpdateName)
                 self.emitBytes(self.makeConstant(name))
         of setItemExpr:
-            var node = SetItemExpr(node)
+            discard
             # TODO
         else:
             self.error(&"invalid AST node of kind {node.kind} at assignment(): {node} (This is an internal error and most likely a bug)")
@@ -494,7 +511,7 @@ proc endScope(self: Compiler) =
     if self.scopeDepth < 0:
         self.error("cannot call endScope with scopeDepth < 0 (This is an internal error and most likely a bug)")
     var popped: int = 0
-    for ident in reversed(self.staticNames):
+    for ident in reversed(self.names):
         if not self.enableOptimizations:
             if ident.depth > self.scopeDepth:
                 # All variables with a scope depth larger than the current one
@@ -511,17 +528,18 @@ proc endScope(self: Compiler) =
         # emit another batch of plain ol' Pop instructions for the rest
         if popped <= uint16.high().int():
             self.emitByte(PopN)
-            self.emitBytes(popped.toDouble())
+            self.emitBytes(popped.toTriple())
         else:
             self.emitByte(PopN)
-            self.emitBytes(uint16.high().toDouble())
-            for i in countdown(self.staticNames.high(), popped - uint16.high().int()):
-                if self.staticNames[i].depth > self.scopeDepth:
+            self.emitBytes(uint16.high().int.toTriple())
+            for i in countdown(self.names.high(), popped - uint16.high().int()):
+                if self.names[i].depth > self.scopeDepth:
                     self.emitByte(Pop)
     elif popped == 1:
+        # We only emit PopN if we're popping more than one value
         self.emitByte(Pop)
     for _ in countup(0, popped - 1):
-        discard self.staticNames.pop()
+        discard self.names.pop()
     dec(self.scopeDepth)
 
 
@@ -534,6 +552,48 @@ proc blockStmt(self: Compiler, node: BlockStmt) =
     self.endScope()
 
 
+proc ifStmt(self: Compiler, node: IfStmt) =
+    ## Compiles if/else statements for conditional
+    ## execution of code
+    self.expression(node.condition)
+    let jump = self.emitJump(JumpIfFalsePop)
+    self.statement(node.thenBranch)
+    self.patchJump(jump)
+    if node.elseBranch != nil:
+        let jump = self.emitJump(JumpForwards)
+        self.statement(node.elseBranch)
+        self.patchJump(jump)
+
+
+proc emitLoop(self: Compiler, begin: int) =
+    ## Emits a JumpBackwards instruction with the correct
+    ## jump offset
+    var offset: int
+    case OpCode(self.chunk.code[begin + 1]):   # The jump instruction
+        of LongJumpForwards, LongJumpBackwards, LongJumpIfFalse, LongJumpIfFalsePop, LongJumpIfTrue:
+            offset = self.chunk.code.len() - begin + 4
+        else:
+            offset = self.chunk.code.len() - begin
+    if offset > uint16.high().int:
+        if offset > 16777215:
+            self.error("cannot jump more than 16777215 bytecode instructions")
+        self.emitByte(LongJumpBackwards)
+        self.emitBytes(offset.toTriple())
+    else:
+        self.emitByte(JumpBackwards)
+        self.emitBytes(offset.toDouble())
+    
+
+proc whileStmt(self: Compiler, node: WhileStmt) =
+    ## Compiles C-style while loops
+    let start = self.chunk.code.len()
+    self.expression(node.condition)
+    let jump = self.emitJump(JumpIfFalsePop)
+    self.statement(node.body)
+    self.patchJump(jump)
+    self.emitLoop(start)
+
+
 proc expression(self: Compiler, node: ASTNode) =
     ## Compiles all expressions
     case node.kind:
@@ -543,9 +603,7 @@ proc expression(self: Compiler, node: ASTNode) =
         # the node to its true type because that type information
         # would be lost in the call anyway. The differentiation
         # happens in self.assignment
-        of setItemExpr:
-            self.assignment(node)
-        of assignExpr:
+        of setItemExpr, assignExpr:
             self.assignment(node)
         of identExpr:
             self.identifier(IdentExpr(node))
@@ -581,8 +639,8 @@ proc statement(self: Compiler, node: ASTNode) =
             self.expression(ExprStmt(node).expression)
             self.emitByte(Pop)   # Expression statements discard their value. Their main use case is side effects in function calls
         # TODO
-        of ifStmt:
-            discard
+        of NodeKind.ifStmt:
+            self.ifStmt(IfStmt(node))
         of delStmt:
             discard
         of assertStmt:
@@ -599,21 +657,21 @@ proc statement(self: Compiler, node: ASTNode) =
             discard
         of fromImportStmt:
             discard
-        of whileStmt:
-            discard
-        of forStmt:
-            discard
+        of NodeKind.whileStmt, NodeKind.forStmt:
+            ## Our parser already desugars for loops to
+            ## while loops anyway
+            self.whileStmt(WhileStmt(node))
         of forEachStmt:
             discard
         of NodeKind.blockStmt:
             self.blockStmt(BlockStmt(node))
-        of yieldStmt:
+        of NodeKind.yieldStmt:
             discard
-        of awaitStmt:
+        of NodeKind.awaitStmt:
             discard
-        of deferStmt:
+        of NodeKind.deferStmt:
             discard
-        of tryStmt:
+        of NodeKind.tryStmt:
             discard 
         else:
             self.error(&"invalid AST node of kind {node.kind} at statement(): {node} (This is an internal error and most likely a bug)")  # TODO
@@ -637,7 +695,6 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.ast = ast
     self.file = file
     self.names = @[]
-    self.staticNames = @[]
     self.scopeDepth = 0
     self.currentFunction = nil
     self.current = 0

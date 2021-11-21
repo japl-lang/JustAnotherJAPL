@@ -115,8 +115,10 @@ proc jumpInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
             jump = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple().int()
         else:
             discard  # Unreachable
-    printInstruction(instruction)
-    printDebug(&"Jump size: {jump}")
+    printInstruction(instruction, true)
+    printDebug("Jump size: ")
+    setForegroundColor(fgYellow)
+    stdout.write($jump)
     nl()
     return offset + 3
 

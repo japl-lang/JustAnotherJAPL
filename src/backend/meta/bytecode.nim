@@ -119,18 +119,20 @@ type
         LoadAttribute, 
         DeclareName,   # Declares a global dynamically bound name in the current scope
         LoadName,      # Loads a dynamically bound variable 
-        LoadNameFast,  # Loads a statically bound variable
+        LoadFast,  # Loads a statically bound variable
         UpdateName,    # Updates a dynamically bound variable's value
-        UpdateNameFast, # Updates a statically bound variable's value
+        UpdateFast, # Updates a statically bound variable's value
         DeleteName,    # Unbinds a dynamically bound variable's name from the current scope
         DeleteNameFast,  # Unbinds a statically bound variable's name from the current scope
         # Looping and jumping
         JumpIfFalse,     # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
+        JumpIfTrue,      # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
         JumpIfFalsePop,  # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
         JumpForwards,    # Relative, unconditional, positive jump in the bytecode
         JumpBackwards,   # Relative, unconditional, negative jump into the bytecode
         ## Long variants of jumps (they use a 24-bit operand instead of a 16-bit one)
         LongJumpIfFalse,
+        LongJumpIfTrue,
         LongJumpIfFalsePop,
         LongJumpForwards,
         LongJumpBackwards,
@@ -178,7 +180,7 @@ const constantInstructions* = {LoadConstant, DeclareName, LoadName, UpdateName, 
 
 # Stack triple instructions operate on the stack at arbitrary offsets and pop arguments off of it in the form
 # of 24 bit integers
-const stackTripleInstructions* = {Call, UpdateNameFast, DeleteNameFast, LoadNameFast}
+const stackTripleInstructions* = {Call, UpdateFast, DeleteNameFast, LoadFast}
 
 # Stack Double instructions operate on the stack at arbitrary offsets and pop arguments off of it in the form
 # of 16 bit integers

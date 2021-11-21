@@ -353,7 +353,7 @@ proc makeCall(self: Parser, callee: ASTNode): ASTNode =
 
 proc call(self: Parser): ASTNode = 
     ## Parses call expressions and object
-    ## accessing ("dot syntax")
+    ## field accessing ("dot syntax")
     result = self.primary()
     while true:
         if self.match(LeftParen):
@@ -529,18 +529,29 @@ proc assertStmt(self: Parser): ASTNode =
     result = newAssertStmt(expression, tok)
 
 
+proc beginScope(self: Parser) =
+    ## Begins a new syntactical scope
+    inc(self.scopeDepth)
+
+
+proc endScope(self: Parser) =
+    ## Ends a new syntactical scope
+    dec(self.scopeDepth)
+
+
 proc blockStmt(self: Parser): ASTNode =
     ## Parses block statements. A block
     ## statement simply opens a new local
     ## scope
-    inc(self.scopeDepth)
+    
+    self.beginScope()
     let tok = self.peek(-1)
     var code: seq[ASTNode] = @[]
     while not self.check(RightBrace) and not self.done():
         code.add(self.declaration())
     self.expect(RightBrace, "unterminated block statement")
     result = newBlockStmt(code, tok)
-    dec(self.scopeDepth)
+    self.endScope()
 
 
 proc breakStmt(self: Parser): ASTNode =
@@ -719,6 +730,7 @@ proc tryStmt(self: Parser): ASTNode =
 proc whileStmt(self: Parser): ASTNode =
     ## Parses a C-style while loop statement
     let tok = self.peek(-1)
+    self.beginScope()
     var enclosingLoop = self.currentLoop
     self.currentLoop = Loop
     self.expect(LeftParen, "expecting '(' before while loop condition")
@@ -726,19 +738,44 @@ proc whileStmt(self: Parser): ASTNode =
     self.expect(RightParen, "unterminated while loop condition")
     result = newWhileStmt(condition, self.statement(), tok)
     self.currentLoop = enclosingLoop
+    self.endScope()
 
 
 proc forStmt(self: Parser): ASTNode = 
     ## Parses a C-style for loop
+    self.beginScope()
     let tok = self.peek(-1)
     var enclosingLoop = self.currentLoop
     self.currentLoop = Loop
-    self.expect(LeftParen, "expecting '(' before for loop condition")
+    self.expect(LeftParen, "expecting '(' after 'for'")
     var initializer: ASTNode = nil
     var condition: ASTNode = nil
     var increment: ASTNode = nil
-    if self.match(Var):
-        initializer = self.varDecl()
+    # The code below is not really that illuminating, but
+    # it's there to disallow weird things like a public for loop
+    # increment variable which doesn't really make sense, but still
+    # allow people that like verbosity (for *some* reason) to use
+    # private static var declarations as well as just private var 
+    # and static var
+    if self.match(Semicolon):
+        discard
+    elif self.match(Dynamic):
+        self.error("dynamic declarations are not allowed in the foor loop initializer")
+    elif self.match(Public):
+        self.error("public declarations are not allowed in the for loop initializer")
+    elif self.match(Static):
+        self.expect(Var, "expecting 'var' after 'static' in for loop initializer")
+        initializer = self.varDecl(isStatic=true, isPrivate=true)
+    elif self.match(Private):
+        if self.match(Dynamic):
+            self.error("dynamic declarations are not allowed in the foor loop initializer")
+        elif self.match(Static):
+            self.expect(Var, "expecting 'var' after 'static' in for loop initializer")
+            initializer = self.varDecl(isStatic=true, isPrivate=true)
+        elif self.match(Var):
+            initializer = self.varDecl(isStatic=true, isPrivate=true)
+    elif self.match(Var):
+        initializer = self.varDecl(isStatic=true, isPrivate=true)
     else:
         initializer = self.expressionStatement()
     if not self.check(Semicolon):
@@ -746,24 +783,25 @@ proc forStmt(self: Parser): ASTNode =
     self.expect(Semicolon, "expecting ';' after for loop condition")
     if not self.check(RightParen):
         increment = self.expression()
-    self.expect(RightParen, "unterminated for loop condition")
+    self.expect(RightParen, "unterminated for loop increment")
     var body = self.statement()
     if increment != nil:
         # The increment runs after each iteration, so we
         # inject it into the block as the last statement
-        body = newBlockStmt(@[body, increment], tok)
+        body = newBlockStmt(@[body, newExprStmt(increment, increment.token)], tok)
     if condition == nil:
         ## An empty condition is functionally
         ## equivalent to "true"
         condition = newTrueExpr(Token())
+    # We can use a while loop, which in this case works just as well
+    body = newWhileStmt(condition, body, tok)
     if initializer != nil:
         # Nested blocks, so the initializer is
         # only executed once
         body = newBlockStmt(@[initializer, body], tok)
-    # We can use a while loop, which in this case works just as well
-    body = newWhileStmt(condition, body, tok)
     result = body
     self.currentLoop = enclosingLoop
+    self.endScope()
 
 
 proc ifStmt(self: Parser): ASTNode =

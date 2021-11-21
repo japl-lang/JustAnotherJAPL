@@ -109,8 +109,9 @@ proc main() =
             echo &"\t\t- File hash: {serialized.fileHash} (matches: {computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash})"
             echo &"\t\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..8]} on branch {serialized.japlBranch})"
             stdout.write("\t\t")
-            echo &"""- Compilation date & time: {fromUnix(serialized.compileDate).format("d/M/yyyy H:mm:ss")}"""
+            echo &"""- Compilation date & time: {fromUnix(serialized.compileDate).format("d/M/yyyy HH:mm:ss")}"""
         except:
+            raise
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
             continue
 
