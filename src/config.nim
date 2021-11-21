@@ -20,7 +20,7 @@ const HEAP_GROW_FACTOR* = 2   # How much extra memory to allocate for dynamic ar
 const MAX_STACK_FRAMES* = 800   # The maximum number of stack frames at any one time. Acts as a recursion limiter (1 frame = 1 call)
 const JAPL_VERSION* = (major: 0, minor: 4, patch: 0)
 const JAPL_RELEASE* = "alpha"
-const JAPL_COMMIT_HASH* = "93fdb6bd10b558bb8e6e03efbe333ca3513ddf23"
+const JAPL_COMMIT_HASH* = "f90f732a66b7922f42b554a67917b644a89049c4"
 const JAPL_BRANCH* = "master"
 const DEBUG_TRACE_VM* = false # Traces VM execution
 const SKIP_STDLIB_INIT* = false # Skips stdlib initialization (can be imported manually)
