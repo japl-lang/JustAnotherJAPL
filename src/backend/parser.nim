@@ -866,6 +866,7 @@ proc varDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNo
 
 proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPrivate: bool = true, isLambda: bool = false): ASTNode =
     ## Parses function and lambda declarations. Note that lambdas count as expressions!
+    self.checkDecl(isStatic, isPrivate)
     let tok = self.peek(-1)
     var enclosingFunction = self.currentFunction
     var arguments: seq[ASTNode] = @[]
@@ -909,6 +910,7 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
 
 proc classDecl(self: Parser, isStatic: bool = true, isPrivate: bool = true): ASTNode =
     ## Parses class declarations
+    self.checkDecl(isStatic, isPrivate)
     let tok = self.peek(-1)
     var parents: seq[ASTNode] = @[]
     self.expect(Identifier)

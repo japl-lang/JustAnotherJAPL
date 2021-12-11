@@ -43,7 +43,16 @@ type
         depth: int
         isPrivate: bool
         isConst: bool
-        
+    
+    Loop = object
+        ## A "loop object" used
+        ## by the compiler to emit
+        ## appropriate jump offsets
+        ## for continue and break
+        ## statements
+        start: int
+        stop: int
+
     Compiler* = ref object
         ## A wrapper around the compiler's state
         chunk: Chunk
@@ -55,6 +64,7 @@ type
         scopeDepth: int
         currentFunction: FunDecl
         enableOptimizations*: bool
+        currentLoop: Loop
     
 
 proc initCompiler*(enableOptimizations: bool = true): Compiler =
@@ -169,7 +179,7 @@ proc identifierConstant(self: Compiler, identifier: IdentExpr): array[3, uint8] 
 
 proc emitJump(self: Compiler, opcode: OpCode): int =
     ## Emits a dummy jump offset to be patched later. Assumes
-    ## the largest offset (emits 4 bytes, one for given jump
+    ## the largest offset (emits 4 bytes, one for the given jump
     ## opcode, while the other 3 are for the jump offset which is set
     ## to the maximum unsigned 24 bit integer). If the shorter
     ## 16 bit alternative is later found to be better suited, patchJump
@@ -556,7 +566,14 @@ proc ifStmt(self: Compiler, node: IfStmt) =
     ## Compiles if/else statements for conditional
     ## execution of code
     self.expression(node.condition)
-    let jump = self.emitJump(JumpIfFalsePop)
+    var jumpCode: OpCode
+    if self.enableOptimizations:
+        jumpCode = JumpIfFalsePop
+    else:
+        jumpCode = JumpIfFalse
+    let jump = self.emitJump(jumpCode)
+    if not self.enableOptimizations:
+        self.emitByte(Pop)
     self.statement(node.thenBranch)
     self.patchJump(jump)
     if node.elseBranch != nil:
