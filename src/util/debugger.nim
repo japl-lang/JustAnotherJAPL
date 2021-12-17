@@ -109,9 +109,9 @@ proc jumpInstruction(instruction: OpCode, chunk: Chunk, offset: int): int =
     ## Debugs jumps
     var jump: int
     case instruction:
-        of JumpIfFalse, JumpIfFalsePop, JumpForwards, JumpBackwards:
+        of JumpIfFalse, JumpIfTrue, JumpIfFalsePop, JumpForwards, JumpBackwards:
             jump = [chunk.code[offset + 1], chunk.code[offset + 2]].fromDouble().int()
-        of LongJumpIfFalse, LongJumpIfFalsePop, LongJumpForwards, LongJumpBackwards:
+        of LongJumpIfFalse, LongJumpIfTrue, LongJumpIfFalsePop, LongJumpForwards, LongJumpBackwards:
             jump = [chunk.code[offset + 1], chunk.code[offset + 2], chunk.code[offset + 3]].fromTriple().int()
         else:
             discard  # Unreachable

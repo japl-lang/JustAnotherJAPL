@@ -192,7 +192,7 @@ const argumentDoubleInstructions* = {PopN, }
 # Jump instructions jump at relative or absolute bytecode offsets
 const jumpInstructions* = {JumpIfFalse, JumpIfFalsePop, JumpForwards, JumpBackwards, 
                            LongJumpIfFalse, LongJumpIfFalsePop, LongJumpForwards,
-                           LongJumpBackwards}
+                           LongJumpBackwards, JumpIfTrue, LongJumpIfTrue}
 
 # Collection instructions push a built-in collection type onto the stack
 const collectionInstructions* = {BuildList, BuildDict, BuildSet, BuildTuple}

@@ -106,15 +106,24 @@ proc main() =
 
             serialized = serializer.loadBytes(serializedRaw)
             echo "Deserialization step:"
-            echo &"\t\t- File hash: {serialized.fileHash} (matches: {computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash})"
-            echo &"\t\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..8]} on branch {serialized.japlBranch})"
-            stdout.write("\t\t")
+            echo &"\t- File hash: {serialized.fileHash} (matches: {computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash})"
+            echo &"\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..8]} on branch {serialized.japlBranch})"
+            stdout.write("\t")
             echo &"""- Compilation date & time: {fromUnix(serialized.compileDate).format("d/M/yyyy HH:mm:ss")}"""
+            stdout.write(&"\t- Reconstructed constants table: [")
+            for i, e in serialized.chunk.consts:
+                stdout.write(e)
+                if i < len(serialized.chunk.consts) - 1:
+                    stdout.write(", ")
+            stdout.write("]\n")
+            stdout.write(&"\t- Reconstructed bytecode: [")
+            for i, e in serialized.chunk.code:
+                stdout.write($e)
+                if i < len(serialized.chunk.code) - 1:
+                    stdout.write(", ")
+            stdout.write("]\n")
         except:
-            raise
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
-            continue
-
 
 
 when isMainModule:

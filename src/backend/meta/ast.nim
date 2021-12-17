@@ -611,6 +611,8 @@ proc newClassDecl*(name: ASTNode, body: ASTNode,
 
 
 proc `$`*(self: ASTNode): string = 
+    if self == nil:
+        return "nil"
     case self.kind:
         of intExpr, floatExpr, hexExpr, binExpr, octExpr, strExpr, trueExpr, falseExpr, nanExpr, nilExpr, infExpr:
             if self.kind in {trueExpr, falseExpr, nanExpr, nilExpr, infExpr}:

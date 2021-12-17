@@ -30,7 +30,7 @@ __Note__: The conventions about number literals described in the document laying
 
 ## Compile-time type specifiers
 
-To distinguish the different kinds of values that JAPL can represent at compile time, type specifiers are prepended to a given series of bytes to tell the deserializer what kind of object that specific sequence should deserialize into. It is important that each compile-time object specifies the size of its value in bytes (referred to as "size specifier" from now on, without quotes), after the type specifier. The following sections about object representation assume the appropriate type and size specifiers have been used and will therefore omit them to avoid repetition. Some types (such as singletons) do not need a size specifier as they're only one byte long: these cases are an exception rather than the rule and are explicitly marked as such in this document.
+To distinguish the different kinds of values that JAPL can represent at compile time, type specifiers are prepended to a given series of bytes to tell the deserializer what kind of object that specific sequence should deserialize into. It is important that each compile-time object specifies the size of its value in bytes using a 3-byte (aka 24 bit) integer (referred to as "size specifier" from now on, without quotes), after the type specifier. The following sections about object representation assume the appropriate type and size specifiers have been used and will therefore omit them to avoid repetition. Some types (such as singletons) do not need a size specifier as they're only one byte long: these cases are an exception rather than the rule and are explicitly marked as such in this document.
 
 Below a list of all type specifiers:
 
@@ -39,15 +39,16 @@ Below a list of all type specifiers:
 - `0xF` -> nil*
 - `0xA` -> nan*
 - `0xB` -> inf*
-- `0x01` -> Number
-- `0x02` -> String
-- `0x03` -> List literal (An heterogeneous dynamic array)
-- `0x04` -> Set literal  (An heterogeneous and unordered dynamic array without duplicates. Mirrors the mathematical definition of a set)
-- `0x05` -> Dictionary literal  (An associative array, also known as mapping)
-- `0x06` -> Tuple literal (An heterogeneous, static array)
-- `0x07` -> Function declaration
-- `0x08` -> Class declaration
-- `0x09` -> Variable declaration. Note that constants are replaced during compilation with their corresponding literal value, therefore they are represented as literals in the constants section and are not compiled as variable declarations.
+- `0x0` -> Identifier
+- `0x1` -> Number
+- `0x2` -> String
+- `0x3` -> List literal (An heterogeneous dynamic array)
+- `0x4` -> Set literal  (An heterogeneous and unordered dynamic array without duplicates. Mirrors the mathematical definition of a set)
+- `0x5` -> Dictionary literal  (An associative array, also known as mapping)
+- `0x6` -> Tuple literal (An heterogeneous, static array)
+- `0x7` -> Function declaration
+- `0x8` -> Class declaration
+- `0x9` -> Variable declaration. Note that constants are replaced during compilation with their corresponding literal value, therefore they are represented as literals in the constants section and are not compiled as variable declarations.
 - `0x10` -> Lambda declarations (aka anonymous functions)
 
 
@@ -57,7 +58,7 @@ __Note__: The types whose name is followed by an asterisk require no size specif
 
 ### Numbers
 
-For simplicity purposes, numbers in object files are serialized as strings of decimal digits and optionally a dot followed by 1 or more decimal digits (for floats). The number `2.718`, for example, would just be serialized as the string `"2.718"` (without quotes). JAPL supports scientific notation such as `2e3`, but numbers in this form are collapsed to their decimal representation before being written to a file, therefore `2e3` becomes `2000.0`. Other decimal number representations such as hexadecimal, binary and octal are also converted to base 10 during compilation.
+For simplicity purposes, numbers in object files are serialized as strings of decimal digits and optionally a dot followed by 1 or more decimal digits (for floats). The number `2.718`, for example, would just be serialized as the string `"2.718"` (without quotes). JAPL supports scientific notation such as `2e3`, but numbers in this form are collapsed to their decimal representation before being written to a file, therefore `2e3` becomes `2000.0`. Other decimal number representations such as hexadecimal, binary and octal are also converted to base 10 during compilation (usually during the optimization process).
 
 ### Strings
 
@@ -92,17 +93,18 @@ An object file starts with the headers, namely:
 - A string representing the branch name of the git repo from which JAPL was compiled, prepended with its size represented as a single 8-bit unsigned integer. Due to this encoding the branch name can't be longer than 256 characters, which is a length deemed appropriate for this purpose
 - A 40 bytes hexadecimal string, pinpointing the version of the compiler down to the exact commit hash in the JAPL repository, particularly useful when testing development versions
 - An 8 byte (64 bit) UNIX timestamp (starting from the Unix Epoch of January 1st 1970 at 00:00), representing the date and time when the file was created
-- A 32 bytes SHA256 checksum of the source file's contents, used to track file changes
+- A 32 byte SHA256 checksum of the source file's contents, used to track file changes
 
 ### Constant section
 
-This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are just an ordered sequence of compile-time types as described in the sections above.
+This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are just an ordered sequence of compile-time types as described in the sections above. The constant section's end is marked with
+the byte `0x59`.
 
 ### Code section
 
-After the headers and the constant section follows the code section, which stores the actual bytecode instructions the compiler has emitted. They're encoded as a linear sequence of bytes.
+After the headers and the constant section follows the code section, which stores the actual bytecode instructions the compiler has emitted. They're encoded as a linear sequence of bytes. The code section's size is fixed and is encoded as a 3-byte (24 bit) integer right after the constant section's end marker, limiting the maximum number of bytecode instructions per bytecode file to 16777216.
 
 ### Modules
 
 When compiling source files, one bytecode file is produced per source file. These bytecode dumps are stored inside `~/.cache` under *nix systems and `C:\Windows\Temp` under windows systems. Since JAPL allows explicit visibility specifiers that alter the way namespaces are built at runtime (and, partially, resolved at compile-time) by selectively
-(not) exporting symbols to the outside world, these directives need to be specified in the bytecode file
+(not) exporting symbols to the outside world, these directives need to be specified in the bytecode file (TODO).

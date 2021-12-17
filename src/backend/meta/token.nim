@@ -70,7 +70,7 @@ type
     EndOfFile
 
 
-  Token* = object
+  Token* = ref object
     ## A token object
     kind*: TokenType
     lexeme*: string
@@ -78,4 +78,8 @@ type
     pos*: tuple[start, stop: int]
 
 
-proc `$`*(self: Token): string = &"Token(kind={self.kind}, lexeme={$(self.lexeme).escape()}, line={self.line}, pos=({self.pos.start}, {self.pos.stop}))"
+proc `$`*(self: Token): string =
+  if self != nil:
+    result = &"Token(kind={self.kind}, lexeme={$(self.lexeme).escape()}, line={self.line}, pos=({self.pos.start}, {self.pos.stop}))"
+  else:
+    result = "nil"

@@ -225,7 +225,7 @@ proc match(self: Lexer, what: string): bool =
 proc createToken(self: Lexer, tokenType: TokenType) =
     ## Creates a token object and adds it to the token
     ## list
-    var tok: Token
+    var tok: Token = new(Token)
     tok.kind = tokenType
     tok.lexeme = self.source[self.start..<self.current]
     tok.line = self.line
