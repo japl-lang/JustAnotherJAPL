@@ -297,7 +297,6 @@ proc loadBytes*(self: Serializer, stream: seq[byte]): Serialized =
         stream = stream[self.readConstants(stream)..^1]
         stream = stream[self.readCode(stream)..^1]
     except IndexDefect:
-        raise
         self.error("truncated bytecode file")
     except AssertionDefect:
         self.error("corrupted bytecode file")
