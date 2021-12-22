@@ -27,7 +27,7 @@ const SKIP_STDLIB_INIT* = false # Skips stdlib initialization (can be imported m
 const DEBUG_TRACE_GC* = false    # Traces the garbage collector (TODO)
 const DEBUG_TRACE_ALLOCATION* = false   # Traces memory allocation/deallocation
 const DEBUG_TRACE_COMPILER* = false  # Traces the compiler
-const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION.major}.{JAPL_VERSION.minor}.{JAPL_VERSION.patch} ({JAPL_RELEASE}, {CompileDate}, {CompileTime}) on branch {JAPL_BRANCH} ({JAPL_COMMIT_HASH[0..8]})"
+const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION.major}.{JAPL_VERSION.minor}.{JAPL_VERSION.patch} {JAPL_RELEASE} ({JAPL_BRANCH}, {CompileDate}, {CompileTime}, {JAPL_COMMIT_HASH[0..8]}) [Nim {NimVersion}] on {hostOS} ({hostCPU})"
 const HELP_MESSAGE* = """The JAPL programming language, Copyright (C) 2021 Mattia Giambirtone & All Contributors
 
 This program is free software, see the license distributed with this program or check

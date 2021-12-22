@@ -30,15 +30,9 @@ __Note__: The conventions about number literals described in the document laying
 
 ## Compile-time type specifiers
 
-To distinguish the different kinds of values that JAPL can represent at compile time, type specifiers are prepended to a given series of bytes to tell the deserializer what kind of object that specific sequence should deserialize into. It is important that each compile-time object specifies the size of its value in bytes using a 3-byte (aka 24 bit) integer (referred to as "size specifier" from now on, without quotes), after the type specifier. The following sections about object representation assume the appropriate type and size specifiers have been used and will therefore omit them to avoid repetition. Some types (such as singletons) do not need a size specifier as they're only one byte long: these cases are an exception rather than the rule and are explicitly marked as such in this document.
+To distinguish the different kinds of values that JAPL can represent at compile time, type specifiers are prepended to a given series of bytes to tell the deserializer what kind of object that specific sequence should deserialize into. It is important that each compile-time object specifies the size of its value in bytes using a 3-byte (aka 24 bit) integer (referred to as "size specifier" from now on, without quotes), after the type specifier. The following sections about object representation assume the appropriate type and size specifiers have been used and will therefore omit them to avoid repetition. Some types (such as singletons) are encoded with a dedicated bytecode instruction rather than as a constant (booleans, nan and inf are notable examples of this).
 
 Below a list of all type specifiers:
-
-- `0xC` -> true*
-- `0xD` -> false*
-- `0xF` -> nil*
-- `0xA` -> nan*
-- `0xB` -> inf*
 - `0x0` -> Identifier
 - `0x1` -> Number
 - `0x2` -> String
@@ -51,8 +45,6 @@ Below a list of all type specifiers:
 - `0x9` -> Variable declaration. Note that constants are replaced during compilation with their corresponding literal value, therefore they are represented as literals in the constants section and are not compiled as variable declarations.
 - `0x10` -> Lambda declarations (aka anonymous functions)
 
-
-__Note__: The types whose name is followed by an asterisk require no size specifier, as they're 1 byte long and adding one would only waste space.
 
 ## Object representation
 

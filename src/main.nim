@@ -11,12 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+## Test module to wire up JAPL components
 import backend/lexer
 import backend/parser
 import backend/optimizer
 import backend/compiler
 import util/debugger
 import backend/serializer
+import config
 
 
 import strformat
@@ -46,11 +49,17 @@ proc main() =
     var compiler = initCompiler()
     var serializer = initSerializer()
 
-    echo "NimVM REPL\n"
+    echo JAPL_VERSION_STRING
     while true:
         try:
             stdout.write(">>> ")
             source = stdin.readLine()
+            if source == "//clear" or source == "// clear":
+                echo "\x1Bc" & JAPL_VERSION_STRING
+                continue
+            elif source == "//exit" or source == "// exit":
+                echo "Goodbye!"
+                break
         except IOError:
             echo ""
             break

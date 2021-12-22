@@ -144,16 +144,6 @@ proc writeConstants(self: Serializer, stream: var seq[byte]) =
                 stream.add(0x0)
                 stream.extend(len(constant.token.lexeme).toTriple())
                 stream.add(self.toBytes(constant.token.lexeme))
-            of trueExpr:
-                stream.add(0xC)
-            of falseExpr:
-                stream.add(0xD)
-            of nilExpr:
-                stream.add(0xF)
-            of nanExpr:
-                stream.add(0xA)
-            of infExpr:
-                stream.add(0xB)
             else:
                 self.error(&"unknown constant kind in chunk table ({constant.kind})")
     stream.add(0x59)  # End marker
@@ -215,27 +205,8 @@ proc readConstants(self: Serializer, stream: seq[byte]): int =
                 let size = self.bytesToInt([stream[0], stream[1], stream[2]])
                 stream = stream[3..^1]
                 discard self.chunk.addConstant(newIdentExpr(Token(lexeme: self.bytesToString(stream[0..<size]))))
+                stream = stream[size..^1]
                 inc(count, size + 4)
-            of 0xC:
-                discard self.chunk.addConstant(newTrueExpr(nil))
-                stream = stream[1..^1]
-                inc(count)
-            of 0xD:
-                discard self.chunk.addConstant(newFalseExpr(nil))
-                stream = stream[1..^1]
-                inc(count)
-            of 0xF:
-                discard self.chunk.addConstant(newNilExpr(nil))
-                stream = stream[1..^1]
-                inc(count)
-            of 0xA:
-                discard self.chunk.addConstant(newNaNExpr(nil))
-                stream = stream[1..^1]
-                inc(count)
-            of 0xB:
-                discard self.chunk.addConstant(newInfExpr(nil))
-                stream = stream[1..^1]
-                inc(count)
             else:
                 self.error(&"unknown constant kind in chunk table (0x{stream[0].toHex()})")
     result = count
@@ -300,19 +271,3 @@ proc loadBytes*(self: Serializer, stream: seq[byte]): Serialized =
         self.error("truncated bytecode file")
     except AssertionDefect:
         self.error("corrupted bytecode file")
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
