@@ -80,6 +80,6 @@ type
 
 proc `$`*(self: Token): string =
   if self != nil:
-    result = &"Token(kind={self.kind}, lexeme={$(self.lexeme).escape()}, line={self.line}, pos=({self.pos.start}, {self.pos.stop}))"
+    result = &"Token(kind={self.kind}, lexeme={$(self.lexeme)}, line={self.line}, pos=({self.pos.start}, {self.pos.stop}))"
   else:
     result = "nil"

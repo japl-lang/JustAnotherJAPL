@@ -122,21 +122,23 @@ proc writeConstants(self: Serializer, stream: var seq[byte]) =
                 stream.extend(self.toBytes(constant.token.lexeme))
             of strExpr:
                 stream.add(0x2)
+                var temp: seq[byte] = @[]
                 var strip: int = 2
                 var offset: int = 1
                 case constant.token.lexeme[0]:
                     of 'f':
                         strip = 3
                         inc(offset)
-                        stream.add(0x2)
+                        temp.add(0x2)
                     of 'b':
                         strip = 3
                         inc(offset)
-                        stream.add(0x1)
+                        temp.add(0x1)
                     else:
                         strip = 2
-                        stream.add(0x0)
-                stream.extend((len(constant.token.lexeme) - offset).toTriple())  # Removes the quotes from the length count as they're not written
+                        temp.add(0x0)
+                stream.extend((len(constant.token.lexeme) - strip).toTriple())  # Removes the quotes from the length count as they're not written
+                stream.extend(temp)
                 stream.add(self.toBytes(constant.token.lexeme[offset..^2]))
             of identExpr:
                 stream.add(0x0)
@@ -186,8 +188,11 @@ proc readConstants(self: Serializer, stream: seq[byte]): int =
                         self.error(&"unknown string modifier in chunk table (0x{stream[0].toHex()}")
                 stream = stream[1..^1]
                 s.token.lexeme.add("\"")
-                s.token.lexeme.add(stream[0..<size].join(""))
+                for i in countup(0, size - 1):
+                    s.token.lexeme.add(cast[char](stream[i]))
                 s.token.lexeme.add("\"")
+                stream = stream[size..^1]
+                self.chunk.consts.add(s)
                 inc(count, size + 5)
             of 0x1:
                 stream = stream[1..^1]
@@ -291,8 +296,8 @@ proc loadBytes*(self: Serializer, stream: seq[byte]): Serialized =
         stream = stream[32..^1]
         stream = stream[self.readConstants(stream)..^1]
         stream = stream[self.readCode(stream)..^1]
-        
     except IndexDefect:
+        raise
         self.error("truncated bytecode file")
     except AssertionDefect:
         self.error("corrupted bytecode file")

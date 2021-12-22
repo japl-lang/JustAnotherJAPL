@@ -123,6 +123,7 @@ proc main() =
                     stdout.write(", ")
             stdout.write("]\n")
         except:
+            raise
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
 
 

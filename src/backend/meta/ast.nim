@@ -618,7 +618,7 @@ proc `$`*(self: ASTNode): string =
             if self.kind in {trueExpr, falseExpr, nanExpr, nilExpr, infExpr}:
                 result &= &"Literal({($self.kind)[0..^5]})"
             elif self.kind == strExpr:
-                result &= &"Literal({LiteralExpr(self).literal.lexeme.escape()})"
+                result &= &"Literal({LiteralExpr(self).literal.lexeme})"
             else:
                 result &= &"Literal({LiteralExpr(self).literal.lexeme})"
         of identExpr:
