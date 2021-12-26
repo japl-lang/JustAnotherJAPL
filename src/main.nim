@@ -77,7 +77,7 @@ proc main() =
             # We run this now because the optimizer
             # acts in-place on the AST so if we printed
             # it later the parsed tree would equal the
-            # optimized one!
+            # optimized one
             echo "Parsing step: "
             for node in tree:
                 echo "\t", node
@@ -130,7 +130,7 @@ proc main() =
                 stdout.write($e)
                 if i < len(serialized.chunk.code) - 1:
                     stdout.write(", ")
-            stdout.write("]\n")
+            stdout.write(&"] (matches: {serialized.chunk.code == compiled.code})\n")
         except:
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
 
