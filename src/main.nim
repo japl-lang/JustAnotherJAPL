@@ -19,6 +19,10 @@ import backend/optimizer
 import backend/compiler
 import util/debugger
 import backend/serializer
+import jale/editor
+import jale/templates
+import jale/plugin/defaults
+import jale/plugin/editor_history
 import config
 
 
@@ -29,8 +33,12 @@ import times
 import nimSHA2
 
 
-proc hook() {.noconv.} =
-    quit(1)
+proc getLineEditor: LineEditor =
+    result = newLineEditor()
+    result.prompt = "=> "
+    result.populateDefaults()  # setup default keybindings
+    let hist = result.plugHistory()  # create history object
+    result.bindHistory(hist)  # set default history keybindings
 
 
 proc main() =
@@ -42,24 +50,30 @@ proc main() =
     var compiled: Chunk
     var serialized: Serialized
     var serializedRaw: seq[byte]
+    var keep = true
 
     var lexer = initLexer()
     var parser = initParser()
     var optimizer = initOptimizer(foldConstants=false)
     var compiler = initCompiler()
     var serializer = initSerializer()
+    let lineEditor = getLineEditor()
+    lineEditor.bindEvent(jeQuit):
+        keep = false
 
     echo JAPL_VERSION_STRING
-    while true:
+    while keep:
         try:
             stdout.write(">>> ")
-            source = stdin.readLine()
+            source = lineEditor.read()
             if source == "//clear" or source == "// clear":
                 echo "\x1Bc" & JAPL_VERSION_STRING
                 continue
             elif source == "//exit" or source == "// exit":
                 echo "Goodbye!"
                 break
+            elif source == "":
+                continue
         except IOError:
             echo ""
             break
@@ -136,5 +150,5 @@ proc main() =
 
 
 when isMainModule:
-    setControlCHook(hook)
+    setControlCHook(proc {.noconv.} = quit(1))
     main()
