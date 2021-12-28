@@ -138,10 +138,12 @@ proc collectionInstruction(instruction: OpCode, chunk: Chunk, offset: int): int 
             setForegroundColor(fgGreen)
         of BuildDict:
             var elements: seq[tuple[key: ASTNode, value: ASTNode]] = @[]
-            for n in countup(0, (elemCount - 1) * 2):
+            for n in countup(0, (elemCount - 1) * 2, 2):
                 elements.add((key: chunk.consts[n], value: chunk.consts[n + 1]))
+            printDebug("Elements: ")
             setForegroundColor(fgYellow)
-            printDebug(&"""Elements: [{elements.join(", ")}]""")
+            stdout.write(&"""[{elements.join(", ")}]""")
+            setForegroundColor(fgGreen)
         else:
             discard  # Unreachable
     echo ""

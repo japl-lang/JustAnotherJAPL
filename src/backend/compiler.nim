@@ -632,19 +632,14 @@ proc expression(self: Compiler, node: ASTNode) =
         of binaryExpr:
             # Binary expressions such as 2 ^ 5 and 0.66 * 3.14
             self.binary(BinaryExpr(node))
-        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr, nilExpr:
-            # Fortunately for us, all of these AST nodes types inherit from the base LiteralExpr
-            # type
-            self.literal(LiteralExpr(node))
-        of tupleExpr, setExpr, listExpr:
-            # Since all of these AST nodes share
-            # the same structure, and the kind
+        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr, nilExpr, 
+           tupleExpr, setExpr, listExpr, dictExpr:
+            # Since all of these AST nodes mostly share
+            # the same overall structure, and the kind
             # discriminant is enough to tell one
             # from the other, why bother with
             # specialized cases when one is enough?
-            self.literal(ListExpr(node))
-        of dictExpr:
-            self.literal(DictExpr(node))
+            self.literal(node)
         else:
             self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO
 
@@ -655,7 +650,6 @@ proc statement(self: Compiler, node: ASTNode) =
         of exprStmt:
             self.expression(ExprStmt(node).expression)
             self.emitByte(Pop)   # Expression statements discard their value. Their main use case is side effects in function calls
-        # TODO
         of NodeKind.ifStmt:
             self.ifStmt(IfStmt(node))
         of delStmt:

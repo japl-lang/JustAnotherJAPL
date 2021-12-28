@@ -15,18 +15,18 @@
 import strformat
 
 const BYTECODE_MARKER* = "JAPL_BYTECODE"
-const MAP_LOAD_FACTOR* = 0.75  # Load factor for builtin hashmaps
-const HEAP_GROW_FACTOR* = 2   # How much extra memory to allocate for dynamic arrays and garbage collection when resizing
+const MAP_LOAD_FACTOR* = 0.75   # Load factor for builtin hashmaps
+const HEAP_GROW_FACTOR* = 2     # How much extra memory to allocate for dynamic arrays and garbage collection when resizing
 const MAX_STACK_FRAMES* = 800   # The maximum number of stack frames at any one time. Acts as a recursion limiter (1 frame = 1 call)
 const JAPL_VERSION* = (major: 0, minor: 4, patch: 0)
 const JAPL_RELEASE* = "alpha"
 const JAPL_COMMIT_HASH* = "e234c8caaff25f6edf69329cf8a17531cb7914dd"
 const JAPL_BRANCH* = "master"
-const DEBUG_TRACE_VM* = false # Traces VM execution
-const SKIP_STDLIB_INIT* = false # Skips stdlib initialization (can be imported manually)
+const DEBUG_TRACE_VM* = false    # Traces VM execution
+const SKIP_STDLIB_INIT* = false  # Skips stdlib initialization (can be imported manually)
 const DEBUG_TRACE_GC* = false    # Traces the garbage collector (TODO)
 const DEBUG_TRACE_ALLOCATION* = false   # Traces memory allocation/deallocation
-const DEBUG_TRACE_COMPILER* = false  # Traces the compiler
+const DEBUG_TRACE_COMPILER* = false     # Traces the compiler
 const JAPL_VERSION_STRING* = &"JAPL {JAPL_VERSION.major}.{JAPL_VERSION.minor}.{JAPL_VERSION.patch} {JAPL_RELEASE} ({JAPL_BRANCH}, {CompileDate}, {CompileTime}, {JAPL_COMMIT_HASH[0..8]}) [Nim {NimVersion}] on {hostOS} ({hostCPU})"
 const HELP_MESSAGE* = """The JAPL programming language, Copyright (C) 2021 Mattia Giambirtone & All Contributors
 
