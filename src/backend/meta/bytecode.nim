@@ -90,21 +90,6 @@ type
         LogicalNot,
         LogicalAnd,
         LogicalOr,
-        # Binary in-place operators. Same as their non in-place counterparts
-        # except they operate on already existing names
-        InPlaceAdd,
-        InPlaceSubtract,
-        InPlaceDivide,
-        InPlaceFloorDiv,
-        InPlaceMultiply,
-        InPlacePow,
-        InPlaceMod,
-        InPlaceRightShift,
-        InPlaceLeftShift,
-        InPlaceXor,
-        InPlaceOr,
-        InPlaceAnd,
-        InPlaceNot,
         # Constants/singletons
         Nil,
         True,
@@ -120,10 +105,10 @@ type
         DeclareName,   # Declares a global dynamically bound name in the current scope
         LoadName,      # Loads a dynamically bound variable 
         LoadFast,  # Loads a statically bound variable
-        UpdateName,    # Updates a dynamically bound variable's value
-        UpdateFast, # Updates a statically bound variable's value
+        StoreName,    # Sets/updates a dynamically bound variable's value
+        StoreFast, # Sets/updates a statically bound variable's value
         DeleteName,    # Unbinds a dynamically bound variable's name from the current scope
-        DeleteNameFast,  # Unbinds a statically bound variable's name from the current scope
+        DeleteFast,  # Unbinds a statically bound variable's name from the current scope
         # Looping and jumping
         JumpIfFalse,     # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
         JumpIfTrue,      # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
@@ -170,17 +155,15 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              BinarySlice, Pop, UnaryNegate,
                              BinaryIs, BinaryAs, GreaterOrEqual,
                              LessOrEqual, BinaryOr, BinaryAnd,
-                             UnaryNot, InPlaceAdd, InPlaceDivide,
-                             InPlaceFloorDiv, InPlaceMod, InPlaceMultiply,
-                             InPlaceSubtract, BinaryFloorDiv, BinaryOf, Raise,
+                             UnaryNot, BinaryFloorDiv, BinaryOf, Raise,
                              ReRaise, BeginTry, FinishTry, Yield, Await}
 
 # Constant instructions are instructions that operate on the bytecode constant table
-const constantInstructions* = {LoadConstant, DeclareName, LoadName, UpdateName, DeleteName}
+const constantInstructions* = {LoadConstant, DeclareName, LoadName, StoreName, DeleteName}
 
 # Stack triple instructions operate on the stack at arbitrary offsets and pop arguments off of it in the form
 # of 24 bit integers
-const stackTripleInstructions* = {Call, UpdateFast, DeleteNameFast, LoadFast}
+const stackTripleInstructions* = {Call, StoreFast, DeleteFast, LoadFast}
 
 # Stack Double instructions operate on the stack at arbitrary offsets and pop arguments off of it in the form
 # of 16 bit integers

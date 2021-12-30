@@ -153,5 +153,5 @@ DOUBLEQUOTE    → "\"";
 ALPHA          → "a" ... "z" | "A" ... "Z" | "_";  // Alphanumeric characters
 UNICODE        → 0x00 ... 0x10FFFD;  // This covers the whole unicode range
 DIGIT          → "0" ... "9";  // Arabic digits
-ASSIGNTOKENS   → '+=' | '-=' | '*='  | '/=' | '%=' | '&=' | '|=' | '^=' | '<<=' | '>>=' | '**=' | '//=' 
+ASSIGNTOKENS   → "+=" | "-=" | "*="  | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" | "**=" | "//=" | "=" 
 ```

@@ -41,7 +41,7 @@ proc getLineEditor: LineEditor =
     result.bindHistory(hist)  # set default history keybindings
 
 
-proc main() =
+proc main =
     var source: string
     const filename = "test.jpl"
     var tokens: seq[Token]

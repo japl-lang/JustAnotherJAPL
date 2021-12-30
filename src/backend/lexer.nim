@@ -57,13 +57,14 @@ const double = to_table({"**": DoubleAsterisk,
                          "^=": InplaceXor,
                          "&=": InplaceAnd,
                          "|=": InplaceOr,
-                         "~=": InplaceNot,
                          "%=": InplaceMod,
     })
 
 # Table of all triple-character tokens
 const triple = to_table({"//=": InplaceFloorDiv,
-                         "**=": InplacePow
+                         "**=": InplacePow,
+                         ">>=": InplaceRightShift,
+                         "<<=": InplaceLeftShift
     })
 
 

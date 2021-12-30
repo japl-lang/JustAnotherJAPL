@@ -422,9 +422,8 @@ proc declareName(self: Compiler, node: ASTNode) =
                 self.emitByte(DeclareName)
                 self.emitBytes(self.identifierConstant(IdentExpr(node.name)))
             else:
-                # Statically resolved variable here. Only creates a new StaticName entry
-                # so that self.identifier (and, by extension, self.getStaticIndex) emit the
-                # proper stack offset
+                # Statically resolved variable here. Only creates a new Name entry
+                # so that self.identifier emits the proper stack offset
                 if self.names.high() > 16777215:
                     # If someone ever hits this limit in real-world scenarios, I swear I'll
                     # slap myself 100 times with a sign saying "I'm dumb". Mark my words
@@ -477,10 +476,10 @@ proc identifier(self: Compiler, node: IdentExpr) =
     else:
         let index = self.getStaticIndex(node)
         if index != -1:
-            self.emitByte(LoadFast)   # Static name resolution
+            self.emitByte(LoadFast)   # Static name resolution, loads value at index in the stack
             self.emitBytes(index.toTriple())
         else:
-            self.emitByte(LoadName)
+            self.emitByte(LoadName)  # Resolves by name, at runtime, in a global hashmap
             self.emitBytes(self.identifierConstant(node))
 
 
@@ -497,11 +496,41 @@ proc assignment(self: Compiler, node: ASTNode) =
             # so we can ensure the name is a constant
             self.expression(node.value)
             let index = self.getStaticIndex(name)
+            case node.token.lexeme:
+                of "+=":
+                    self.emitByte(BinaryAdd)
+                of "-=":
+                    self.emitByte(BinarySubtract)
+                of "/=":
+                    self.emitByte(BinaryDivide)
+                of "*=":
+                    self.emitByte(BinaryMultiply)
+                of "**=":
+                    self.emitByte(BinaryPow)
+                of "//=":
+                    self.emitByte(BinaryFloorDiv)
+                of "%=":
+                    self.emitByte(BinaryMod)
+                of "&=":
+                    self.emitByte(BinaryAnd)
+                of "^=":
+                    self.emitByte(BinaryXor)
+                of ">>=":
+                    self.emitByte(BinaryShiftRight)
+                of "<<=":
+                    self.emitByte(BinaryShiftLeft)
+                else:
+                    discard 
+            # InPlace operators just change
+            # what values is set to a given
+            # stack offset/name so we only
+            # need to perform the operation
+            # as usual and then store it
             if index != -1:
-                self.emitByte(UpdateFast)
+                self.emitByte(StoreFast)
                 self.emitBytes(index.toTriple())
             else:
-                self.emitByte(UpdateName)
+                self.emitByte(StoreName)
                 self.emitBytes(self.makeConstant(name))
         of setItemExpr:
             discard

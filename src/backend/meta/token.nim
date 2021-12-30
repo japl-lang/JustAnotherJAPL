@@ -62,8 +62,9 @@ type
     LogicalAnd, LogicalOr, LogicalNot, FloorDiv, # and or not //
     InplaceAdd, InplaceSub, InplaceDiv, # += -= /=
     InplaceMod, InplaceMul, InplaceXor, # %= *= ^=
-    InplaceAnd, InplaceOr, InplaceNot, # &= |= ~=
+    InplaceAnd, InplaceOr, # &= |=
     DoubleEqual, InplaceFloorDiv, InplacePow, # == //= **=
+    InplaceRightShift, InplaceLeftShift
 
     # Miscellaneous
 

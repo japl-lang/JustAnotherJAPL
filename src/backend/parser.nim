@@ -486,7 +486,9 @@ proc assignment(self: Parser): ASTNode =
     ## expression (including stuff like a.b = 1).
     ## Slice assignments are also parsed here
     result = self.bitwiseOr()
-    if self.match(Equal):
+    if self.match([Equal, InplaceAdd, InplaceSub, InplaceDiv, InplaceMod,
+                   InplacePow, InplaceMul, InplaceXor, InplaceAnd, InplaceOr,
+                   InplaceFloorDiv, InplaceRightShift, InplaceLeftShift]):
         let tok = self.peek(-1)
         var value = self.expression()
         if result.kind in {identExpr, sliceExpr}:
