@@ -444,18 +444,27 @@ proc resolveStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth
     ## Traverses self.staticNames backwards and returns the
     ## first name object with the given name at the given
     ## depth. The default depth is the current one. Returns
-    ## nil when the name can't be found. This helper function
-    ## is only useful when detecting a few errors and edge
-    ## cases
+    ## nil when the name can't be found
     for obj in reversed(self.names):
         if obj.name.token.lexeme == name.token.lexeme and obj.depth == depth:
             return obj
     return nil
 
 
+proc deleteStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth) =
+    ## Traverses self.staticNames backwards and returns the
+    ## deletes name object with the given name at the given
+    ## depth. The default depth is the current one. Does
+    ## nothing when the name can't be found
+    for i, obj in reversed(self.names):
+        if obj.name.token.lexeme == name.token.lexeme and obj.depth == depth:
+            self.names.del(i)
+
+
 proc getStaticIndex(self: Compiler, name: IdentExpr): int =
     ## Gets the predicted stack position of the given variable
     ## if it is static, returns -1 if it is to be bound dynamically
+    ## or it does not exist at all
     var i: int = self.names.high()
     for variable in reversed(self.names):
         if name.name.lexeme == variable.name.name.lexeme:
@@ -520,12 +529,16 @@ proc assignment(self: Compiler, node: ASTNode) =
                 of "<<=":
                     self.emitByte(BinaryShiftLeft)
                 else:
-                    discard 
+                    discard
             # InPlace operators just change
             # what values is set to a given
             # stack offset/name so we only
             # need to perform the operation
-            # as usual and then store it
+            # as usual and then store it.
+            # TODO: A better optimization would
+            # be to have everything in one opcode,
+            # but that requires variants for stack,
+            # heap, and closure variables
             if index != -1:
                 self.emitByte(StoreFast)
                 self.emitBytes(index.toTriple())
@@ -673,6 +686,35 @@ proc expression(self: Compiler, node: ASTNode) =
             self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO
 
 
+proc delStmt(self: Compiler, node: ASTNode) =
+    ## Compiles del statements, which unbind
+    ## a name from the current scope
+    case node.kind:
+        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr, nilExpr, 
+           tupleExpr, setExpr, listExpr, dictExpr, groupingExpr:
+            # We disallow grouping expressions because the parser
+            # already gets rid of redundant parentheses, so if
+            # there is a grouping expression left it can't be
+            # deleted because it's not just a bare identifier
+            self.error("cannot delete literals")
+        of binaryExpr, unaryExpr:
+            self.error("cannot delete operator")
+        of setItemExpr, assignExpr:
+            self.error("cannot delete assignment")
+        of identExpr:
+            var node = IdentExpr(node)
+            let i = self.getStaticIndex(node)
+            if i != -1:
+                self.emitByte(DeleteFast)
+                self.emitBytes(i.toTriple())
+                self.deleteStatic(node)
+            else:
+                self.emitByte(DeleteName)
+                self.emitBytes(self.identifierConstant(node))
+        else:
+            discard  # Unreachable
+
+
 proc statement(self: Compiler, node: ASTNode) =
     ## Compiles all statements
     case node.kind:
@@ -681,27 +723,27 @@ proc statement(self: Compiler, node: ASTNode) =
             self.emitByte(Pop)   # Expression statements discard their value. Their main use case is side effects in function calls
         of NodeKind.ifStmt:
             self.ifStmt(IfStmt(node))
-        of delStmt:
+        of NodeKind.delStmt:
+            self.delStmt(DelStmt(node).name)
+        of NodeKind.assertStmt:
             discard
-        of assertStmt:
+        of NodeKind.raiseStmt:
             discard
-        of raiseStmt:
+        of NodeKind.breakStmt:
             discard
-        of breakStmt:
+        of NodeKind.continueStmt:
             discard
-        of continueStmt:
+        of NodeKind.returnStmt:
             discard
-        of returnStmt:
+        of NodeKind.importStmt:
             discard
-        of importStmt:
-            discard
-        of fromImportStmt:
+        of NodeKind.fromImportStmt:
             discard
         of NodeKind.whileStmt, NodeKind.forStmt:
             ## Our parser already desugars for loops to
             ## while loops anyway
             self.whileStmt(WhileStmt(node))
-        of forEachStmt:
+        of NodeKind.forEachStmt:
             discard
         of NodeKind.blockStmt:
             self.blockStmt(BlockStmt(node))
