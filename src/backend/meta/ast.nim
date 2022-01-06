@@ -550,8 +550,14 @@ proc newForEachStmt*(identifier: ASTNode, expression, body: ASTNode, token: Toke
     result.token = token
 
 
-proc newBreakStmt*(token: Token): BreakStmt = BreakStmt(newASTNode(breakStmt, token))
-proc newContinueStmt*(token: Token): ContinueStmt = ContinueStmt(newASTNode(continueStmt, token))
+proc newBreakStmt*(token: Token): BreakStmt = 
+    result = BreakStmt(kind: breakStmt)
+    result.token = token
+
+
+proc newContinueStmt*(token: Token): ContinueStmt =
+    result = ContinueStmt(kind: continueStmt)
+    result.token = token
 
 
 proc newReturnStmt*(value: ASTNode, token: Token): ReturnStmt =
@@ -646,6 +652,8 @@ proc `$`*(self: ASTNode): string =
         of exprStmt:
             var self = ExprStmt(self)
             result &= &"ExpressionStatement({self.expression})"
+        of breakStmt:
+            result = "Break()"
         of importStmt:
             var self = ImportStmt(self)
             result &= &"Import({self.moduleName})"

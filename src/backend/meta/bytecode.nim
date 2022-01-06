@@ -110,12 +110,15 @@ type
         DeleteName,    # Unbinds a dynamically bound variable's name from the current scope
         DeleteFast,  # Unbinds a statically bound variable's name from the current scope
         # Looping and jumping
+        Jump,            # Absolute, unconditional jump into the bytecode
         JumpIfFalse,     # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
         JumpIfTrue,      # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
         JumpIfFalsePop,  # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
         JumpForwards,    # Relative, unconditional, positive jump in the bytecode
         JumpBackwards,   # Relative, unconditional, negative jump into the bytecode
+        Break,           # Temporary opcode used to signal exiting out of loop
         ## Long variants of jumps (they use a 24-bit operand instead of a 16-bit one)
+        LongJump,
         LongJumpIfFalse,
         LongJumpIfTrue,
         LongJumpIfFalsePop,
@@ -137,7 +140,9 @@ type
         BuildList,
         BuildDict,
         BuildSet,
-        BuildTuple
+        BuildTuple,
+        # Misc
+        Assert,
 
 
 # We group instructions by their operation/operand types for easier handling when debugging

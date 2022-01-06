@@ -48,16 +48,16 @@ type
         ## A "loop object" used
         ## by the compiler to emit
         ## appropriate jump offsets
-        ## for continue and break
+        ## for continue and break 
         ## statements
         start: int
-        stop: int
+        depth: int
+        breakPos: seq[int]
 
     Compiler* = ref object
         ## A wrapper around the compiler's state
         chunk: Chunk
         ast: seq[ASTNode]
-        enclosing: Compiler
         current: int
         file: string
         names: seq[Name]
@@ -65,6 +65,19 @@ type
         currentFunction: FunDecl
         enableOptimizations*: bool
         currentLoop: Loop
+        # Each time a defer statement is
+        # compiled, its code is emitted
+        # here. Later, if there is any code
+        # to defer in the current function, 
+        # funDecl will wrap the function's code
+        # inside an implicit try/finally block
+        # and add this code in the finally branch.
+        # This sequence is emptied each time a 
+        # fun declaration is compiled and stores only
+        # deferred code for the current function (may
+        # be empty)
+        deferred: seq[uint8]
+
     
 
 proc initCompiler*(enableOptimizations: bool = true): Compiler =
@@ -186,7 +199,7 @@ proc emitJump(self: Compiler, opcode: OpCode): int =
     ## will fix this. This function returns the absolute index into the
     ## chunk's bytecode array where the given placeholder instruction was written
     self.emitByte(opcode)
-    self.emitBytes((16777215).toTriple())
+    self.emitBytes((0xffffff).toTriple())
     result = self.chunk.code.len() - 4
 
 
@@ -212,7 +225,7 @@ proc patchJump(self: Compiler, offset: int) =
                 self.chunk.code[offset] = JumpIfFalsePop.uint8()     
             else:
                 discard  # Unreachable
-        self.chunk.code.delete(offset + 1)   # Discards the first byte of the 24 bit integer
+        self.chunk.code.delete(offset + 1)   # Discards the 24 bit integer
         let offsetArray = jump.toDouble()
         self.chunk.code[offset + 1] = offsetArray[0]
         self.chunk.code[offset + 2] = offsetArray[1]
@@ -324,7 +337,11 @@ proc literal(self: Compiler, node: ASTNode) =
                 self.expression(key)
                 self.expression(value)
             self.emitByte(BuildDict)
-            self.emitBytes(y.keys.len().toTriple())            
+            self.emitBytes(y.keys.len().toTriple()) 
+        of awaitExpr:
+            var y = AwaitExpr(node)
+            self.expression(y.awaitee)
+            self.emitByte(OpCode.Await)
         else:
             self.error(&"invalid AST node of kind {node.kind} at literal(): {node} (This is an internal error and most likely a bug)")
 
@@ -501,38 +518,37 @@ proc assignment(self: Compiler, node: ASTNode) =
             let r = self.resolveStatic(name)
             if r != nil and r.isConst:
                 self.error("cannot assign to constant")
-            # Assignment only encompasses variable assignments
-            # so we can ensure the name is a constant
+
             self.expression(node.value)
             let index = self.getStaticIndex(name)
-            case node.token.lexeme:
-                of "+=":
+            case node.token.kind:
+                of InplaceAdd:
                     self.emitByte(BinaryAdd)
-                of "-=":
+                of InplaceSub:
                     self.emitByte(BinarySubtract)
-                of "/=":
+                of InplaceDiv:
                     self.emitByte(BinaryDivide)
-                of "*=":
+                of InplaceMul:
                     self.emitByte(BinaryMultiply)
-                of "**=":
+                of InplacePow:
                     self.emitByte(BinaryPow)
-                of "//=":
+                of InplaceFloorDiv:
                     self.emitByte(BinaryFloorDiv)
-                of "%=":
+                of InplaceMod:
                     self.emitByte(BinaryMod)
-                of "&=":
+                of InplaceAnd:
                     self.emitByte(BinaryAnd)
-                of "^=":
+                of InplaceXor:
                     self.emitByte(BinaryXor)
-                of ">>=":
+                of InplaceRightShift:
                     self.emitByte(BinaryShiftRight)
-                of "<<=":
+                of InplaceLeftShift:
                     self.emitByte(BinaryShiftLeft)
                 else:
-                    discard
-            # InPlace operators just change
+                    discard  # Unreachable
+            # In-place operators just change
             # what values is set to a given
-            # stack offset/name so we only
+            # stack offset/name, so we only
             # need to perform the operation
             # as usual and then store it.
             # TODO: A better optimization would
@@ -543,6 +559,10 @@ proc assignment(self: Compiler, node: ASTNode) =
                 self.emitByte(StoreFast)
                 self.emitBytes(index.toTriple())
             else:
+                # Assignment only encompasses variable assignments
+                # so we can ensure the name is a constant (i.e. an
+                # IdentExpr) instead of an object (which would be
+                # the case with setItemExpr)
                 self.emitByte(StoreName)
                 self.emitBytes(self.makeConstant(name))
         of setItemExpr:
@@ -564,12 +584,12 @@ proc endScope(self: Compiler) =
         self.error("cannot call endScope with scopeDepth < 0 (This is an internal error and most likely a bug)")
     var popped: int = 0
     for ident in reversed(self.names):
-        if not self.enableOptimizations:
-            if ident.depth > self.scopeDepth:
+        if ident.depth > self.scopeDepth:
+            inc(popped)
+            if not self.enableOptimizations:
                 # All variables with a scope depth larger than the current one
                 # are now out of scope. Begone, you're now homeless!
                 self.emitByte(Pop)
-        inc(popped)
     if self.enableOptimizations and popped > 1:
         # If we're popping less than 65535 variables, then
         # we can emit a PopN instruction. This is true for
@@ -651,7 +671,7 @@ proc whileStmt(self: Compiler, node: WhileStmt) =
     self.statement(node.body)
     self.patchJump(jump)
     self.emitLoop(start)
-
+   
 
 proc expression(self: Compiler, node: ASTNode) =
     ## Compiles all expressions
@@ -715,6 +735,92 @@ proc delStmt(self: Compiler, node: ASTNode) =
             discard  # Unreachable
 
 
+proc awaitStmt(self: Compiler, node: AwaitStmt) =
+    ## Compiles await statements. An await statement
+    ## is like an await expression, but parsed in the
+    ## context of statements for usage outside expressions,
+    ## meaning it can be used standalone. It's basically the
+    ## same as an await expression followed by a semicolon.
+    ## Await expressions are the only native construct to
+    ## run coroutines from within an already asynchronous
+    ## loop (which should be orchestrated by an event loop).
+    ## They block in the caller until the callee returns
+    self.expression(node.awaitee)
+    self.emitByte(OpCode.Await)
+
+
+proc deferStmt(self: Compiler, node: DeferStmt) =
+    ## Compiles defer statements. A defer statement
+    ## is executed right before the function exits
+    ## (either because of a return or an exception)
+    let current = self.chunk.code.len
+    self.expression(node.deferred)
+    for i in countup(current, self.chunk.code.high()):
+        self.deferred.add(self.chunk.code[i])
+        self.chunk.code.del(i)
+
+
+proc returnStmt(self: Compiler, node: ReturnStmt) =
+    ## Compiles return statements. An empty return
+    ## implicitly returns nil
+    self.expression(node.value)
+    self.emitByte(OpCode.Return)
+
+
+proc yieldStmt(self: Compiler, node: YieldStmt) =
+    ## Compiles yield statements
+    self.expression(node.expression)
+    self.emitByte(OpCode.Yield)
+
+
+proc raiseStmt(self: Compiler, node: RaiseStmt) =
+    ## Compiles yield statements
+    self.expression(node.exception)
+    self.emitByte(OpCode.Raise)
+
+
+proc continueStmt(self: Compiler, node: ContinueStmt) =
+    ## Compiles continue statements. A continue statements
+    ## jumps to the next iteration in a loop
+    if self.currentLoop.start > 65535:
+        self.emitByte(Jump)
+        self.emitBytes(self.currentLoop.start.toDouble())
+    else:
+        self.emitByte(LongJump)
+        self.emitBytes(self.currentLoop.start.toTriple())
+
+
+proc breakStmt(self: Compiler, node: BreakStmt) =
+    ## Compiles break statements. A continue statements
+    ## jumps to the next iteration in a loop
+    
+    # Emits dummy jump offset, this is
+    # patched later!
+    discard self.emitJump(OpCode.Break)
+    self.currentLoop.breakPos.add(self.chunk.code.high() - 4)  # 3 is the size of the jump offset!
+    if self.currentLoop.depth > self.scopeDepth:
+        # Breaking out of a loop closes its scope!
+        self.endScope()
+
+
+proc patchBreaks(self: Compiler) =
+    ## Patches "break" opcodes with
+    ## actual jumps. This is needed
+    ## because the size of code
+    ## to skip is not known before
+    ## the loop is fully compiled
+    for brk in self.currentLoop.breakPos:
+        self.chunk.code[brk] = JumpForwards.uint8()
+        self.patchJump(brk)
+
+
+proc assertStmt(self: Compiler, node: AssertStmt) =
+    ## Compiles assert statements (raise
+    ## AssertionError if the expression is falsey)
+    self.expression(node.expression)
+    self.emitByte(OpCode.Assert)
+
+
 proc statement(self: Compiler, node: ASTNode) =
     ## Compiles all statements
     case node.kind:
@@ -726,35 +832,39 @@ proc statement(self: Compiler, node: ASTNode) =
         of NodeKind.delStmt:
             self.delStmt(DelStmt(node).name)
         of NodeKind.assertStmt:
-            discard
+            self.assertStmt(AssertStmt(node))
         of NodeKind.raiseStmt:
-            discard
+            self.raiseStmt(RaiseStmt(node))
         of NodeKind.breakStmt:
-            discard
+            self.breakStmt(BreakStmt(node))
         of NodeKind.continueStmt:
-            discard
+            self.continueStmt(ContinueStmt(node))
         of NodeKind.returnStmt:
-            discard
+            self.returnStmt(ReturnStmt(node))
         of NodeKind.importStmt:
             discard
         of NodeKind.fromImportStmt:
             discard
         of NodeKind.whileStmt, NodeKind.forStmt:
             ## Our parser already desugars for loops to
-            ## while loops anyway
+            ## while loops!
+            let loop = self.currentLoop
+            self.currentLoop = Loop(start: self.chunk.code.len(), depth: self.scopeDepth, breakPos: @[])
             self.whileStmt(WhileStmt(node))
+            self.patchBreaks()
+            self.currentLoop = loop
         of NodeKind.forEachStmt:
             discard
         of NodeKind.blockStmt:
             self.blockStmt(BlockStmt(node))
         of NodeKind.yieldStmt:
-            discard
+            self.yieldStmt(YieldStmt(node))
         of NodeKind.awaitStmt:
-            discard
+            self.awaitStmt(AwaitStmt(node))
         of NodeKind.deferStmt:
-            discard
+            self.deferStmt(DeferStmt(node))
         of NodeKind.tryStmt:
-            discard 
+            discard
         else:
             self.error(&"invalid AST node of kind {node.kind} at statement(): {node} (This is an internal error and most likely a bug)")  # TODO
 
