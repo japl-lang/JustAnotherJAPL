@@ -690,6 +690,7 @@ proc expression(self: Compiler, node: ASTNode) =
             # Unary expressions such as ~5 and -3
             self.unary(UnaryExpr(node))
         of groupingExpr:
+            # Grouping expressions like (2 + 1)
             self.expression(GroupingExpr(node).expression)
         of binaryExpr:
             # Binary expressions such as 2 ^ 5 and 0.66 * 3.14
@@ -703,7 +704,7 @@ proc expression(self: Compiler, node: ASTNode) =
             # specialized cases when one is enough?
             self.literal(node)
         else:
-            self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")  # TODO
+            self.error(&"invalid AST node of kind {node.kind} at expression(): {node} (This is an internal error and most likely a bug)")
 
 
 proc delStmt(self: Compiler, node: ASTNode) =
@@ -866,7 +867,7 @@ proc statement(self: Compiler, node: ASTNode) =
         of NodeKind.tryStmt:
             discard
         else:
-            self.error(&"invalid AST node of kind {node.kind} at statement(): {node} (This is an internal error and most likely a bug)")  # TODO
+            self.expression(node)
 
 
 proc declaration(self: Compiler, node: ASTNode) =
