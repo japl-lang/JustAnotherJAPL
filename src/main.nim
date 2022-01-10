@@ -42,8 +42,8 @@ proc getLineEditor: LineEditor =
 
 
 proc main =
-    var source: string
     const filename = "test.jpl"
+    var source: string
     var tokens: seq[Token]
     var tree: seq[ASTNode]
     var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
@@ -66,10 +66,10 @@ proc main =
         try:
             stdout.write(">>> ")
             source = lineEditor.read()
-            if source == "//clear" or source == "// clear":
+            if source in ["# clear", "#clear"]:
                 echo "\x1Bc" & JAPL_VERSION_STRING
                 continue
-            elif source == "//exit" or source == "// exit":
+            elif source == "#exit" or source == "# exit":
                 echo "Goodbye!"
                 break
             elif source == "":
@@ -87,23 +87,16 @@ proc main =
             echo ""
 
             tree = parser.parse(tokens, filename)
-
-            # We run this now because the optimizer
-            # acts in-place on the AST so if we printed
-            # it later the parsed tree would equal the
-            # optimized one
             echo "Parsing step: "
             for node in tree:
                 echo "\t", node
             echo ""
 
             optimized = optimizer.optimize(tree)
-
             echo &"Optimization step (constant folding enabled: {optimizer.foldConstants}):"
             for node in optimized.tree:
                 echo "\t", node
             echo ""
-
             stdout.write(&"Produced warnings: ")
             if optimized.warnings.len() > 0:
                 echo ""
@@ -146,7 +139,6 @@ proc main =
                     stdout.write(", ")
             stdout.write(&"] (matches: {serialized.chunk.code == compiled.code})\n")
         except:
-            raise
             echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
 
 

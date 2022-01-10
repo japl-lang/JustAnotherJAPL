@@ -110,7 +110,7 @@ type
         DeleteName,    # Unbinds a dynamically bound variable's name from the current scope
         DeleteFast,  # Unbinds a statically bound variable's name from the current scope
         # Looping and jumping
-        Jump,            # Absolute, unconditional jump into the bytecode
+        Jump,            # Absolute and unconditional jump into the bytecode
         JumpIfFalse,     # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
         JumpIfTrue,      # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
         JumpIfFalsePop,  # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
@@ -125,6 +125,7 @@ type
         LongJumpForwards,
         LongJumpBackwards,
         # Functions
+        MakeFunction,
         Call,
         Return
         # Exception handling
