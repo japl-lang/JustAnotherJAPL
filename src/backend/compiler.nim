@@ -33,7 +33,7 @@ export multibyte
 
 type
     Name = ref object
-        ## A compile-time wrapper around 
+        ## A compile-time wrapper around
         ## statically resolved names.
         ## Depth indicates to which scope
         ## the variable belongs, zero meaning
@@ -43,12 +43,12 @@ type
         depth: int
         isPrivate: bool
         isConst: bool
-    
+
     Loop = object
         ## A "loop object" used
         ## by the compiler to emit
         ## appropriate jump offsets
-        ## for continue and break 
+        ## for continue and break
         ## statements
         start: int
         depth: int
@@ -68,17 +68,17 @@ type
         # Each time a defer statement is
         # compiled, its code is emitted
         # here. Later, if there is any code
-        # to defer in the current function, 
+        # to defer in the current function,
         # funDecl will wrap the function's code
         # inside an implicit try/finally block
         # and add this code in the finally branch.
-        # This sequence is emptied each time a 
+        # This sequence is emptied each time a
         # fun declaration is compiled and stores only
         # deferred code for the current function (may
         # be empty)
         deferred: seq[uint8]
 
-    
+
 
 proc initCompiler*(enableOptimizations: bool = true): Compiler =
     ## Initializes a new Compiler object
@@ -100,15 +100,12 @@ proc declaration(self: Compiler, node: ASTNode)
 proc peek(self: Compiler, distance: int = 0): ASTNode
 ## End of forward declarations
 
+## Public getters for nicer error formatting
+proc getCurrentNode*(self: Compiler): ASTNode = (if self.current >=
+        self.ast.len(): self.ast[^1] else: self.ast[self.current - 1])
 
 
 ## Utility functions
-
-proc error(self: Compiler, message: string) =
-    ## Raises a formatted CompileError exception
-    let tok = self.peek().token
-    raise newException(CompileError, &"A fatal error occurred while compiling '{self.file}', line {tok.line} at '{tok.lexeme}' -> {message}")
-
 
 proc peek(self: Compiler, distance: int = 0): ASTNode =
     ## Peeks at the AST node at the given distance.
@@ -116,7 +113,8 @@ proc peek(self: Compiler, distance: int = 0): ASTNode =
     ## AST node in the tree is returned. A negative
     ## distance may be used to retrieve previously
     ## consumed AST nodes
-    if self.ast.high() == -1 or self.current + distance > self.ast.high() or self.current + distance < 0:
+    if self.ast.high() == -1 or self.current + distance > self.ast.high() or
+            self.current + distance < 0:
         result = self.ast[^1]
     else:
         result = self.ast[self.current + distance]
@@ -126,6 +124,12 @@ proc done(self: Compiler): bool =
     ## Returns true if the compiler is done
     ## compiling, false otherwise
     result = self.current > self.ast.high()
+
+
+proc error(self: Compiler, message: string) =
+    ## Raises a formatted CompileError exception
+    var tok = self.getCurrentNode().token
+    raise newException(CompileError, &"A fatal error occurred while compiling '{self.file}', line {tok.line} at '{tok.lexeme}' -> {message}")
 
 
 proc step(self: Compiler): ASTNode =
@@ -222,10 +226,10 @@ proc patchJump(self: Compiler, offset: int) =
             of LongJumpIfFalse:
                 self.chunk.code[offset] = JumpIfFalse.uint8()
             of LongJumpIfFalsePop:
-                self.chunk.code[offset] = JumpIfFalsePop.uint8()     
+                self.chunk.code[offset] = JumpIfFalsePop.uint8()
             else:
-                discard  # Unreachable
-        self.chunk.code.delete(offset + 1)   # Discards the 24 bit integer
+                self.error(&"invalid opcode {self.chunk.code[offset]} in patchJump (This is an internal error and most likely a bug)")
+        self.chunk.code.delete(offset + 1) # Discards the 24 bit integer
         let offsetArray = jump.toDouble()
         self.chunk.code[offset + 1] = offsetArray[0]
         self.chunk.code[offset + 2] = offsetArray[1]
@@ -238,9 +242,9 @@ proc patchJump(self: Compiler, offset: int) =
             of JumpIfFalse:
                 self.chunk.code[offset] = LongJumpIfFalse.uint8()
             of JumpIfFalsePop:
-                self.chunk.code[offset] = LongJumpIfFalsePop.uint8()     
+                self.chunk.code[offset] = LongJumpIfFalsePop.uint8()
             else:
-                discard  # Unreachable
+                self.error(&"invalid opcode {self.chunk.code[offset]} in patchJump (This is an internal error and most likely a bug)")
         let offsetArray = jump.toTriple()
         self.chunk.code[offset + 1] = offsetArray[0]
         self.chunk.code[offset + 2] = offsetArray[1]
@@ -288,7 +292,9 @@ proc literal(self: Compiler, node: ASTNode) =
                 assert parseHex(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("integer value out of range")
-            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line, pos: (start: y.token.pos.start, stop: y.token.pos.start + len($x)))))
+            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line,
+                    pos: (start: y.token.pos.start, stop: y.token.pos.start +
+                    len($x)))))
         of binExpr:
             var x: int
             var y = BinExpr(node)
@@ -296,7 +302,9 @@ proc literal(self: Compiler, node: ASTNode) =
                 assert parseBin(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("integer value out of range")
-            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line, pos: (start: y.token.pos.start, stop: y.token.pos.start + len($x)))))
+            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line,
+                    pos: (start: y.token.pos.start, stop: y.token.pos.start +
+                    len($x)))))
         of octExpr:
             var x: int
             var y = OctExpr(node)
@@ -304,7 +312,9 @@ proc literal(self: Compiler, node: ASTNode) =
                 assert parseOct(y.literal.lexeme, x) == len(y.literal.lexeme)
             except ValueError:
                 self.error("integer value out of range")
-            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line, pos: (start: y.token.pos.start, stop: y.token.pos.start + len($x)))))
+            self.emitConstant(newIntExpr(Token(lexeme: $x, line: y.token.line,
+                    pos: (start: y.token.pos.start, stop: y.token.pos.start +
+                    len($x)))))
         of floatExpr:
             var x: float
             var y = FloatExpr(node)
@@ -318,7 +328,7 @@ proc literal(self: Compiler, node: ASTNode) =
             for member in y.members:
                 self.expression(member)
             self.emitByte(BuildList)
-            self.emitBytes(y.members.len().toTriple())  # 24-bit integer, meaning list literals can have up to 2^24 elements
+            self.emitBytes(y.members.len().toTriple()) # 24-bit integer, meaning list literals can have up to 2^24 elements
         of tupleExpr:
             var y = TupleExpr(node)
             for member in y.members:
@@ -337,7 +347,7 @@ proc literal(self: Compiler, node: ASTNode) =
                 self.expression(key)
                 self.expression(value)
             self.emitByte(BuildDict)
-            self.emitBytes(y.keys.len().toTriple()) 
+            self.emitBytes(y.keys.len().toTriple())
         of awaitExpr:
             var y = AwaitExpr(node)
             self.expression(y.awaitee)
@@ -349,12 +359,12 @@ proc literal(self: Compiler, node: ASTNode) =
 proc unary(self: Compiler, node: UnaryExpr) =
     ## Compiles unary expressions such as negation or
     ## bitwise inversion
-    self.expression(node.a)  # Pushes the operand onto the stack
+    self.expression(node.a) # Pushes the operand onto the stack
     case node.operator.kind:
         of Minus:
             self.emitByte(UnaryNegate)
         of Plus:
-            discard    # Unary + does nothing
+            discard # Unary + does nothing
         of TokenType.LogicalNot:
             self.emitByte(OpCode.LogicalNot)
         of Tilde:
@@ -446,18 +456,21 @@ proc declareName(self: Compiler, node: ASTNode) =
                     # slap myself 100 times with a sign saying "I'm dumb". Mark my words
                     self.error("cannot declare more than 16777215 static variables at a time")
                 self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
-                                                isPrivate: node.isPrivate, owner: node.owner, isConst: node.isConst))
+                                                isPrivate: node.isPrivate,
+                                                        owner: node.owner,
+                                                        isConst: node.isConst))
         else:
-            discard  # TODO: Classes, functions
+            discard # TODO: Classes, functions
 
-    
-proc varDecl(self: Compiler, node: VarDecl) = 
+
+proc varDecl(self: Compiler, node: VarDecl) =
     ## Compiles variable declarations
     self.expression(node.value)
     self.declareName(node)
 
 
-proc resolveStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth): Name =
+proc resolveStatic(self: Compiler, name: IdentExpr,
+        depth: int = self.scopeDepth): Name =
     ## Traverses self.staticNames backwards and returns the
     ## first name object with the given name at the given
     ## depth. The default depth is the current one. Returns
@@ -468,7 +481,8 @@ proc resolveStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth
     return nil
 
 
-proc deleteStatic(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth) =
+proc deleteStatic(self: Compiler, name: IdentExpr,
+        depth: int = self.scopeDepth) =
     ## Traverses self.staticNames backwards and returns the
     ## deletes name object with the given name at the given
     ## depth. The default depth is the current one. Does
@@ -502,10 +516,10 @@ proc identifier(self: Compiler, node: IdentExpr) =
     else:
         let index = self.getStaticIndex(node)
         if index != -1:
-            self.emitByte(LoadFast)   # Static name resolution, loads value at index in the stack
+            self.emitByte(LoadFast) # Static name resolution, loads value at index in the stack
             self.emitBytes(index.toTriple())
         else:
-            self.emitByte(LoadName)  # Resolves by name, at runtime, in a global hashmap
+            self.emitByte(LoadName) # Resolves by name, at runtime, in a global hashmap
             self.emitBytes(self.identifierConstant(node))
 
 
@@ -545,7 +559,7 @@ proc assignment(self: Compiler, node: ASTNode) =
                 of InplaceLeftShift:
                     self.emitByte(BinaryShiftLeft)
                 else:
-                    discard  # Unreachable
+                    discard # Unreachable
             # In-place operators just change
             # what values is set to a given
             # stack offset/name, so we only
@@ -578,7 +592,7 @@ proc beginScope(self: Compiler) =
     inc(self.scopeDepth)
 
 
-proc endScope(self: Compiler) = 
+proc endScope(self: Compiler) =
     ## Ends the current local scope
     if self.scopeDepth < 0:
         self.error("cannot call endScope with scopeDepth < 0 (This is an internal error and most likely a bug)")
@@ -648,8 +662,9 @@ proc emitLoop(self: Compiler, begin: int) =
     ## Emits a JumpBackwards instruction with the correct
     ## jump offset
     var offset: int
-    case OpCode(self.chunk.code[begin + 1]):   # The jump instruction
-        of LongJumpForwards, LongJumpBackwards, LongJumpIfFalse, LongJumpIfFalsePop, LongJumpIfTrue:
+    case OpCode(self.chunk.code[begin + 1]): # The jump instruction
+        of LongJumpForwards, LongJumpBackwards, LongJumpIfFalse,
+                LongJumpIfFalsePop, LongJumpIfTrue:
             offset = self.chunk.code.len() - begin + 4
         else:
             offset = self.chunk.code.len() - begin
@@ -661,7 +676,7 @@ proc emitLoop(self: Compiler, begin: int) =
     else:
         self.emitByte(JumpBackwards)
         self.emitBytes(offset.toDouble())
-    
+
 
 proc whileStmt(self: Compiler, node: WhileStmt) =
     ## Compiles C-style while loops
@@ -671,7 +686,7 @@ proc whileStmt(self: Compiler, node: WhileStmt) =
     self.statement(node.body)
     self.patchJump(jump)
     self.emitLoop(start)
-   
+
 
 proc expression(self: Compiler, node: ASTNode) =
     ## Compiles all expressions
@@ -695,7 +710,8 @@ proc expression(self: Compiler, node: ASTNode) =
         of binaryExpr:
             # Binary expressions such as 2 ^ 5 and 0.66 * 3.14
             self.binary(BinaryExpr(node))
-        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr, nilExpr, 
+        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr,
+                infExpr, nanExpr, floatExpr, nilExpr,
            tupleExpr, setExpr, listExpr, dictExpr:
             # Since all of these AST nodes mostly share
             # the same overall structure, and the kind
@@ -711,17 +727,6 @@ proc delStmt(self: Compiler, node: ASTNode) =
     ## Compiles del statements, which unbind
     ## a name from the current scope
     case node.kind:
-        of intExpr, hexExpr, binExpr, octExpr, strExpr, falseExpr, trueExpr, infExpr, nanExpr, floatExpr, nilExpr, 
-           tupleExpr, setExpr, listExpr, dictExpr, groupingExpr:
-            # We disallow grouping expressions because the parser
-            # already gets rid of redundant parentheses, so if
-            # there is a grouping expression left it can't be
-            # deleted because it's not just a bare identifier
-            self.error("cannot delete literals")
-        of binaryExpr, unaryExpr:
-            self.error("cannot delete operator")
-        of setItemExpr, assignExpr:
-            self.error("cannot delete assignment")
         of identExpr:
             var node = IdentExpr(node)
             let i = self.getStaticIndex(node)
@@ -733,7 +738,7 @@ proc delStmt(self: Compiler, node: ASTNode) =
                 self.emitByte(DeleteName)
                 self.emitBytes(self.identifierConstant(node))
         else:
-            discard  # Unreachable
+            discard # The parser already handles the other cases
 
 
 proc awaitStmt(self: Compiler, node: AwaitStmt) =
@@ -783,7 +788,7 @@ proc raiseStmt(self: Compiler, node: RaiseStmt) =
 proc continueStmt(self: Compiler, node: ContinueStmt) =
     ## Compiles continue statements. A continue statements
     ## jumps to the next iteration in a loop
-    if self.currentLoop.start > 65535:
+    if self.currentLoop.start <= 65535:
         self.emitByte(Jump)
         self.emitBytes(self.currentLoop.start.toDouble())
     else:
@@ -792,15 +797,15 @@ proc continueStmt(self: Compiler, node: ContinueStmt) =
 
 
 proc breakStmt(self: Compiler, node: BreakStmt) =
-    ## Compiles break statements. A continue statements
+    ## Compiles break statements. A continue statement
     ## jumps to the next iteration in a loop
-    
+
     # Emits dummy jump offset, this is
-    # patched later!
+    # patched later
     discard self.emitJump(OpCode.Break)
-    self.currentLoop.breakPos.add(self.chunk.code.high() - 4)  # 3 is the size of the jump offset!
+    self.currentLoop.breakPos.add(self.chunk.code.high() - 4)
     if self.currentLoop.depth > self.scopeDepth:
-        # Breaking out of a loop closes its scope!
+        # Breaking out of a loop closes its scope
         self.endScope()
 
 
@@ -827,7 +832,7 @@ proc statement(self: Compiler, node: ASTNode) =
     case node.kind:
         of exprStmt:
             self.expression(ExprStmt(node).expression)
-            self.emitByte(Pop)   # Expression statements discard their value. Their main use case is side effects in function calls
+            self.emitByte(Pop) # Expression statements discard their value. Their main use case is side effects in function calls
         of NodeKind.ifStmt:
             self.ifStmt(IfStmt(node))
         of NodeKind.delStmt:
@@ -850,7 +855,8 @@ proc statement(self: Compiler, node: ASTNode) =
             ## Our parser already desugars for loops to
             ## while loops!
             let loop = self.currentLoop
-            self.currentLoop = Loop(start: self.chunk.code.len(), depth: self.scopeDepth, breakPos: @[])
+            self.currentLoop = Loop(start: self.chunk.code.len(),
+                    depth: self.scopeDepth, breakPos: @[])
             self.whileStmt(WhileStmt(node))
             self.patchBreaks()
             self.currentLoop = loop
@@ -876,7 +882,7 @@ proc declaration(self: Compiler, node: ASTNode) =
         of NodeKind.varDecl:
             self.varDecl(VarDecl(node))
         of funDecl, classDecl:
-            discard  # TODO
+            discard # TODO
         else:
             self.statement(node)
 
@@ -896,7 +902,7 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     if self.ast.len() > 0:
         # *Technically* an empty program is a valid program
         self.endScope()
-        self.emitByte(OpCode.Return)   # Exits the VM's main loop when used at the global scope
+        self.emitByte(OpCode.Return) # Exits the VM's main loop when used at the global scope
     result = self.chunk
-    if self.scopeDepth != -1:
+    if self.ast.len() > 0 and self.scopeDepth != -1:
         self.error(&"internal error: invalid scopeDepth state (expected -1, got {self.scopeDepth}), did you forget to call endScope/beginScope?")

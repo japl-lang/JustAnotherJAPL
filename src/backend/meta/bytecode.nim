@@ -35,7 +35,7 @@ type
         ## - The second integer represents the count of whatever comes after it
         ##  (let's call it c)
         ## - After c, a sequence of c integers follows
-        ## 
+        ##
         ## A visual representation may be easier to understand: [1, 2, 3, 4]
         ## This is to be interpreted as "there are 2 instructions at line 1 whose values
         ## are 3 and 4"
@@ -56,37 +56,37 @@ type
         # used for more complex opcodes. All
         # arguments to opcodes (if they take
         # arguments) come from popping off the
-        # stack   
-        LoadConstant = 0u8,  # Pushes constant at position x in the constant table onto the stack
-        # Binary operators
-        UnaryNegate,  # Pushes the result of -x onto the stack
-        BinaryAdd,    # Pushes the result of a + b onto the stack
-        BinarySubtract,  # Pushes the result of a - b onto the stack
-        BinaryDivide,    # Pushes the result of a / b onto the stack (true division). The result is a float
-        BinaryFloorDiv,  # Pushes the result of a // b onto the stack (integer division). The result is always an integer
-        BinaryMultiply,  # Pushes the result of a * b onto the stack
-        BinaryPow,    # Pushes the result of a ** b (a to the power of b) onto the stack
-        BinaryMod,  # Pushes the result of a % b onto the stack (modulo division)
-        BinaryShiftRight,  # Pushes the result of a >> b (a with bits shifted b times to the right) onto the stack
-        BinaryShiftLeft,   # Pushes the result of a << b (a with bits shifted b times to the left) onto the stack
-        BinaryXor,  # Pushes the result of a ^ b (bitwise exclusive or) onto the stack
-        BinaryOr,   # Pushes the result of a | b (bitwise or) onto the stack
-        BinaryAnd,  # Pushes the result of a & b (bitwise and) onto the stack
-        UnaryNot,  # Pushes the result of ~x (bitwise not) onto the stack
-        BinaryAs,   # Pushes the result of a as b onto the stack (converts a to the type of b. Explicit support from a is required)
-        BinaryIs,   # Pushes the result of a is b onto the stack (true if a and b point to the same object, false otherwise)
-        BinaryIsNot,  # Pushes the result of not (a is b). This could be implemented in terms of BinaryIs, but it's more efficient this way
-        BinaryOf,   # Pushes the result of a of b onto the stack (true if a is a subclass of b, false otherwise)
+        # stack
+        LoadConstant = 0u8, # Pushes constant at position x in the constant table onto the stack
+                            # Binary operators
+        UnaryNegate, # Pushes the result of -x onto the stack
+        BinaryAdd, # Pushes the result of a + b onto the stack
+        BinarySubtract, # Pushes the result of a - b onto the stack
+        BinaryDivide, # Pushes the result of a / b onto the stack (true division). The result is a float
+        BinaryFloorDiv, # Pushes the result of a // b onto the stack (integer division). The result is always an integer
+        BinaryMultiply, # Pushes the result of a * b onto the stack
+        BinaryPow, # Pushes the result of a ** b (a to the power of b) onto the stack
+        BinaryMod, # Pushes the result of a % b onto the stack (modulo division)
+        BinaryShiftRight, # Pushes the result of a >> b (a with bits shifted b times to the right) onto the stack
+        BinaryShiftLeft, # Pushes the result of a << b (a with bits shifted b times to the left) onto the stack
+        BinaryXor, # Pushes the result of a ^ b (bitwise exclusive or) onto the stack
+        BinaryOr, # Pushes the result of a | b (bitwise or) onto the stack
+        BinaryAnd, # Pushes the result of a & b (bitwise and) onto the stack
+        UnaryNot, # Pushes the result of ~x (bitwise not) onto the stack
+        BinaryAs, # Pushes the result of a as b onto the stack (converts a to the type of b. Explicit support from a is required)
+        BinaryIs, # Pushes the result of a is b onto the stack (true if a and b point to the same object, false otherwise)
+        BinaryIsNot, # Pushes the result of not (a is b). This could be implemented in terms of BinaryIs, but it's more efficient this way
+        BinaryOf, # Pushes the result of a of b onto the stack (true if a is a subclass of b, false otherwise)
         BinarySlice, # Perform slicing on supported objects (like "hello"[0:2], which yields "he"). The result is pushed onto the stack
-        BinarySubscript,  # Subscript operator, like "hello"[0] (which pushes 'h' onto the stack)
-        # Binary comparison operators
-        GreaterThan,  # Pushes the result of a > b onto the stack
-        LessThan,     # Pushes the result of a < b onto the stack
-        EqualTo,      # Pushes the result of a == b onto the stack
-        NotEqualTo,   # Pushes the result of a != b onto the stack (optimization for not (a == b))
-        GreaterOrEqual,  # Pushes the result of a >= b onto the stack
-        LessOrEqual,     # Pushes the result of a <= b onto the stack
-        # Logical operators
+        BinarySubscript, # Subscript operator, like "hello"[0] (which pushes 'h' onto the stack)
+                         # Binary comparison operators
+        GreaterThan, # Pushes the result of a > b onto the stack
+        LessThan, # Pushes the result of a < b onto the stack
+        EqualTo, # Pushes the result of a == b onto the stack
+        NotEqualTo, # Pushes the result of a != b onto the stack (optimization for not (a == b))
+        GreaterOrEqual, # Pushes the result of a >= b onto the stack
+        LessOrEqual, # Pushes the result of a <= b onto the stack
+                     # Logical operators
         LogicalNot,
         LogicalAnd,
         LogicalOr,
@@ -99,24 +99,24 @@ type
         # Basic stack operations
         Pop,
         Push,
-        PopN,  # Pops N elements off the stack (optimization for exiting scopes and returning from functions)
-        # Name resolution/handling
-        LoadAttribute, 
-        DeclareName,   # Declares a global dynamically bound name in the current scope
-        LoadName,      # Loads a dynamically bound variable 
-        LoadFast,  # Loads a statically bound variable
-        StoreName,    # Sets/updates a dynamically bound variable's value
+        PopN, # Pops N elements off the stack (optimization for exiting scopes and returning from functions)
+              # Name resolution/handling
+        LoadAttribute,
+        DeclareName, # Declares a global dynamically bound name in the current scope
+        LoadName, # Loads a dynamically bound variable
+        LoadFast, # Loads a statically bound variable
+        StoreName, # Sets/updates a dynamically bound variable's value
         StoreFast, # Sets/updates a statically bound variable's value
-        DeleteName,    # Unbinds a dynamically bound variable's name from the current scope
-        DeleteFast,  # Unbinds a statically bound variable's name from the current scope
-        # Looping and jumping
-        Jump,            # Absolute and unconditional jump into the bytecode
-        JumpIfFalse,     # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
-        JumpIfTrue,      # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
-        JumpIfFalsePop,  # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
-        JumpForwards,    # Relative, unconditional, positive jump in the bytecode
-        JumpBackwards,   # Relative, unconditional, negative jump into the bytecode
-        Break,           # Temporary opcode used to signal exiting out of loop
+        DeleteName, # Unbinds a dynamically bound variable's name from the current scope
+        DeleteFast, # Unbinds a statically bound variable's name from the current scope
+                    # Looping and jumping
+        Jump, # Absolute and unconditional jump into the bytecode
+        JumpIfFalse, # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
+        JumpIfTrue, # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
+        JumpIfFalsePop, # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
+        JumpForwards, # Relative, unconditional, positive jump in the bytecode
+        JumpBackwards, # Relative, unconditional, negative jump into the bytecode
+        Break, # Temporary opcode used to signal exiting out of loop
         ## Long variants of jumps (they use a 24-bit operand instead of a 16-bit one)
         LongJump,
         LongJumpIfFalse,
@@ -130,9 +130,9 @@ type
         Return
         # Exception handling
         Raise,
-        ReRaise,   # Re-raises active exception
+        ReRaise, # Re-raises active exception
         BeginTry,
-        FinishTry, 
+        FinishTry,
         # Generators
         Yield,
         # Coroutines
@@ -179,8 +179,9 @@ const stackDoubleInstructions* = {}
 const argumentDoubleInstructions* = {PopN, }
 
 # Jump instructions jump at relative or absolute bytecode offsets
-const jumpInstructions* = {JumpIfFalse, JumpIfFalsePop, JumpForwards, JumpBackwards, 
-                           LongJumpIfFalse, LongJumpIfFalsePop, LongJumpForwards,
+const jumpInstructions* = {JumpIfFalse, JumpIfFalsePop, JumpForwards, JumpBackwards,
+                           LongJumpIfFalse, LongJumpIfFalsePop,
+                           LongJumpForwards,
                            LongJumpBackwards, JumpIfTrue, LongJumpIfTrue}
 
 # Collection instructions push a built-in collection type onto the stack
@@ -228,7 +229,7 @@ proc write*(self: Chunk, bytes: openarray[OpCode], line: int) =
 
 
 proc getLine*(self: Chunk, idx: int): int =
-    ## Returns the associated line of a given 
+    ## Returns the associated line of a given
     ## instruction index
     if self.lines.len < 2:
         raise newException(IndexDefect, "the chunk object is empty")
@@ -265,7 +266,7 @@ proc findOrAddConstant(self: Chunk, constant: ASTNode): int =
                 var c = IdentExpr(c)
                 var constant = IdentExpr(constant)
                 if c.name.lexeme == constant.name.lexeme:
-                    return i 
+                    return i
             else:
                 continue
     self.consts.add(constant)

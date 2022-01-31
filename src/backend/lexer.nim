@@ -33,7 +33,7 @@ export errors
 const tokens = to_table({
               '(': LeftParen, ')': RightParen,
               '{': LeftBrace, '}': RightBrace,
-              '.': Dot, ',': Comma, '-': Minus, 
+              '.': Dot, ',': Comma, '-': Minus,
               '+': Plus, '*': Asterisk,
               '>': GreaterThan, '<': LessThan, '=': Equal,
               '~': Tilde, '/': Slash, '%': Percentage,
@@ -103,6 +103,16 @@ type
         start: int
         current: int
         file: string
+        lines: seq[tuple[start, stop: int]]
+        lastLine: int
+
+
+# Simple public getters
+proc getStart*(self: Lexer): int = self.start
+proc getCurrent*(self: Lexer): int = self.current
+proc getLine*(self: Lexer): int = self.line
+proc getSource*(self: Lexer): string = self.source
+proc getRelPos*(self: Lexer, line: int): tuple[start, stop: int] = (if line > 1: self.lines[line - 2] else: (start: 0, stop: self.current))
 
 
 proc initLexer*(self: Lexer = nil): Lexer =
@@ -117,11 +127,22 @@ proc initLexer*(self: Lexer = nil): Lexer =
     result.start = 0
     result.current = 0
     result.file = ""
+    result.lines = @[]
+    result.lastLine = 0
 
 
 proc done(self: Lexer): bool =
     ## Returns true if we reached EOF
     result = self.current >= self.source.len
+
+
+proc incLine(self: Lexer) =
+    ## Increments the lexer's line
+    ## and updates internal line
+    ## metadata
+    self.lines.add((start: self.lastLine, stop: self.current))
+    self.line += 1
+    self.lastLine = self.current
 
 
 proc step(self: Lexer, n: int = 1): char =
@@ -156,6 +177,7 @@ proc peek(self: Lexer, distance: int = 0): char =
 proc error(self: Lexer, message: string) =
     ## Raises a lexing error with a formatted
     ## error message
+
     raise newException(LexingError, &"A fatal error occurred while parsing '{self.file}', line {self.line} at '{self.peek()}' -> {message}")
 
 
@@ -230,7 +252,7 @@ proc createToken(self: Lexer, tokenType: TokenType) =
     tok.kind = tokenType
     tok.lexeme = self.source[self.start..<self.current]
     tok.line = self.line
-    tok.pos =  (start: self.start, stop: self.current)
+    tok.pos = (start: self.start, stop: self.current)
     self.tokens.add(tok)
 
 
@@ -255,13 +277,12 @@ proc parseEscape(self: Lexer) =
                 # We natively convert LF to CRLF on Windows, and
                 # gotta thank Microsoft for the extra boilerplate!
                 self.source[self.current] = cast[char](0x0D)
-                self.source &= cast[char](0X0A)
-            else:
-                when defined(darwin):
-                    # Thanks apple, lol
-                    self.source[self.current] = cast[char](0x0A)
-                else:
-                    self.source[self.current] = cast[char](0X0D)
+                self.source.insert(self.current + 1, 0X0A)
+            when defined(darwin):
+                # Thanks apple, lol
+                self.source[self.current] = cast[char](0x0A)
+            when defined(linux):
+                self.source[self.current] = cast[char](0X0D)
         of 'r':
             self.source[self.current] = cast[char](0x0D)
         of 't':
@@ -278,23 +299,27 @@ proc parseEscape(self: Lexer) =
             var code = ""
             var value = 0
             var i = self.current
-            while i < self.source.high() and (let c = self.source[i].toLowerAscii(); c in '0'..'7') and len(code) < 3:
+            while i < self.source.high() and (let c = self.source[
+                    i].toLowerAscii(); c in '0'..'7') and len(code) < 3:
                 code &= self.source[i]
                 i += 1
             assert parseOct(code, value) == code.len()
+            if value > uint8.high().int:
+                self.error("escape sequence value too large (> 255)")
             self.source[self.current] = cast[char](value)
-        of 'u':
-            self.error("unicode escape sequences are not supported (yet)")
-        of 'U':
+        of 'u', 'U':
             self.error("unicode escape sequences are not supported (yet)")
         of 'x':
             var code = ""
             var value = 0
             var i = self.current
-            while i < self.source.high() and (let c = self.source[i].toLowerAscii(); c in 'a'..'f' or c in '0'..'9'):
+            while i < self.source.high() and (let c = self.source[
+                    i].toLowerAscii(); c in 'a'..'f' or c in '0'..'9'):
                 code &= self.source[i]
                 i += 1
             assert parseHex(code, value) == code.len()
+            if value > uint8.high().int:
+                self.error("escape sequence value too large (> 255)")
             self.source[self.current] = cast[char](value)
         else:
             self.error(&"invalid escape sequence '\\{self.peek()}'")
@@ -317,25 +342,27 @@ proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
     ## either single or double quotes. They can span across multiple
     ## lines and escape sequences in them are not parsed, like in raw
     ## strings, so a multi-line string prefixed with the "r" modifier
-    ## is redundant, although multi-line byte strings are supported
+    ## is redundant, although multi-line byte/format strings are supported
     while not self.check(delimiter) and not self.done():
         if self.check('\n'):
             if mode == "multi":
-                self.line = self.line + 1
+                self.incLine()
             else:
                 self.error("unexpected EOL while parsing string literal")
         if mode in ["raw", "multi"]:
             discard self.step()
         if self.check('\\'):
             # This madness here serves to get rid of the slash, since \x is mapped
-            # to a one-byte sequence but the string '\x' actually 2 bytes (or more, 
+            # to a one-byte sequence but the string '\x' actually 2 bytes (or more,
             # depending on the specific escape sequence)
-            self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
+            self.source = self.source[0..<self.current] & self.source[
+                    self.current + 1..^1]
             self.parseEscape()
         if mode == "format" and self.check('{'):
             discard self.step()
             if self.check('{'):
-                self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
+                self.source = self.source[0..<self.current] & self.source[
+                        self.current + 1..^1]
                 continue
             while not self.check(['}', '"']):
                 discard self.step()
@@ -345,14 +372,15 @@ proc parseString(self: Lexer, delimiter: char, mode: string = "single") =
             if not self.check('}', 1):
                 self.error("unmatched '}' in format string")
             else:
-                self.source = self.source[0..<self.current] & self.source[self.current + 1..^1]
+                self.source = self.source[0..<self.current] & self.source[
+                        self.current + 1..^1]
         discard self.step()
-    if self.done():
-        self.error("unexpected EOF while parsing string literal")
-        return
     if mode == "multi":
         if not self.match(delimiter.repeat(3)):
             self.error("unexpected EOL while parsing multi-line string literal")
+    if self.done():
+        self.error("unexpected EOF while parsing string literal")
+        return
     else:
         discard self.step()
     self.createToken(String)
@@ -368,6 +396,7 @@ proc parseBinary(self: Lexer) =
     # To make our life easier, we pad the binary number in here already
     while (self.tokens[^1].lexeme.len() - 2) mod 8 != 0:
         self.tokens[^1].lexeme = "0b" & "0" & self.tokens[^1].lexeme[2..^1]
+
 
 proc parseOctal(self: Lexer) =
     ## Parses octal numbers
@@ -399,7 +428,7 @@ proc parseNumber(self: Lexer) =
     ## is case-insensitive. Binary number literals are
     ## expressed using the prefix 0b, hexadecimal
     ## numbers with the prefix 0x and octal numbers
-    ## with the prefix 0o 
+    ## with the prefix 0o
     case self.peek():
         of 'b':
             discard self.step()
@@ -460,7 +489,7 @@ proc next(self: Lexer) =
             '\e']: # We skip whitespaces, tabs and other useless characters
         return
     elif single == '\n':
-        self.line += 1
+        self.incLine()
     elif single in ['"', '\'']:
         if self.check(single) and self.check(single, 1):
             # Multiline strings start with 3 quotes
@@ -494,7 +523,7 @@ proc next(self: Lexer) =
         # to the pair of tokens (//, =) for example
         for key in triple.keys():
             if key[0] == single and self.check(key[1..^1]):
-                discard self.step(2)  # We step 2 characters
+                discard self.step(2) # We step 2 characters
                 self.createToken(triple[key])
                 return
         for key in double.keys():
@@ -511,10 +540,7 @@ proc next(self: Lexer) =
 
 proc lex*(self: Lexer, source, file: string): seq[Token] =
     ## Lexes a source file, converting a stream
-    ## of characters into a series of tokens.
-    ## If an error occurs, this procedure
-    ## returns an empty sequence and the lexer's
-    ## errored and errorMessage fields will be set
+    ## of characters into a series of tokens
     discard self.initLexer()
     self.source = source
     self.file = file

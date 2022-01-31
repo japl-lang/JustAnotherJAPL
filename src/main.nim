@@ -17,12 +17,17 @@ import backend/lexer
 import backend/parser
 import backend/optimizer
 import backend/compiler
-import util/debugger
 import backend/serializer
+
+import util/debugger
+
 import jale/editor
 import jale/templates
 import jale/plugin/defaults
 import jale/plugin/editor_history
+import jale/keycodes
+import jale/multiline
+
 import config
 
 
@@ -31,6 +36,12 @@ import strutils
 import sequtils
 import times
 import nimSHA2
+
+const debugLexer = false
+const debugParser = false
+const debugOptimizer = false
+const debugCompiler = true
+const debugSerializer = true
 
 
 proc getLineEditor: LineEditor =
@@ -60,7 +71,10 @@ proc main =
     let lineEditor = getLineEditor()
     lineEditor.bindEvent(jeQuit):
         keep = false
-
+    lineEditor.bindKey("ctrl+a"):
+        lineEditor.content.home()
+    lineEditor.bindKey("ctrl+e"):
+        lineEditor.content.`end`()
     echo JAPL_VERSION_STRING
     while keep:
         try:
@@ -77,69 +91,91 @@ proc main =
         except IOError:
             echo ""
             break
-
-        echo &"Processing: '{source}'\n"
         try:
             tokens = lexer.lex(source, filename)
-            echo "Tokenization step: "
-            for token in tokens:
-                echo "\t", token
-            echo ""
+            when debugLexer:
+                echo "Tokenization step: "
+                for token in tokens:
+                    echo "\t", token
+                echo ""
 
             tree = parser.parse(tokens, filename)
-            echo "Parsing step: "
-            for node in tree:
-                echo "\t", node
-            echo ""
+            when debugParser:
+                echo "Parsing step: "
+                for node in tree:
+                    echo "\t", node
+                echo ""
 
             optimized = optimizer.optimize(tree)
-            echo &"Optimization step (constant folding enabled: {optimizer.foldConstants}):"
-            for node in optimized.tree:
-                echo "\t", node
-            echo ""
-            stdout.write(&"Produced warnings: ")
-            if optimized.warnings.len() > 0:
+            when debugOptimizer:
+                echo &"Optimization step (constant folding enabled: {optimizer.foldConstants}):"
+                for node in optimized.tree:
+                    echo "\t", node
                 echo ""
-                for warning in optimized.warnings:
-                    echo "\t", warning
-            else:
-                stdout.write("No warnings produced\n")
-            echo ""
+                stdout.write(&"Produced warnings: ")
+                if optimized.warnings.len() > 0:
+                    echo ""
+                    for warning in optimized.warnings:
+                        echo "\t", warning
+                else:
+                    stdout.write("No warnings produced\n")
+                echo ""
 
             compiled = compiler.compile(optimized.tree, filename)
-            echo "Compilation step:"
-            stdout.write("\t")
-            echo &"""Raw byte stream: [{compiled.code.join(", ")}]"""
-            echo "\nBytecode disassembler output below:\n"
-            disassembleChunk(compiled, filename)
-            echo ""
+            when debugCompiler:
+                echo "Compilation step:"
+                stdout.write("\t")
+                echo &"""Raw byte stream: [{compiled.code.join(", ")}]"""
+                echo "\nBytecode disassembler output below:\n"
+                disassembleChunk(compiled, filename)
+                echo ""
             
-            serializedRaw = serializer.dumpBytes(compiled, source, filename)
-            echo "Serialization step: "
-            stdout.write("\t")
-            echo &"""Raw hex output: {serializedRaw.mapIt(toHex(it)).join("").toLowerAscii()}"""
-            echo ""
+            when debugSerializer:
+                serializedRaw = serializer.dumpBytes(compiled, source, filename)
+                echo "Serialization step: "
+                stdout.write("\t")
+                echo &"""Raw hex output: {serializedRaw.mapIt(toHex(it)).join("").toLowerAscii()}"""
+                echo ""
 
-            serialized = serializer.loadBytes(serializedRaw)
-            echo "Deserialization step:"
-            echo &"\t- File hash: {serialized.fileHash} (matches: {computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash})"
-            echo &"\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..8]} on branch {serialized.japlBranch})"
-            stdout.write("\t")
-            echo &"""- Compilation date & time: {fromUnix(serialized.compileDate).format("d/M/yyyy HH:mm:ss")}"""
-            stdout.write(&"\t- Reconstructed constants table: [")
-            for i, e in serialized.chunk.consts:
-                stdout.write(e)
-                if i < len(serialized.chunk.consts) - 1:
-                    stdout.write(", ")
-            stdout.write("]\n")
-            stdout.write(&"\t- Reconstructed bytecode: [")
-            for i, e in serialized.chunk.code:
-                stdout.write($e)
-                if i < len(serialized.chunk.code) - 1:
-                    stdout.write(", ")
-            stdout.write(&"] (matches: {serialized.chunk.code == compiled.code})\n")
-        except:
-            echo &"A Nim runtime exception occurred: {getCurrentExceptionMsg()}"
+                serialized = serializer.loadBytes(serializedRaw)
+                echo "Deserialization step:"
+                echo &"\t- File hash: {serialized.fileHash} (matches: {computeSHA256(source).toHex().toLowerAscii() == serialized.fileHash})"
+                echo &"\t- JAPL version: {serialized.japlVer.major}.{serialized.japlVer.minor}.{serialized.japlVer.patch} (commit {serialized.commitHash[0..8]} on branch {serialized.japlBranch})"
+                stdout.write("\t")
+                echo &"""- Compilation date & time: {fromUnix(serialized.compileDate).format("d/M/yyyy HH:mm:ss")}"""
+                stdout.write(&"\t- Reconstructed constants table: [")
+                for i, e in serialized.chunk.consts:
+                    stdout.write(e)
+                    if i < len(serialized.chunk.consts) - 1:
+                        stdout.write(", ")
+                stdout.write("]\n")
+                stdout.write(&"\t- Reconstructed bytecode: [")
+                for i, e in serialized.chunk.code:
+                    stdout.write($e)
+                    if i < len(serialized.chunk.code) - 1:
+                        stdout.write(", ")
+                stdout.write(&"] (matches: {serialized.chunk.code == compiled.code})\n")
+        except LexingError:
+            let lineNo = lexer.getLine()
+            let relPos = lexer.getRelPos(lineNo)
+            let line = lexer.getSource().splitLines()[lineNo - 1]
+            echo getCurrentExceptionMsg()
+            echo &"Source line: {line}"
+            echo " ".repeat(relPos.start + len("Source line: ")) & "^".repeat(relPos.stop - relPos.start)
+        except ParseError:
+            let lineNo = parser.getCurrentToken().line
+            let relPos = lexer.getRelPos(lineNo)
+            let line = lexer.getSource().splitLines()[lineNo - 1]
+            echo getCurrentExceptionMsg()
+            echo &"Source line: {line}"
+            echo " ".repeat(relPos.start + len("Source line: ")) & "^".repeat(relPos.stop - parser.getCurrentToken().lexeme.len())
+        except CompileError:
+            let lineNo = compiler.getCurrentNode().token.line
+            let relPos = lexer.getRelPos(lineNo)
+            let line = lexer.getSource().splitLines()[lineNo - 1]
+            echo getCurrentExceptionMsg()
+            echo &"Source line: {line}"
+            echo " ".repeat(relPos.start + len("Source line: ")) & "^".repeat(relPos.stop - compiler.getCurrentNode().token.lexeme.len())
 
 
 when isMainModule:

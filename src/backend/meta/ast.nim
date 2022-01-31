@@ -34,7 +34,7 @@ type
         funDecl,
         varDecl,
         # Statements
-        forStmt,  # Unused for now (for loops are compiled to while loops)
+        forStmt, # Unused for now (for loops are compiled to while loops)
         ifStmt,
         returnStmt,
         breakStmt,
@@ -58,14 +58,14 @@ type
         lambdaExpr,
         awaitExpr,
         yieldExpr,
-        setItemExpr,  # Set expressions like a.b = "c"
+        setItemExpr, # Set expressions like a.b = "c"
         binaryExpr,
         unaryExpr,
         sliceExpr,
         callExpr,
-        getItemExpr,  # Get expressions like a.b
-        # Primary expressions
-        groupingExpr,  # Parenthesized expressions such as (true) and (3 + 4)
+        getItemExpr, # Get expressions like a.b
+                     # Primary expressions
+        groupingExpr, # Parenthesized expressions such as (true) and (3 + 4)
         trueExpr,
         listExpr,
         tupleExpr,
@@ -81,7 +81,7 @@ type
         nilExpr,
         nanExpr,
         infExpr,
-        identExpr,   # Identifier
+        identExpr, # Identifier
 
 
     ASTNode* = ref object of RootObj
@@ -129,7 +129,7 @@ type
     # a tough luck for us
     ListExpr* = ref object of ASTNode
         members*: seq[ASTNode]
-    
+
     SetExpr* = ref object of ListExpr
 
     TupleExpr* = ref object of ListExpr
@@ -137,17 +137,17 @@ type
     DictExpr* = ref object of ASTNode
         keys*: seq[ASTNode]
         values*: seq[ASTNode]
-    
+
     IdentExpr* = ref object of ASTNode
         name*: Token
-    
+
     GroupingExpr* = ref object of ASTNode
         expression*: ASTNode
-    
+
     GetItemExpr* = ref object of ASTNode
         obj*: ASTNode
         name*: ASTNode
-    
+
     SetItemExpr* = ref object of GetItemExpr
         # Since a setItem expression is just
         # a getItem one followed by an assignment,
@@ -155,8 +155,9 @@ type
         value*: ASTNode
 
     CallExpr* = ref object of ASTNode
-        callee*: ASTNode  # The thing being called
-        arguments*: tuple[positionals: seq[ASTNode], keyword: seq[tuple[name: ASTNode, value: ASTNode]]]
+        callee*: ASTNode # The thing being called
+        arguments*: tuple[positionals: seq[ASTNode], keyword: seq[tuple[
+                name: ASTNode, value: ASTNode]]]
 
     UnaryExpr* = ref object of ASTNode
         operator*: Token
@@ -216,8 +217,8 @@ type
         code*: seq[ASTNode]
 
     ForStmt* = ref object of ASTNode
-        discard   # Unused
-    
+        discard # Unused
+
     ForEachStmt* = ref object of ASTNode
         identifier*: ASTNode
         expression*: ASTNode
@@ -225,7 +226,7 @@ type
 
     DeferStmt* = ref object of ASTNode
         deferred*: ASTNode
-    
+
     TryStmt* = ref object of ASTNode
         body*: ASTNode
         handlers*: seq[tuple[body: ASTNode, exc: ASTNode, name: ASTNode]]
@@ -235,12 +236,12 @@ type
     WhileStmt* = ref object of ASTNode
         condition*: ASTNode
         body*: ASTNode
-    
+
     AwaitStmt* = ref object of ASTNode
         awaitee*: ASTNode
 
     BreakStmt* = ref object of ASTNode
-    
+
     ContinueStmt* = ref object of ASTNode
 
     ReturnStmt* = ref object of ASTNode
@@ -253,9 +254,9 @@ type
 
     YieldStmt* = ref object of ASTNode
         expression*: ASTNode
-    
+
     Declaration* = ref object of ASTNode
-        owner*: string   # Used for determining if a module can access a given field
+        owner*: string # Used for determining if a module can access a given field
 
     VarDecl* = ref object of Declaration
         name*: ASTNode
@@ -287,7 +288,8 @@ type
         isPrivate*: bool
 
     Expression* = LiteralExpr | ListExpr | GetItemExpr | SetItemExpr | UnaryExpr | BinaryExpr | CallExpr | AssignExpr |
-                  GroupingExpr | IdentExpr | DictExpr | TupleExpr | SetExpr | TrueExpr | FalseExpr | NilExpr |
+                  GroupingExpr | IdentExpr | DictExpr | TupleExpr | SetExpr |
+                          TrueExpr | FalseExpr | NilExpr |
                   NanExpr | InfExpr
 
     Statement* = ExprStmt | ImportStmt | FromImportStmt | DelStmt | AssertStmt | RaiseStmt | BlockStmt | ForStmt | WhileStmt |
@@ -304,11 +306,14 @@ proc newASTNode*(kind: NodeKind, token: Token): ASTNode =
 
 
 proc isConst*(self: ASTNode): bool {.inline.} = self.kind in {intExpr, hexExpr, binExpr, octExpr, strExpr,
-                                                              falseExpr, trueExpr, infExpr, nanExpr,
-                                                              floatExpr}
+                                                              falseExpr,
+                                                              trueExpr, infExpr,
+                                                              nanExpr,
+                                                              floatExpr, nilExpr}
 
 
-proc isLiteral*(self: ASTNode): bool {.inline.} = self.isConst() or self.kind in {tupleExpr, dictExpr, setExpr, listExpr}
+proc isLiteral*(self: ASTNode): bool {.inline.} = self.isConst() or self.kind in
+        {tupleExpr, dictExpr, setExpr, listExpr}
 
 
 proc newIntExpr*(literal: Token): IntExpr =
@@ -366,7 +371,8 @@ proc newGroupingExpr*(expression: ASTNode, token: Token): GroupingExpr =
     result.token = token
 
 
-proc newLambdaExpr*(arguments, defaults: seq[ASTNode], body: ASTNode, isGenerator: bool, token: Token): LambdaExpr =
+proc newLambdaExpr*(arguments, defaults: seq[ASTNode], body: ASTNode,
+        isGenerator: bool, token: Token): LambdaExpr =
     result = LambdaExpr(kind: lambdaExpr)
     result.body = body
     result.arguments = arguments
@@ -415,14 +421,17 @@ proc newSetItemExpr*(obj, name, value: ASTNode, token: Token): SetItemExpr =
     result.token = token
 
 
-proc newCallExpr*(callee: ASTNode, arguments: tuple[positionals: seq[ASTNode], keyword: seq[tuple[name: ASTNode, value: ASTNode]]], token: Token): CallExpr =
+proc newCallExpr*(callee: ASTNode, arguments: tuple[positionals: seq[ASTNode],
+        keyword: seq[tuple[name: ASTNode, value: ASTNode]]],
+        token: Token): CallExpr =
     result = CallExpr(kind: callExpr)
     result.callee = callee
     result.arguments = arguments
     result.token = token
 
 
-proc newSliceExpr*(slicee: ASTNode, ends: seq[ASTNode], token: Token): SliceExpr =
+proc newSliceExpr*(slicee: ASTNode, ends: seq[ASTNode],
+        token: Token): SliceExpr =
     result = SliceExpr(kind: sliceExpr)
     result.slicee = slicee
     result.ends = ends
@@ -475,7 +484,8 @@ proc newImportStmt*(moduleName: ASTNode, token: Token): ImportStmt =
     result.token = token
 
 
-proc newFromImportStmt*(fromModule: ASTNode, fromAttributes: seq[ASTNode], token: Token): FromImportStmt =
+proc newFromImportStmt*(fromModule: ASTNode, fromAttributes: seq[ASTNode],
+        token: Token): FromImportStmt =
     result = FromImportStmt(kind: fromImportStmt)
     result.fromModule = fromModule
     result.fromAttributes = fromAttributes
@@ -542,7 +552,8 @@ proc newWhileStmt*(condition: ASTNode, body: ASTNode, token: Token): WhileStmt =
     result.token = token
 
 
-proc newForEachStmt*(identifier: ASTNode, expression, body: ASTNode, token: Token): ForEachStmt =
+proc newForEachStmt*(identifier: ASTNode, expression, body: ASTNode,
+        token: Token): ForEachStmt =
     result = ForEachStmt(kind: forEachStmt)
     result.identifier = identifier
     result.expression = expression
@@ -550,7 +561,7 @@ proc newForEachStmt*(identifier: ASTNode, expression, body: ASTNode, token: Toke
     result.token = token
 
 
-proc newBreakStmt*(token: Token): BreakStmt = 
+proc newBreakStmt*(token: Token): BreakStmt =
     result = BreakStmt(kind: breakStmt)
     result.token = token
 
@@ -566,7 +577,8 @@ proc newReturnStmt*(value: ASTNode, token: Token): ReturnStmt =
     result.token = token
 
 
-proc newIfStmt*(condition: ASTNode, thenBranch, elseBranch: ASTNode, token: Token): IfStmt =
+proc newIfStmt*(condition: ASTNode, thenBranch, elseBranch: ASTNode,
+        token: Token): IfStmt =
     result = IfStmt(kind: ifStmt)
     result.condition = condition
     result.thenBranch = thenBranch
@@ -589,7 +601,8 @@ proc newVarDecl*(name: ASTNode, value: ASTNode = newNilExpr(Token()),
 
 proc newFunDecl*(name: ASTNode, arguments, defaults: seq[ASTNode],
                  body: ASTNode, isStatic: bool = true, isAsync,
-                 isGenerator: bool, isPrivate: bool = true, token: Token, owner: string): FunDecl =
+                 isGenerator: bool, isPrivate: bool = true, token: Token,
+                         owner: string): FunDecl =
     result = FunDecl(kind: funDecl)
     result.name = name
     result.arguments = arguments
@@ -605,7 +618,8 @@ proc newFunDecl*(name: ASTNode, arguments, defaults: seq[ASTNode],
 
 proc newClassDecl*(name: ASTNode, body: ASTNode,
                    parents: seq[ASTNode], isStatic: bool = true,
-                   isPrivate: bool = true, token: Token, owner: string): ClassDecl =
+                   isPrivate: bool = true, token: Token,
+                           owner: string): ClassDecl =
     result = ClassDecl(kind: classDecl)
     result.name = name
     result.body = body
@@ -616,15 +630,16 @@ proc newClassDecl*(name: ASTNode, body: ASTNode,
     result.owner = owner
 
 
-proc `$`*(self: ASTNode): string = 
+proc `$`*(self: ASTNode): string =
     if self == nil:
         return "nil"
     case self.kind:
-        of intExpr, floatExpr, hexExpr, binExpr, octExpr, strExpr, trueExpr, falseExpr, nanExpr, nilExpr, infExpr:
+        of intExpr, floatExpr, hexExpr, binExpr, octExpr, strExpr, trueExpr,
+                falseExpr, nanExpr, nilExpr, infExpr:
             if self.kind in {trueExpr, falseExpr, nanExpr, nilExpr, infExpr}:
                 result &= &"Literal({($self.kind)[0..^5]})"
             elif self.kind == strExpr:
-                result &= &"Literal({LiteralExpr(self).literal.lexeme})"
+                result &= &"Literal({LiteralExpr(self).literal.lexeme[1..^2].escape()})"
             else:
                 result &= &"Literal({LiteralExpr(self).literal.lexeme})"
         of identExpr:
@@ -742,4 +757,4 @@ proc `$`*(self: ASTNode): string =
                 result &= ", elseClause=nil"
             result &= ")"
         else:
-            discard    
+            discard

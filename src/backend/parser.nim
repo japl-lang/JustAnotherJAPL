@@ -83,6 +83,9 @@ proc initParser*(): Parser =
     result.currentLoop = None
     result.scopeDepth = 0
 
+# Public getters for improved error formatting
+proc getCurrent*(self: Parser): int = self.current
+proc getCurrentToken*(self: Parser): Token = (if self.getCurrent() >= self.tokens.len(): self.tokens[^1] else: self.tokens[self.current - 1])
 
 # Handy templates to make our life easier, thanks nim!
 
@@ -109,7 +112,7 @@ proc done(self: Parser): bool =
     ## EOF token to signal the end
     ## of the file (unless the token
     ## list is empty)
-    result = self.peek().kind == EndOfFile
+    result = self.tokens.len() == 0 or self.peek().kind == EndOfFile
 
 
 proc step(self: Parser, n: int = 1): Token = 
@@ -124,8 +127,8 @@ proc step(self: Parser, n: int = 1): Token =
 
 proc error(self: Parser, message: string) =
     ## Raises a formatted ParseError exception
-    var lexeme = if not self.done(): self.peek().lexeme else: self.step().lexeme
-    var errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at '{lexeme}' {message}"
+    var lexeme = self.getCurrentToken().lexeme
+    var errorMessage = &"A fatal error occurred while parsing '{self.file}', line {self.peek().line} at '{lexeme}' -> {message}"
     raise newException(ParseError, errorMessage)
 
 
@@ -517,6 +520,8 @@ proc delStmt(self: Parser): ASTNode =
         self.error("cannot delete operator")
     elif temp.kind == callExpr:
         self.error("cannot delete function call")
+    elif temp.kind == assignExpr:
+        self.error("cannot delete assignment")
     else:
         result = newDelStmt(expression, tok)
 
