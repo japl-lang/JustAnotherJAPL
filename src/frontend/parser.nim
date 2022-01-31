@@ -33,6 +33,7 @@ type
     Parser* = ref object
         ## A recursive-descent top-down
         ## parser implementation
+
         # Index into self.tokens
         current: int
         # The name of the file being parsed.

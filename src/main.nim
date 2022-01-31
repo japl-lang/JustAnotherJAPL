@@ -13,11 +13,11 @@
 # limitations under the License.
 
 ## Test module to wire up JAPL components
-import backend/lexer
-import backend/parser
-import backend/optimizer
-import backend/compiler
-import backend/serializer
+import frontend/lexer
+import frontend/parser
+import frontend/optimizer
+import frontend/compiler
+import frontend/serializer
 
 import util/debugger
 

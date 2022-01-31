@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ../backend/meta/bytecode
-import ../backend/meta/ast
+import ../frontend/meta/bytecode
+import ../frontend/meta/ast
 import multibyte
 
 
