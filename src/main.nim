@@ -158,21 +158,21 @@ proc main =
         except LexingError:
             let lineNo = lexer.getLine()
             let relPos = lexer.getRelPos(lineNo)
-            let line = lexer.getSource().splitLines()[lineNo - 1]
+            let line = lexer.getSource().splitLines()[lineNo - 1].strip()
             echo getCurrentExceptionMsg()
             echo &"Source line: {line}"
             echo " ".repeat(relPos.start + len("Source line: ")) & "^".repeat(relPos.stop - relPos.start)
         except ParseError:
             let lineNo = parser.getCurrentToken().line
             let relPos = lexer.getRelPos(lineNo)
-            let line = lexer.getSource().splitLines()[lineNo - 1]
+            let line = lexer.getSource().splitLines()[lineNo - 1].strip()
             echo getCurrentExceptionMsg()
             echo &"Source line: {line}"
             echo " ".repeat(relPos.start + len("Source line: ")) & "^".repeat(relPos.stop - parser.getCurrentToken().lexeme.len())
         except CompileError:
             let lineNo = compiler.getCurrentNode().token.line
             let relPos = lexer.getRelPos(lineNo)
-            let line = lexer.getSource().splitLines()[lineNo - 1]
+            let line = lexer.getSource().splitLines()[lineNo - 1].strip()
             echo getCurrentExceptionMsg()
             echo &"Source line: {line}"
             echo " ".repeat(relPos.start + len("Source line: ")) & "^".repeat(relPos.stop - compiler.getCurrentNode().token.lexeme.len())
