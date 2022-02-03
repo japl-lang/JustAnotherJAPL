@@ -16,12 +16,22 @@ import strformat
 
 const BYTECODE_MARKER* = "JAPL_BYTECODE"
 const MAP_LOAD_FACTOR* = 0.75   # Load factor for builtin hashmaps
+when MAP_LOAD_FACTOR >= 1.0:
+    {.fatal: "Hashmap load factor must be < 1".}
 const HEAP_GROW_FACTOR* = 2     # How much extra memory to allocate for dynamic arrays and garbage collection when resizing
+when HEAP_GROW_FACTOR <= 1:
+    {.fatal: "Heap growth factor must be > 1".}
 const MAX_STACK_FRAMES* = 800   # The maximum number of stack frames at any one time. Acts as a recursion limiter (1 frame = 1 call)
+when MAX_STACK_FRAMES <= 0:
+    {.fatal: "The frame limit must be > 0".}
 const JAPL_VERSION* = (major: 0, minor: 4, patch: 0)
 const JAPL_RELEASE* = "alpha"
 const JAPL_COMMIT_HASH* = "fdfe87ad424ec80b0dad780e5dd2c78c22feaf59"
+when len(JAPL_COMMIT_HASH) != 40:
+    {.fatal: "The git commit hash must be exactly 40 characters long".}
 const JAPL_BRANCH* = "master"
+when len(JAPL_BRANCH) >= 255:
+    {.fatal: "The git branch name's length must be less than or equal to 255 characters".}
 const DEBUG_TRACE_VM* = false    # Traces VM execution
 const SKIP_STDLIB_INIT* = false  # Skips stdlib initialization (can be imported manually)
 const DEBUG_TRACE_GC* = false    # Traces the garbage collector (TODO)

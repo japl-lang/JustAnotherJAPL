@@ -16,7 +16,8 @@
 {.experimental: "implicitDeref".}
 import iterable
 import ../../memory/allocator
-import base
+import baseObject
+
 import strformat
 
 
@@ -32,7 +33,7 @@ type
         current: int
 
 
-proc newArrayList*[T](): ptr ArrayList[T] =
+proc newArrayList*[T]: ptr ArrayList[T] =
     ## Allocates a new, empty array list
     result = allocateObj(ArrayList[T], ObjectType.List)
     result.capacity = 0

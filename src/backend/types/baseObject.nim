@@ -47,7 +47,7 @@ template allocateObj*(kind: untyped, objType: ObjectType): untyped =
     cast[ptr kind](allocateObject(sizeof kind, objType))
 
 
-proc newObj*(): ptr Obj =
+proc newObj*: ptr Obj =
     ## Allocates a generic JAPL object
     result = allocateObj(Obj, ObjectType.BaseObject)
 
@@ -58,3 +58,5 @@ proc asObj*(self: ptr Obj): ptr Obj =
     result = cast[ptr Obj](self)
 
 
+proc hash*(self: ptr Obj): uint64 = 0x123FFFF  # Constant hash value
+proc `$`*(self: ptr Obj): string = "<object>"

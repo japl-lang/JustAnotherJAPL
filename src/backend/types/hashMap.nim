@@ -15,21 +15,40 @@
 
 import ../../memory/allocator
 import ../../config
-import base
+
+import baseObject
 import iterable
 
 
 type
     Entry = object
+        ## Low-level object to store key/value pairs.
+        ## Using an extra value for marking the entry as
+        ## a tombstone instead of something like detecting
+        ## tombstones as entries with null keys but full values
+        ## may seem wasteful. The thing is, though, that since
+        ## we want to implement sets on top of this hashmap and
+        ## the implementation of a set is *literally* a dictionary
+        ## with empty values and keys as the elements, this would
+        ## confuse our findEntry method and would force us to override
+        ## it to account for a different behavior.
+        ## Using a third field takes up more space, but saves us
+        ## from the hassle of rewriting code
         key: ptr Obj
         value: ptr Obj
         tombstone: bool
     HashMap* = object of Iterable
+        ## An associative array with O(1) lookup time,
+        ## similar to nim's Table type, but using raw
+        ## memory to be more compatible with JAPL's runtime
+        ## memory management
         entries: ptr UncheckedArray[ptr Entry]
+        # This attribute counts *only* non-deleted entries
         actual_length: int
 
 
-proc newHashMap*(): ptr HashMap =
+proc newHashMap*: ptr HashMap =
+    ## Initializes a new, empty hashmap
     result = allocateObj(HashMap, ObjectType.Dict)
     result.actual_length = 0
     result.entries = nil
@@ -38,6 +57,7 @@ proc newHashMap*(): ptr HashMap =
 
 
 proc freeHashMap*(self: ptr HashMap) =
+    ## Frees the memory associated with the hashmap
     discard freeArray(UncheckedArray[ptr Entry], self.entries, self.capacity)
     self.length = 0
     self.actual_length = 0
@@ -46,17 +66,40 @@ proc freeHashMap*(self: ptr HashMap) =
 
 
 proc findEntry(self: ptr UncheckedArray[ptr Entry], key: ptr Obj, capacity: int): ptr Entry =
+    ## Low-level method used to find entries in the underlying
+    ## array, returns a pointer to an entry
     var capacity = uint64(capacity)
     var idx = uint64(key.hash()) mod capacity
     while true:
         result = self[idx]
         if system.`==`(result.key, nil):
+            # We found an empty bucket
             break
         elif result.tombstone:
+            # We found a previously deleted
+            # entry. In this case, we need
+            # to make sure the tombstone
+            # will get overwritten when the
+            # user wants to add a new value
+            # that would replace it, BUT also
+            # for it to not stop our linear
+            # probe sequence. Hence, if the
+            # key of the tombstone is the same
+            # as the one we're looking for,
+            # we break out of the loop, otherwise
+            # we keep searching
             if result.key == key:
                 break
         elif result.key == key:
+            # We were looking for a specific key and
+            # we found it, so we also bail out
             break
+        # If none of these conditions match, we have a collision!
+        # This means we can just move on to the next slot in our probe
+        # sequence until we find an empty slot. The way our resizing
+        # mechanism works makes the empty slot invariant easy to 
+        # maintain since we increase the underlying array's size 
+        # before we are actually full
         idx = (idx + 1) mod capacity
 
 
