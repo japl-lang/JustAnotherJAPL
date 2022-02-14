@@ -483,8 +483,8 @@ proc resolveStatic(self: Compiler, name: IdentExpr,
 
 proc deleteStatic(self: Compiler, name: IdentExpr,
         depth: int = self.scopeDepth) =
-    ## Traverses self.staticNames backwards and returns the
-    ## deletes name object with the given name at the given
+    ## Traverses self.staticNames backwards and deletes the
+    ## a name object with the given name at the given
     ## depth. The default depth is the current one. Does
     ## nothing when the name can't be found
     for i, obj in reversed(self.names):
@@ -516,10 +516,10 @@ proc identifier(self: Compiler, node: IdentExpr) =
     else:
         let index = self.getStaticIndex(node)
         if index != -1:
-            self.emitByte(LoadFast) # Static name resolution, loads value at index in the stack
+            self.emitByte(LoadFast) # Static name resolution, loads value at index in the stack. Very fast. Much wow.
             self.emitBytes(index.toTriple())
         else:
-            self.emitByte(LoadName) # Resolves by name, at runtime, in a global hashmap
+            self.emitByte(LoadName) # Resolves by name, at runtime, in a global hashmap. Slower
             self.emitBytes(self.identifierConstant(node))
 
 
@@ -532,7 +532,6 @@ proc assignment(self: Compiler, node: ASTNode) =
             let r = self.resolveStatic(name)
             if r != nil and r.isConst:
                 self.error("cannot assign to constant")
-
             self.expression(node.value)
             let index = self.getStaticIndex(name)
             case node.token.kind:
@@ -568,7 +567,7 @@ proc assignment(self: Compiler, node: ASTNode) =
             # TODO: A better optimization would
             # be to have everything in one opcode,
             # but that requires variants for stack,
-            # heap, and closure variables
+            # heap, and closure variables and I cba
             if index != -1:
                 self.emitByte(StoreFast)
                 self.emitBytes(index.toTriple())
@@ -876,13 +875,35 @@ proc statement(self: Compiler, node: ASTNode) =
             self.expression(node)
 
 
+proc funDecl(self: Compiler, node: FunDecl) =
+    ## Compiles function declarations
+    self.declareName(node.name)
+    self.blockStmt(BlockStmt(node.body))
+    # Yup, we're done. That was easy, huh?
+    # But after all functions are just named
+    # scopes, and we compile them just like that:
+    # we declare their name (before compiling them
+    # so recursion & co. works) and then just compile
+    # their body as a block statement (which takes
+    # care of incrementing self.scopeDepth so locals
+    # are resolved properly). Yay!
+
+
+proc classDecl(self: Compiler, node: ClassDecl) =
+    ## Compiles class declarations
+    self.declareName(node.name)
+    self.blockStmt(BlockStmt(node.body))
+
+
 proc declaration(self: Compiler, node: ASTNode) =
     ## Compiles all declarations
     case node.kind:
         of NodeKind.varDecl:
             self.varDecl(VarDecl(node))
-        of funDecl, classDecl:
-            discard # TODO
+        of NodeKind.funDecl:
+            self.funDecl(FunDecl(node))
+        of NodeKind.classDecl:
+            self.classDecl(ClassDecl(node))
         else:
             self.statement(node)
 
