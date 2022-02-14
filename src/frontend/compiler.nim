@@ -65,6 +65,7 @@ type
         currentFunction: FunDecl
         enableOptimizations*: bool
         currentLoop: Loop
+        currentModule: string
         # Each time a defer statement is
         # compiled, its code is emitted
         # here. Later, if there is any code
@@ -90,7 +91,7 @@ proc initCompiler*(enableOptimizations: bool = true): Compiler =
     result.scopeDepth = 0
     result.currentFunction = nil
     result.enableOptimizations = enableOptimizations
-
+    result.currentModule = ""
 
 
 ## Forward declarations
@@ -572,7 +573,7 @@ proc assignment(self: Compiler, node: ASTNode) =
                 self.emitByte(StoreFast)
                 self.emitBytes(index.toTriple())
             else:
-                # Assignment only encompasses variable assignments
+                # Assignment only encompasses variable assignments,
                 # so we can ensure the name is a constant (i.e. an
                 # IdentExpr) instead of an object (which would be
                 # the case with setItemExpr)
@@ -691,7 +692,7 @@ proc expression(self: Compiler, node: ASTNode) =
     ## Compiles all expressions
     case node.kind:
         of getItemExpr:
-            discard
+            discard  # TODO
         # Note that for setItem and assign we don't convert
         # the node to its true type because that type information
         # would be lost in the call anyway. The differentiation
@@ -831,7 +832,7 @@ proc statement(self: Compiler, node: ASTNode) =
     case node.kind:
         of exprStmt:
             self.expression(ExprStmt(node).expression)
-            self.emitByte(Pop) # Expression statements discard their value. Their main use case is side effects in function calls
+            self.emitByte(Pop)  # Expression statements discard their value. Their main use case is side effects in function calls
         of NodeKind.ifStmt:
             self.ifStmt(IfStmt(node))
         of NodeKind.delStmt:
@@ -878,6 +879,16 @@ proc statement(self: Compiler, node: ASTNode) =
 proc funDecl(self: Compiler, node: FunDecl) =
     ## Compiles function declarations
     self.declareName(node.name)
+    # Since the deferred array is a linear 
+    # sequence of instructions and we want
+    # to keep track to whose function's each
+    # set of deferred instruction belongs,
+    # we record the length of the deferred
+    # array before compiling the function
+    # and use this info later to compile
+    # the try/finally block with the deferred
+    # code
+    var deferStart = self.deferred.len()
     self.blockStmt(BlockStmt(node.body))
     # Yup, we're done. That was easy, huh?
     # But after all functions are just named
@@ -887,6 +898,11 @@ proc funDecl(self: Compiler, node: FunDecl) =
     # their body as a block statement (which takes
     # care of incrementing self.scopeDepth so locals
     # are resolved properly). Yay!
+    
+    # Currently defer is not functional so we
+    # just pop the instructions
+    for i in countup(deferStart, self.deferred.len(), 1):
+        self.deferred.delete(i)
 
 
 proc classDecl(self: Compiler, node: ClassDecl) =
@@ -917,6 +933,7 @@ proc compile*(self: Compiler, ast: seq[ASTNode], file: string): Chunk =
     self.names = @[]
     self.scopeDepth = 0
     self.currentFunction = nil
+    self.currentModule = "<main>"
     self.current = 0
     while not self.done():
         self.declaration(self.step())
