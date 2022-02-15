@@ -13,6 +13,7 @@
 # limitations under the License.
 
 type
+    ## Nim exceptions for internal JAPL failures
     NimVMException* = object of CatchableError
     LexingError* = object of NimVMException
     ParseError* = object of NimVMException

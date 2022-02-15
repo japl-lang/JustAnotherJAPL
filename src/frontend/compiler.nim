@@ -56,15 +56,33 @@ type
 
     Compiler* = ref object
         ## A wrapper around the compiler's state
+
+        # The bytecode chunk where we write code to
         chunk: Chunk
+        # The output of our parser (AST)
         ast: seq[ASTNode]
+        # The current AST node we're looking at
         current: int
+        # The current file being compiled (used only for
+        # error reporting)
         file: string
+        # Compile-time "simulation" of the stack at
+        # runtime to load variables that have stack
+        # behavior more efficiently
         names: seq[Name]
+        # The current scope depth. If > 0, we're
+        # in a local scope, otherwise it's global
         scopeDepth: int
+        # The current function being compiled
         currentFunction: FunDecl
+        # Are optimizations turned on?
         enableOptimizations*: bool
+        # The current loop being compiled (used to
+        # keep track of where to jump)
         currentLoop: Loop
+        # The current module being compiled
+        # (used to restrict access to statically
+        # defined variables at compile time)
         currentModule: string
         # Each time a defer statement is
         # compiled, its code is emitted
@@ -130,7 +148,7 @@ proc done(self: Compiler): bool =
 proc error(self: Compiler, message: string) =
     ## Raises a formatted CompileError exception
     var tok = self.getCurrentNode().token
-    raise newException(CompileError, &"A fatal error occurred while compiling '{self.file}', line {tok.line} at '{tok.lexeme}' -> {message}")
+    raise newException(CompileError, &"A fatal error occurred while compiling '{self.file}', module '{self.currentModule}' line {tok.line} at '{tok.lexeme}' -> {message}")
 
 
 proc step(self: Compiler): ASTNode =
@@ -229,7 +247,7 @@ proc patchJump(self: Compiler, offset: int) =
             of LongJumpIfFalsePop:
                 self.chunk.code[offset] = JumpIfFalsePop.uint8()
             else:
-                self.error(&"invalid opcode {self.chunk.code[offset]} in patchJump (This is an internal error and most likely a bug)")
+                discard
         self.chunk.code.delete(offset + 1) # Discards the 24 bit integer
         let offsetArray = jump.toDouble()
         self.chunk.code[offset + 1] = offsetArray[0]
@@ -245,7 +263,7 @@ proc patchJump(self: Compiler, offset: int) =
             of JumpIfFalsePop:
                 self.chunk.code[offset] = LongJumpIfFalsePop.uint8()
             else:
-                self.error(&"invalid opcode {self.chunk.code[offset]} in patchJump (This is an internal error and most likely a bug)")
+                discard
         let offsetArray = jump.toTriple()
         self.chunk.code[offset + 1] = offsetArray[0]
         self.chunk.code[offset + 2] = offsetArray[1]
@@ -496,7 +514,8 @@ proc deleteStatic(self: Compiler, name: IdentExpr,
 proc getStaticIndex(self: Compiler, name: IdentExpr): int =
     ## Gets the predicted stack position of the given variable
     ## if it is static, returns -1 if it is to be bound dynamically
-    ## or it does not exist at all
+    ## or it does not exist at all and returns -pos if the variable
+    ## is outside of the current local scope (is emitted as a closure)
     var i: int = self.names.high()
     for variable in reversed(self.names):
         if name.name.lexeme == variable.name.name.lexeme:
@@ -517,8 +536,12 @@ proc identifier(self: Compiler, node: IdentExpr) =
     else:
         let index = self.getStaticIndex(node)
         if index != -1:
-            self.emitByte(LoadFast) # Static name resolution, loads value at index in the stack. Very fast. Much wow.
-            self.emitBytes(index.toTriple())
+            if index >= 0:
+                self.emitByte(LoadFast) # Static name resolution, loads value at index in the stack. Very fast. Much wow.
+                self.emitBytes(index.toTriple())
+            else:
+                self.emitByte(LoadHeap)
+                self.emitBytes(self.identifierConstant(node))  # Closed-over variable!
         else:
             self.emitByte(LoadName) # Resolves by name, at runtime, in a global hashmap. Slower
             self.emitBytes(self.identifierConstant(node))
@@ -878,7 +901,13 @@ proc statement(self: Compiler, node: ASTNode) =
 
 proc funDecl(self: Compiler, node: FunDecl) =
     ## Compiles function declarations
+    # We store the current function...
+    var function = self.currentFunction
+    self.currentFunction = node
     self.declareName(node.name)
+    # A function's code is just compiled linearly
+    # and then jumped over
+    let jmp = self.emitJump(JumpForwards)
     # Since the deferred array is a linear 
     # sequence of instructions and we want
     # to keep track to whose function's each
@@ -903,11 +932,15 @@ proc funDecl(self: Compiler, node: FunDecl) =
     # just pop the instructions
     for i in countup(deferStart, self.deferred.len(), 1):
         self.deferred.delete(i)
+    self.patchJump(jmp)
+    # ... and restore it later!
+    self.currentFunction = function
 
 
 proc classDecl(self: Compiler, node: ClassDecl) =
     ## Compiles class declarations
     self.declareName(node.name)
+    self.emitByte(MakeClass)
     self.blockStmt(BlockStmt(node.body))
 
 

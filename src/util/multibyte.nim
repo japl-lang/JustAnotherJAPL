@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Makes our short integers platform-independent (big vs little endian)
+## Utilities to convert from/to our 16-bit and 24-bit representations
+## of numbers
 
 
 proc toDouble*(input: int | uint | uint16): array[2, uint8] =

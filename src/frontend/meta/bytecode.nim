@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+## Low level bytecode implementation details
 import ast
 import ../../util/multibyte
 import errors
-
 
 import strutils
 import strformat
@@ -56,67 +57,71 @@ type
         # used for more complex opcodes. All
         # arguments to opcodes (if they take
         # arguments) come from popping off the
-        # stack
+        # stack. Unsupported operations will
+        # raise TypeError or ValueError exceptions
+        # and never fail silently
         LoadConstant = 0u8, # Pushes constant at position x in the constant table onto the stack
-                            # Binary operators
-        UnaryNegate, # Pushes the result of -x onto the stack
-        BinaryAdd, # Pushes the result of a + b onto the stack
-        BinarySubtract, # Pushes the result of a - b onto the stack
-        BinaryDivide, # Pushes the result of a / b onto the stack (true division). The result is a float
-        BinaryFloorDiv, # Pushes the result of a // b onto the stack (integer division). The result is always an integer
-        BinaryMultiply, # Pushes the result of a * b onto the stack
-        BinaryPow, # Pushes the result of a ** b (a to the power of b) onto the stack
-        BinaryMod, # Pushes the result of a % b onto the stack (modulo division)
-        BinaryShiftRight, # Pushes the result of a >> b (a with bits shifted b times to the right) onto the stack
-        BinaryShiftLeft, # Pushes the result of a << b (a with bits shifted b times to the left) onto the stack
-        BinaryXor, # Pushes the result of a ^ b (bitwise exclusive or) onto the stack
-        BinaryOr, # Pushes the result of a | b (bitwise or) onto the stack
-        BinaryAnd, # Pushes the result of a & b (bitwise and) onto the stack
-        UnaryNot, # Pushes the result of ~x (bitwise not) onto the stack
-        BinaryAs, # Pushes the result of a as b onto the stack (converts a to the type of b. Explicit support from a is required)
-        BinaryIs, # Pushes the result of a is b onto the stack (true if a and b point to the same object, false otherwise)
-        BinaryIsNot, # Pushes the result of not (a is b). This could be implemented in terms of BinaryIs, but it's more efficient this way
-        BinaryOf, # Pushes the result of a of b onto the stack (true if a is a subclass of b, false otherwise)
-        BinarySlice, # Perform slicing on supported objects (like "hello"[0:2], which yields "he"). The result is pushed onto the stack
-        BinarySubscript, # Subscript operator, like "hello"[0] (which pushes 'h' onto the stack)
-                         # Binary comparison operators
-        GreaterThan, # Pushes the result of a > b onto the stack
-        LessThan, # Pushes the result of a < b onto the stack
-        EqualTo, # Pushes the result of a == b onto the stack
-        NotEqualTo, # Pushes the result of a != b onto the stack (optimization for not (a == b))
-        GreaterOrEqual, # Pushes the result of a >= b onto the stack
-        LessOrEqual, # Pushes the result of a <= b onto the stack
-                     # Logical operators
-        LogicalNot,
+        ## Binary operators
+        UnaryNegate,        # Pushes the result of -x onto the stack
+        BinaryAdd,          # Pushes the result of a + b onto the stack
+        BinarySubtract,     # Pushes the result of a - b onto the stack
+        BinaryDivide,       # Pushes the result of a / b onto the stack (true division). The result is a float
+        BinaryFloorDiv,     # Pushes the result of a // b onto the stack (integer division). The result is always an integer
+        BinaryMultiply,     # Pushes the result of a * b onto the stack
+        BinaryPow,          # Pushes the result of a ** b (a to the power of b) onto the stack
+        BinaryMod,          # Pushes the result of a % b onto the stack (modulo division)
+        BinaryShiftRight,   # Pushes the result of a >> b (a with bits shifted b times to the right) onto the stack
+        BinaryShiftLeft,    # Pushes the result of a << b (a with bits shifted b times to the left) onto the stack
+        BinaryXor,          # Pushes the result of a ^ b (bitwise exclusive or) onto the stack
+        BinaryOr,           # Pushes the result of a | b (bitwise or) onto the stack
+        BinaryAnd,          # Pushes the result of a & b (bitwise and) onto the stack
+        UnaryNot,           # Pushes the result of ~x (bitwise not) onto the stack
+        BinaryAs,           # Pushes the result of a as b onto the stack (converts a to the type of b. Explicit support from a is required)
+        BinaryIs,           # Pushes the result of a is b onto the stack (true if a and b point to the same object, false otherwise)
+        BinaryIsNot,        # Pushes the result of not (a is b). This could be implemented in terms of BinaryIs, but it's more efficient this way
+        BinaryOf,           # Pushes the result of a of b onto the stack (true if a is a subclass of b, false otherwise)
+        BinarySlice,        # Perform slicing on supported objects (like "hello"[0:2], which yields "he"). The result is pushed onto the stack
+        BinarySubscript,    # Subscript operator, like "hello"[0] (which pushes 'h' onto the stack)
+        ## Binary comparison operators
+        GreaterThan,        # Pushes the result of a > b onto the stack
+        LessThan,           # Pushes the result of a < b onto the stack
+        EqualTo,            # Pushes the result of a == b onto the stack
+        NotEqualTo,         # Pushes the result of a != b onto the stack (optimization for not (a == b))
+        GreaterOrEqual,     # Pushes the result of a >= b onto the stack
+        LessOrEqual,        # Pushes the result of a <= b onto the stack
+        ## Logical operators
+        LogicalNot,  # Pushes true if 
         LogicalAnd,
         LogicalOr,
-        # Constants/singletons
+        ## Constant opcodes (each of them pushes a singleton on the stack)
         Nil,
         True,
         False,
         Nan,
         Inf,
-        # Basic stack operations
-        Pop,
-        Push,
-        PopN, # Pops N elements off the stack (optimization for exiting scopes and returning from functions)
-              # Name resolution/handling
+        ## Basic stack operations
+        Pop,                # Pops an element off the stack and discards it
+        Push,               # Pushes x onto the stack
+        PopN,               # Pops x elements off the stack (optimization for exiting scopes and returning from functions)
+        ## Name resolution/handling
         LoadAttribute,
-        DeclareName, # Declares a global dynamically bound name in the current scope
-        LoadName, # Loads a dynamically bound variable
-        LoadFast, # Loads a statically bound variable
-        StoreName, # Sets/updates a dynamically bound variable's value
-        StoreFast, # Sets/updates a statically bound variable's value
-        DeleteName, # Unbinds a dynamically bound variable's name from the current scope
-        DeleteFast, # Unbinds a statically bound variable's name from the current scope
-                    # Looping and jumping
-        Jump, # Absolute and unconditional jump into the bytecode
-        JumpIfFalse, # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
-        JumpIfTrue, # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
-        JumpIfFalsePop, # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
-        JumpForwards, # Relative, unconditional, positive jump in the bytecode
-        JumpBackwards, # Relative, unconditional, negative jump into the bytecode
-        Break, # Temporary opcode used to signal exiting out of loop
+        DeclareName,        # Declares a global dynamically bound name in the current scope
+        LoadName,           # Loads a dynamically bound variable
+        LoadFast,           # Loads a statically bound variable
+        StoreName,          # Sets/updates a dynamically bound variable's value
+        StoreFast,          # Sets/updates a statically bound variable's value
+        DeleteName,         # Unbinds a dynamically bound variable's name from the current scope
+        DeleteFast,         # Unbinds a statically bound variable's name from the current scope
+        LoadHeap,           # Loads a closed-over variable
+        StoreHeap,          # Stores a closed-over variable
+        ## Looping and jumping
+        Jump,               # Absolute and unconditional jump into the bytecode
+        JumpIfFalse,        # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
+        JumpIfTrue,         # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
+        JumpIfFalsePop,     # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
+        JumpForwards,       # Relative, unconditional, positive jump in the bytecode
+        JumpBackwards,      # Relative, unconditional, negative jump into the bytecode
+        Break,              # Temporary opcode used to signal exiting out of loop
         ## Long variants of jumps (they use a 24-bit operand instead of a 16-bit one)
         LongJump,
         LongJumpIfFalse,
@@ -124,32 +129,32 @@ type
         LongJumpIfFalsePop,
         LongJumpForwards,
         LongJumpBackwards,
-        # Functions
-        MakeFunction,
-        Call,
-        Return
-        # Exception handling
-        Raise,
-        ReRaise, # Re-raises active exception
-        BeginTry,
-        FinishTry,
-        # Generators
+        ## Functions
+        Call,               # Calls a callable object
+        Return              # Returns from the current function
+        ## Exception handling
+        Raise,              # Raises exception x
+        ReRaise,            # Re-raises active exception
+        BeginTry,           # Initiates an exception handling context
+        FinishTry,          # Closes the current exception handling context
+        ## Generators
         Yield,
-        # Coroutines
+        ## Coroutines
         Await,
-        # Collection literals
+        ## Collection literals
         BuildList,
         BuildDict,
         BuildSet,
         BuildTuple,
-        # Misc
+        ## Misc
         Assert,
+        MakeClass
 
 
 # We group instructions by their operation/operand types for easier handling when debugging
 
 # Simple instructions encompass:
-# - Instructions that push onto/pop off the stack unconditionally (True, False, PopN, Pop, etc.)
+# - Instructions that push onto/pop off the stack unconditionally (True, False, Pop, etc.)
 # - Unary and binary operators
 const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              BinaryDivide, BinarySubtract,
@@ -162,7 +167,8 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              BinaryIs, BinaryAs, GreaterOrEqual,
                              LessOrEqual, BinaryOr, BinaryAnd,
                              UnaryNot, BinaryFloorDiv, BinaryOf, Raise,
-                             ReRaise, BeginTry, FinishTry, Yield, Await}
+                             ReRaise, BeginTry, FinishTry, Yield, Await,
+                             MakeClass}
 
 # Constant instructions are instructions that operate on the bytecode constant table
 const constantInstructions* = {LoadConstant, DeclareName, LoadName, StoreName, DeleteName}
@@ -171,7 +177,7 @@ const constantInstructions* = {LoadConstant, DeclareName, LoadName, StoreName, D
 # of 24 bit integers
 const stackTripleInstructions* = {Call, StoreFast, DeleteFast, LoadFast}
 
-# Stack Double instructions operate on the stack at arbitrary offsets and pop arguments off of it in the form
+# Stack double instructions operate on the stack at arbitrary offsets and pop arguments off of it in the form
 # of 16 bit integers
 const stackDoubleInstructions* = {}
 
@@ -180,8 +186,7 @@ const argumentDoubleInstructions* = {PopN, }
 
 # Jump instructions jump at relative or absolute bytecode offsets
 const jumpInstructions* = {JumpIfFalse, JumpIfFalsePop, JumpForwards, JumpBackwards,
-                           LongJumpIfFalse, LongJumpIfFalsePop,
-                           LongJumpForwards,
+                           LongJumpIfFalse, LongJumpIfFalsePop, LongJumpForwards,
                            LongJumpBackwards, JumpIfTrue, LongJumpIfTrue}
 
 # Collection instructions push a built-in collection type onto the stack

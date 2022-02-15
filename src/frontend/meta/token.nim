@@ -26,7 +26,7 @@ type
     # Other singleton types
     Infinity, NotANumber, Nil
 
-    # Control-flow statements
+    # Control flow statements
     If, Else,
 
     # Looping statements
