@@ -115,18 +115,20 @@ type
         LoadHeap,           # Loads a closed-over variable
         StoreHeap,          # Stores a closed-over variable
         ## Looping and jumping
-        Jump,               # Absolute and unconditional jump into the bytecode
+        Jump,               # Absolute, unconditional jump into the bytecode
         JumpIfFalse,        # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey
         JumpIfTrue,         # Jumps to an absolute index in the bytecode if the value at the top of the stack is truthy
         JumpIfFalsePop,     # Like JumpIfFalse, but it also pops off the stack (regardless of truthyness). Optimization for if statements
+        JumpIfFalseOrPop,   # Jumps to an absolute index in the bytecode if the value at the top of the stack is falsey and pops it otherwise
         JumpForwards,       # Relative, unconditional, positive jump in the bytecode
         JumpBackwards,      # Relative, unconditional, negative jump into the bytecode
-        Break,              # Temporary opcode used to signal exiting out of loop
+        Break,              # Temporary opcode used to signal exiting out of loops
         ## Long variants of jumps (they use a 24-bit operand instead of a 16-bit one)
         LongJump,
         LongJumpIfFalse,
         LongJumpIfTrue,
         LongJumpIfFalsePop,
+        LongJumpIfFalseOrPop,
         LongJumpForwards,
         LongJumpBackwards,
         ## Functions
@@ -148,7 +150,9 @@ type
         BuildTuple,
         ## Misc
         Assert,
-        MakeClass
+        MakeClass,
+        Slice,              # Slices an object (takes 3 arguments: start, stop, step) and pushes the result of a.subscript(b, c, d) onto the stack
+        GetItem,            # Pushes the result of a.getItem(b)
 
 
 # We group instructions by their operation/operand types for easier handling when debugging

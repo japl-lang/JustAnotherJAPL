@@ -246,6 +246,8 @@ proc patchJump(self: Compiler, offset: int) =
                 self.chunk.code[offset] = JumpIfFalse.uint8()
             of LongJumpIfFalsePop:
                 self.chunk.code[offset] = JumpIfFalsePop.uint8()
+            of LongJumpIfFalseOrPop:
+                self.chunk.code[offset] = JumpIfFalseOrPop.uint8()
             else:
                 discard
         self.chunk.code.delete(offset + 1) # Discards the 24 bit integer
@@ -262,6 +264,8 @@ proc patchJump(self: Compiler, offset: int) =
                 self.chunk.code[offset] = LongJumpIfFalse.uint8()
             of JumpIfFalsePop:
                 self.chunk.code[offset] = LongJumpIfFalsePop.uint8()
+            of JumpIfFalseOrPop:
+                self.chunk.code[offset] = LongJumpIfFalseOrPop.uint8()
             else:
                 discard
         let offsetArray = jump.toTriple()
@@ -344,24 +348,32 @@ proc literal(self: Compiler, node: ASTNode) =
             self.emitConstant(y)
         of listExpr:
             var y = ListExpr(node)
+            if y.members.len() > 16777216:
+                self.error("collection literals can't have more than 16777216 elements")
             for member in y.members:
                 self.expression(member)
             self.emitByte(BuildList)
-            self.emitBytes(y.members.len().toTriple()) # 24-bit integer, meaning list literals can have up to 2^24 elements
+            self.emitBytes(y.members.len().toTriple()) # 24-bit integer, meaning collection literals can have up to 2^24 elements
         of tupleExpr:
             var y = TupleExpr(node)
+            if y.members.len() > 16777216:
+                self.error("collection literals can't have more than 16777216 elements")
             for member in y.members:
                 self.expression(member)
             self.emitByte(BuildTuple)
             self.emitBytes(y.members.len().toTriple())
         of setExpr:
             var y = SetExpr(node)
+            if y.members.len() > 16777216:
+                self.error("collection literals can't have more than 16777216 elements")
             for member in y.members:
                 self.expression(member)
             self.emitByte(BuildSet)
             self.emitBytes(y.members.len().toTriple())
         of dictExpr:
             var y = DictExpr(node)
+            if y.keys.len() > 16777216:
+                self.error("collection literals can't have more than 16777216 elements")
             for (key, value) in zip(y.keys, y.values):
                 self.expression(key)
                 self.expression(value)
@@ -376,14 +388,14 @@ proc literal(self: Compiler, node: ASTNode) =
 
 
 proc unary(self: Compiler, node: UnaryExpr) =
-    ## Compiles unary expressions such as negation or
-    ## bitwise inversion
+    ## Compiles unary expressions such as decimal or
+    ## bitwise negation
     self.expression(node.a) # Pushes the operand onto the stack
     case node.operator.kind:
         of Minus:
             self.emitByte(UnaryNegate)
         of Plus:
-            discard # Unary + does nothing
+            discard # Unary + does nothing, but we allow it for consistency
         of TokenType.LogicalNot:
             self.emitByte(OpCode.LogicalNot)
         of Tilde:
@@ -443,8 +455,12 @@ proc binary(self: Compiler, node: BinaryExpr) =
             self.emitByte(OpCode.GreaterOrEqual)
         of TokenType.LogicalAnd:
             self.expression(node.a)
-            let jump = self.emitJump(JumpIfFalse)
-            self.emitByte(Pop)
+            var jump: int
+            if self.enableOptimizations:
+                jump = self.emitJump(JumpIfFalseOrPop)
+            else:
+                jump = self.emitJump(JumpIfFalse)
+                self.emitByte(Pop)
             self.expression(node.b)
             self.patchJump(jump)
         of TokenType.LogicalOr:
@@ -511,7 +527,7 @@ proc deleteStatic(self: Compiler, name: IdentExpr,
             self.names.del(i)
 
 
-proc getStaticIndex(self: Compiler, name: IdentExpr): int =
+proc getStaticIndex(self: Compiler, name: IdentExpr, depth: int = self.scopeDepth): int =
     ## Gets the predicted stack position of the given variable
     ## if it is static, returns -1 if it is to be bound dynamically
     ## or it does not exist at all and returns -pos if the variable
@@ -519,7 +535,12 @@ proc getStaticIndex(self: Compiler, name: IdentExpr): int =
     var i: int = self.names.high()
     for variable in reversed(self.names):
         if name.name.lexeme == variable.name.name.lexeme:
-            return i
+            if variable.depth == depth:
+                return i
+            else:
+                # This tells self.identifier() that this is
+                # a closed-over variable
+                return -i
         dec(i)
     return -1
 
@@ -540,8 +561,10 @@ proc identifier(self: Compiler, node: IdentExpr) =
                 self.emitByte(LoadFast) # Static name resolution, loads value at index in the stack. Very fast. Much wow.
                 self.emitBytes(index.toTriple())
             else:
-                self.emitByte(LoadHeap)
-                self.emitBytes(self.identifierConstant(node))  # Closed-over variable!
+                # TODO: find the code that emitted the StoreFast instruction and
+                # change it to StoreHeap
+                self.emitByte(LoadHeap)  # Heap-allocated closure variable. Faster than LoadName, but slower than LoadFast
+                self.emitBytes(self.identifierConstant(node))
         else:
             self.emitByte(LoadName) # Resolves by name, at runtime, in a global hashmap. Slower
             self.emitBytes(self.identifierConstant(node))
@@ -926,8 +949,12 @@ proc funDecl(self: Compiler, node: FunDecl) =
     # so recursion & co. works) and then just compile
     # their body as a block statement (which takes
     # care of incrementing self.scopeDepth so locals
-    # are resolved properly). Yay!
+    # are resolved properly). There's a need for a bit
+    # of boilerplate code to make closures work, but
+    # that's about it
     
+    # All functions implicitly return nil
+    self.emitBytes(OpCode.Nil, OpCode.Return)
     # Currently defer is not functional so we
     # just pop the instructions
     for i in countup(deferStart, self.deferred.len(), 1):

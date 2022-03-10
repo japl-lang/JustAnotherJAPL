@@ -356,8 +356,9 @@ proc makeCall(self: Parser, callee: ASTNode): ASTNode =
 
 
 proc call(self: Parser): ASTNode = 
-    ## Parses call expressions and object
-    ## field accessing ("dot syntax")
+    ## Parses calls, object field
+    ## field accessing and slicing
+    ## expressions
     result = self.primary()
     while true:
         if self.match(LeftParen):
