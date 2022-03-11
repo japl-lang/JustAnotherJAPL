@@ -98,7 +98,7 @@ awaitStmt      → "await" expression ";";    // Pauses the execution of the cal
 // to the given name. The finally clause, if present, is executed regardless of whether the try block raises an exception, meaning it even overrides return,
 // break and continue statements and it must be below all except clauses. The else clause, if present, is executed when the try block doesn't raise an exception.
 // It must be the last statement of the block. A bare except clause without an exception name acts as a catch-all and must be placed below any other except clauses
-tryStmt        → "try" statement (("except" expression? statement)+ "finally" statement | "finally" statement)? ("else" statement)?;
+tryStmt        → "try" statement (except+ "finally" statement | "finally" statement | "else" statement | except+ "else" statement | except+ "else" statement "finally" statement);
 blockStmt      → "{" declaration* "}";  // Blocks create a new scope that lasts until they're closed
 ifStmt         → "if" "(" expression ")" statement ("else" statement)?;  // If statements are conditional jumps
 whileStmt      → "while" "(" expression ")" statement;  // While loops run until their condition is truthy
@@ -133,6 +133,8 @@ lambda         → ("(" parameters? ")")? blockStmt
 parameters     → IDENTIFIER ("," IDENTIFIER)*;
 arguments      → expression ("," expression)*;
 declModifiers  → ("private" | "public")? ("static" | "dynamic")?
+except         → ("except" expression? statement)
+
 
 // Lexical grammar that defines terminals in a non-recursive (regular) fashion
 COMMENT        → "#" UNICODE* LF;
@@ -146,7 +148,7 @@ BIN            → "0b" ("0" | "1")+;
 OCT            → "0o" ("0" ... "7")+;
 HEX            → "0x" ("0" ... "9" | "A" ... "F" | "a" ... "f")+;
 NUMBER         → DECIMAL | FLOAT | BIN | HEX | OCT;  // Numbers encompass integers, floats (even stuff like 1e5), binary numbers, hex numbers and octal numbers
-STRING         → ("r"|"b"|"f") SINGLESTRING | DOUBLESTRING | SINGLEMULTI | DOUBLEMULTI;  // Encompasses all strings
+STRING         → ("r"|"b"|"f")? SINGLESTRING | DOUBLESTRING | SINGLEMULTI | DOUBLEMULTI;  // Encompasses all strings
 IDENTIFIER     → ALPHA (ALPHA | DIGIT)*;  // Valid identifiers are only alphanumeric!
 QUOTE          → "'";
 DOUBLEQUOTE    → "\"";

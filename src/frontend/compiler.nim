@@ -1,4 +1,4 @@
-# Copyright 2021 Mattia Giambirtone & All Contributors
+# Copyright 2022 Mattia Giambirtone & All Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -924,13 +924,27 @@ proc statement(self: Compiler, node: ASTNode) =
 
 proc funDecl(self: Compiler, node: FunDecl) =
     ## Compiles function declarations
-    # We store the current function...
+
+    # We store the current function
     var function = self.currentFunction
     self.currentFunction = node
+    # Declares the function's name in the
+    # outer scope...
     self.declareName(node.name)
+    self.scopeDepth += 1
+    # ... but its arguments in an inner one!
+    # (this ugly part is needed because
+    # self.blockStmt() already increments
+    # and decrements the scope depth)
+    for argument in node.arguments:
+        self.declareName(IdentExpr(argument))
+    self.scopeDepth -= 1
+    # TODO: Default arguments
+
     # A function's code is just compiled linearly
     # and then jumped over
     let jmp = self.emitJump(JumpForwards)
+
     # Since the deferred array is a linear 
     # sequence of instructions and we want
     # to keep track to whose function's each
@@ -941,26 +955,37 @@ proc funDecl(self: Compiler, node: FunDecl) =
     # the try/finally block with the deferred
     # code
     var deferStart = self.deferred.len()
+
     self.blockStmt(BlockStmt(node.body))
     # Yup, we're done. That was easy, huh?
     # But after all functions are just named
     # scopes, and we compile them just like that:
-    # we declare their name (before compiling them
-    # so recursion & co. works) and then just compile
-    # their body as a block statement (which takes
+    # we declare their name and arguments (before
+    # their body so recursion works) and then just
+    # handle them as a block statement (which takes
     # care of incrementing self.scopeDepth so locals
     # are resolved properly). There's a need for a bit
     # of boilerplate code to make closures work, but
     # that's about it
     
-    # All functions implicitly return nil
-    self.emitBytes(OpCode.Nil, OpCode.Return)
+    # All functions implicitly return nil. This code
+    # will not execute if there's an explicit return
+    # and I cannot figure out an elegant and simple
+    # way to tell if a function already returns
+    # or not, so we just play it safe
+
+    if not self.enableOptimizations:
+        self.emitBytes(OpCode.Nil, OpCode.Return)
+    else:
+        self.emitBytes(ImplicitReturn)
+
     # Currently defer is not functional so we
     # just pop the instructions
     for i in countup(deferStart, self.deferred.len(), 1):
         self.deferred.delete(i)
+    
     self.patchJump(jmp)
-    # ... and restore it later!
+    # This makes us compile nested functions correctly
     self.currentFunction = function
 
 

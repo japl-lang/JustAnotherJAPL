@@ -1,4 +1,4 @@
-# Copyright 2021 Mattia Giambirtone & All Contributors
+# Copyright 2022 Mattia Giambirtone & All Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -149,10 +149,11 @@ type
         BuildSet,
         BuildTuple,
         ## Misc
-        Assert,
-        MakeClass,
-        Slice,              # Slices an object (takes 3 arguments: start, stop, step) and pushes the result of a.subscript(b, c, d) onto the stack
-        GetItem,            # Pushes the result of a.getItem(b)
+        Assert,             # Raises an AssertionFailed exception if the value at the top of the stack is falsey
+        MakeClass,          # Builds a class instance from the values at the top of the stack (class object, constructor arguments, etc.)
+        Slice,              # Slices an object (takes 3 arguments: start, stop, step). Pushes the result of a.subscript(b, c, d) onto the stack
+        GetItem,            # Pushes the result of a.getItem(b) onto the stack
+        ImplicitReturn,     # Optimization for returning nil from functions (saves us a VM "clock cycle")
 
 
 # We group instructions by their operation/operand types for easier handling when debugging
@@ -172,7 +173,7 @@ const simpleInstructions* = {Return, BinaryAdd, BinaryMultiply,
                              LessOrEqual, BinaryOr, BinaryAnd,
                              UnaryNot, BinaryFloorDiv, BinaryOf, Raise,
                              ReRaise, BeginTry, FinishTry, Yield, Await,
-                             MakeClass}
+                             MakeClass, ImplicitReturn}
 
 # Constant instructions are instructions that operate on the bytecode constant table
 const constantInstructions* = {LoadConstant, DeclareName, LoadName, StoreName, DeleteName}
@@ -257,27 +258,28 @@ proc findOrAddConstant(self: Chunk, constant: ASTNode): int =
     ## Small optimization function that reuses the same constant
     ## if it's already been written before (only if self.reuseConsts
     ## equals true)
-    if self.reuseConsts:
-        for i, c in self.consts:
-            # We cannot use simple equality because the nodes likely have
-            # different token objects with different values
-            if c.kind != constant.kind:
-                continue
-            if constant.isConst():
-                var c = LiteralExpr(c)
-                var constant = LiteralExpr(constant)
-                if c.literal.lexeme == constant.literal.lexeme:
-                    # This wouldn't work for stuff like 2e3 and 2000.0, but those
-                    # forms are collapsed in the compiler before being written
-                    # to the constants table
-                    return i
-            elif constant.kind == identExpr:
-                var c = IdentExpr(c)
-                var constant = IdentExpr(constant)
-                if c.name.lexeme == constant.name.lexeme:
-                    return i
-            else:
-                continue
+    if not self.reuseConsts:
+        return
+    for i, c in self.consts:
+        # We cannot use simple equality because the nodes likely have
+        # different token objects with different values
+        if c.kind != constant.kind:
+            continue
+        if constant.isConst():
+            var c = LiteralExpr(c)
+            var constant = LiteralExpr(constant)
+            if c.literal.lexeme == constant.literal.lexeme:
+                # This wouldn't work for stuff like 2e3 and 2000.0, but those
+                # forms are collapsed in the compiler before being written
+                # to the constants table
+                return i
+        elif constant.kind == identExpr:
+            var c = IdentExpr(c)
+            var constant = IdentExpr(constant)
+            if c.name.lexeme == constant.name.lexeme:
+                return i
+        else:
+            continue
     self.consts.add(constant)
     result = self.consts.high()
 
