@@ -724,10 +724,10 @@ proc tryStmt(self: Parser): ASTNode =
         handlerBody = self.statement()
         handlers.add((body: handlerBody, exc: excName, name: asName))
         asName = nil
-    if self.match(Finally):
-        finallyClause = self.statement()
     if self.match(Else):
         elseClause = self.statement()
+    if self.match(Finally):
+        finallyClause = self.statement()
     if handlers.len() == 0 and elseClause == nil and finallyClause == nil:
         self.error("expecting 'except', 'finally' or 'else' statements after 'try' block")
     for i, handler in handlers:
