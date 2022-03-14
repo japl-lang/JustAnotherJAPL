@@ -22,21 +22,21 @@ when DEBUG_TRACE_ALLOCATION:
     import strformat
 
 
-proc reallocate*(pointr: pointer, oldSize: int, newSize: int): pointer =
+proc reallocate*(p: pointer, oldSize: int, newSize: int): pointer =
     ## Wrapper around realloc/dealloc
     try:
-        if newSize == 0 and pointr != nil:   # pointr is awful, but clashing with builtins is even more awful
+        if newSize == 0 and p != nil:
             when DEBUG_TRACE_ALLOCATION:
                 if oldSize > 1:
                     echo &"DEBUG - Memory manager: Deallocating {oldSize} bytes"
                 else:
                     echo "DEBUG - Memory manager: Deallocating 1 byte"
-            dealloc(pointr)
+            dealloc(p)
             return nil
         when DEBUG_TRACE_ALLOCATION:
             if pointr == nil and newSize == 0:
                 echo &"DEBUG - Memory manager: Warning, asked to dealloc() nil pointer from {oldSize} to {newSize} bytes, ignoring request"
-        if oldSize > 0 and pointr != nil or oldSize == 0:
+        if oldSize > 0 and p != nil or oldSize == 0:
             when DEBUG_TRACE_ALLOCATION:
                 if oldSize == 0:
                     if newSize > 1:
@@ -45,7 +45,7 @@ proc reallocate*(pointr: pointer, oldSize: int, newSize: int): pointer =
                         echo "DEBUG - Memory manager: Allocating 1 byte of memory"
                 else:
                     echo &"DEBUG - Memory manager: Resizing {oldSize} bytes of memory to {newSize} bytes"
-            result = realloc(pointr, newSize)
+            result = realloc(p, newSize)
         when DEBUG_TRACE_ALLOCATION:
             if oldSize > 0 and pointr == nil:
                 echo &"DEBUG - Memory manager: Warning, asked to realloc() nil pointer from {oldSize} to {newSize} bytes, ignoring request"
