@@ -67,6 +67,7 @@ After the modifier follows the string encoded in UTF-8, __without__ quotes.
 
 
 ### List-like collections (sets, lists and tuples)
+
 List-like collections (or _sequences_)-- namely sets, lists and tuples-- encode their length first: for lists and sets this only denotes the _starting_ size of the container, while a tuple's size is fixed once it is created. The length may be 0, in which case it is interpreted as the sequence being empty; After the length, which expresses the __number of elements__ in the collection (just the count!), follows a number of compile-time objects equal to the specified length, with their respective encoding.
 
 __TODO__: Currently the compiler does not emit constant instructions for collections using only constants: it will just emit a bunch of `LoadConstant` instructions and
@@ -82,8 +83,8 @@ Mappings (also called _associative arrays_ or, more informally, _dictionaries_) 
 
 An object file starts with the headers, namely:
 
-- A 13-byte constant string with the value `"JAPL_BYTECODE"` (without quotes) encoded as a sequence of integers corresponding to their value in the ASCII table
-- A 3-byte version header composed of 3 unsigned integers representing the major, minor and patch version of the compiler used to generate the file, respectively. JAPL follows the SemVer standard for versioning
+- A 13-byte constant string with the value `"JAPL_BYTECODE"` (without quotes) encoded as a sequence of integers corresponding to the ordinal value of each character in the ASCII table
+- A 3-byte version header composed by 3 unsigned integers representing the major, minor and patch version of the compiler used to generate the file, respectively. JAPL follows the SemVer standard for versioning
 - A string representing the branch name of the git repo from which JAPL was compiled, prepended with its size represented as a single 8-bit unsigned integer. Due to this encoding the branch name can't be longer than 256 characters, which is a length deemed appropriate for this purpose
 - A 40 bytes hexadecimal string, pinpointing the version of the compiler down to the exact commit hash in the JAPL repository, particularly useful when testing development versions
 - An 8 byte (64 bit) UNIX timestamp (starting from the Unix Epoch of January 1st 1970 at 00:00), representing the date and time when the file was created
@@ -91,8 +92,7 @@ An object file starts with the headers, namely:
 
 ### Constant section
 
-This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are just an ordered sequence of compile-time types as described in the sections above. The constant section's end is marked with
-the byte `0x59`.
+This section of the file follows the headers and is meant to store all constants needed upon startup by the JAPL virtual machine. For example, the code `var x = 1;` would have the number one as a constant. Constants are just an ordered sequence of compile-time types as described in the sections above. The constant section's end is marked with the byte `0x59`.
 
 ### Code section
 

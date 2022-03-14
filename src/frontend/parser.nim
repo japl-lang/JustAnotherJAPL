@@ -808,6 +808,19 @@ proc forStmt(self: Parser): ASTNode =
         # Nested blocks, so the initializer is
         # only executed once
         body = newBlockStmt(@[initializer, body], tok)
+    # This desgugars the following code:
+    # for (var i = 0; i < 10; i += 1) {
+    #     print(i);
+    # }
+    # To the semantically equivalent snippet
+    # below:
+    # {
+    #     private static var i = 0;
+    #     while (i < 10) {
+    #         print(i);
+    #         i += 1;
+    #     }
+    # }
     result = body
     self.currentLoop = enclosingLoop
     self.endScope()

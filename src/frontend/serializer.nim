@@ -122,23 +122,23 @@ proc writeConstants(self: Serializer, stream: var seq[byte]) =
                 stream.extend(self.toBytes(constant.token.lexeme))
             of strExpr:
                 stream.add(0x2)
-                var temp: seq[byte] = @[]
+                var temp: byte
                 var strip: int = 2
                 var offset: int = 1
                 case constant.token.lexeme[0]:
                     of 'f':
                         strip = 3
                         inc(offset)
-                        temp.add(0x2)
+                        temp = 0x2
                     of 'b':
                         strip = 3
                         inc(offset)
-                        temp.add(0x1)
+                        temp = 0x1
                     else:
                         strip = 2
-                        temp.add(0x0)
+                        temp = 0x0
                 stream.extend((len(constant.token.lexeme) - strip).toTriple())  # Removes the quotes from the length count as they're not written
-                stream.extend(temp)
+                stream.add(temp)
                 stream.add(self.toBytes(constant.token.lexeme[offset..^2]))
             of identExpr:
                 stream.add(0x0)
