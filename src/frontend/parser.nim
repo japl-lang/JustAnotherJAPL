@@ -925,8 +925,10 @@ proc funDecl(self: Parser, isAsync: bool = false, isStatic: bool = true, isPriva
         self.expect(LeftBrace)
     if not isLambda:
         FunDecl(self.currentFunction).body = self.blockStmt()
+        FunDecl(self.currentFunction).arguments = arguments
     else:
         LambdaExpr(self.currentFunction).body = self.blockStmt()
+        LambdaExpr(self.currentFunction).arguments = arguments
     result = self.currentFunction
     self.currentFunction = enclosingFunction
 

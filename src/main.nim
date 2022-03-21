@@ -31,25 +31,26 @@ import jale/multiline
 import config
 
 
-import strformat
-import strutils
-import sequtils
-import times
-import nimSHA2
-
 const debugLexer = false
-const debugParser = false
+const debugParser = true
 const debugOptimizer = false
 const debugCompiler = true
-const debugSerializer = true
+const debugSerializer = false
+
+import strformat
+import strutils
+when debugSerializer:
+    import sequtils
+    import times
+    import nimSHA2
 
 
 proc getLineEditor: LineEditor =
     result = newLineEditor()
     result.prompt = "=> "
-    result.populateDefaults()  # setup default keybindings
-    let hist = result.plugHistory()  # create history object
-    result.bindHistory(hist)  # set default history keybindings
+    result.populateDefaults()        # Setup default keybindings
+    let hist = result.plugHistory()  # Create history object
+    result.bindHistory(hist)         # Set default history keybindings
 
 
 proc main =
@@ -59,15 +60,17 @@ proc main =
     var tree: seq[ASTNode]
     var optimized: tuple[tree: seq[ASTNode], warnings: seq[Warning]]
     var compiled: Chunk
-    var serialized: Serialized
-    var serializedRaw: seq[byte]
+    when debugSerializer:
+        var serialized: Serialized
+        var serializedRaw: seq[byte]
     var keep = true
 
     var lexer = initLexer()
     var parser = initParser()
     var optimizer = initOptimizer(foldConstants=false)
     var compiler = initCompiler()
-    var serializer = initSerializer()
+    when debugSerializer:
+        var serializer = initSerializer()
     let lineEditor = getLineEditor()
     lineEditor.bindEvent(jeQuit):
         keep = false

@@ -233,7 +233,7 @@ proc patchJump(self: Compiler, offset: int) =
     ## offset and changes the bytecode instruction if possible
     ## (i.e. jump is in 16 bit range), but the converse is also
     ## true (i.e. it might change a regular jump into a long one)
-    let jump: int = self.chunk.code.len() - offset - 4
+    let jump: int = self.chunk.code.len() - offset
     if jump > 16777215:
         self.error("cannot jump more than 16777215 bytecode instructions")
     if jump < uint16.high().int:
@@ -473,6 +473,9 @@ proc binary(self: Compiler, node: BinaryExpr) =
             self.error(&"invalid AST node of kind {node.kind} at binary(): {node} (This is an internal error and most likely a bug)")
 
 
+proc identifier(self: Compiler, node: IdentExpr)
+
+
 proc declareName(self: Compiler, node: ASTNode) =
     ## Compiles all name declarations (constants, static,
     ## and dynamic)
@@ -491,11 +494,23 @@ proc declareName(self: Compiler, node: ASTNode) =
                     # slap myself 100 times with a sign saying "I'm dumb". Mark my words
                     self.error("cannot declare more than 16777215 static variables at a time")
                 self.names.add(Name(depth: self.scopeDepth, name: IdentExpr(node.name),
-                                                isPrivate: node.isPrivate,
+                                                        isPrivate: node.isPrivate,
                                                         owner: node.owner,
                                                         isConst: node.isConst))
+        of funDecl:
+            var node = FunDecl(node)
+            # Declares the function's name in the
+            # current (outer) scope...
+            self.declareName(node.name)
+            # ... but its arguments in an inner one!
+            # (this ugly part is needed because
+            # self.blockStmt() already increments
+            # and decrements the scope depth)
+            for argument in node.arguments:
+                self.names.add(Name(depth: self.scopeDepth + 1, isPrivate: true, owner: "", isConst: false, name: IdentExpr(argument)))
+            # TODO: Default arguments and unpacking
         else:
-            discard # TODO: Classes, functions
+            discard  # TODO: Classes
 
 
 proc varDecl(self: Compiler, node: VarDecl) =
@@ -660,10 +675,10 @@ proc endScope(self: Compiler) =
         # emit another batch of plain ol' Pop instructions for the rest
         if popped <= uint16.high().int():
             self.emitByte(PopN)
-            self.emitBytes(popped.toTriple())
+            self.emitBytes(popped.toDouble())
         else:
             self.emitByte(PopN)
-            self.emitBytes(uint16.high().int.toTriple())
+            self.emitBytes(uint16.high().int.toDouble())
             for i in countdown(self.names.high(), popped - uint16.high().int()):
                 if self.names[i].depth > self.scopeDepth:
                     self.emitByte(Pop)
@@ -928,22 +943,11 @@ proc funDecl(self: Compiler, node: FunDecl) =
     # We store the current function
     var function = self.currentFunction
     self.currentFunction = node
-    # Declares the function's name in the
-    # outer scope...
-    self.declareName(node.name)
-    self.scopeDepth += 1
-    # ... but its arguments in an inner one!
-    # (this ugly part is needed because
-    # self.blockStmt() already increments
-    # and decrements the scope depth)
-    for argument in node.arguments:
-        self.declareName(IdentExpr(argument))
-    self.scopeDepth -= 1
-    # TODO: Default arguments
-
     # A function's code is just compiled linearly
     # and then jumped over
     let jmp = self.emitJump(JumpForwards)
+    echo jmp
+    self.declareName(node)
 
     # Since the deferred array is a linear 
     # sequence of instructions and we want
@@ -969,21 +973,24 @@ proc funDecl(self: Compiler, node: FunDecl) =
     # that's about it
     
     # All functions implicitly return nil. This code
-    # will not execute if there's an explicit return
-    # and I cannot figure out an elegant and simple
-    # way to tell if a function already returns
-    # or not, so we just play it safe
+    # will not be executed by the VM in all but the simplest
+    # cases where there is an explicit return statement, but
+    # I cannot figure out an elegant and simple way to tell
+    # if a function already returned or not, so we play it safe
 
     if not self.enableOptimizations:
-        self.emitBytes(OpCode.Nil, OpCode.Return)
+        if OpCode(self.chunk.code[^1]) != OpCode.Return:
+            self.emitBytes(OpCode.Nil, OpCode.Return)
     else:
-        self.emitByte(ImplicitReturn)
+        if OpCode(self.chunk.code[^1]) != OpCode.Return:
+            self.emitByte(ImplicitReturn)
 
     # Currently defer is not functional so we
     # just pop the instructions
     for i in countup(deferStart, self.deferred.len(), 1):
         self.deferred.delete(i)
-    
+
+    echo self.chunk.code.len() - jmp
     self.patchJump(jmp)
     # This makes us compile nested functions correctly
     self.currentFunction = function
