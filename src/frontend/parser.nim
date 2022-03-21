@@ -765,7 +765,8 @@ proc forStmt(self: Parser): ASTNode =
     # increment variable which doesn't really make sense, but still
     # allow people that like verbosity (for *some* reason) to use
     # private static var declarations as well as just private var 
-    # and static var
+    # and static var as well as providing decently specific error
+    # messages
     if self.match(Semicolon):
         discard
     elif self.match(Dynamic):
@@ -839,7 +840,7 @@ proc ifStmt(self: Parser): ASTNode =
     result = newIfStmt(condition, thenBranch, elseBranch, tok)
 
 
-proc checkDecl(self: Parser, isStatic, isPrivate: bool) =
+template checkDecl(self: Parser, isStatic, isPrivate: bool) =
     ## Handy utility function that avoids us from copy
     ## pasting the same checks to all declaration handlers
     if not isStatic and self.currentFunction != nil:

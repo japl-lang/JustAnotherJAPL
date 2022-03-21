@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 # Implementation of a custom list data type for JAPL objects (used also internally by the VM)
 
-{.experimental: "implicitDeref".}
 import iterable
 import ../../memory/allocator
 import baseObject

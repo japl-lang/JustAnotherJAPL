@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+## The base JAPL object
+
 import ../../memory/allocator
 
 
@@ -28,7 +30,8 @@ type
         ## The base object for all
         ## JAPL types. Every object
         ## in JAPL implicitly inherits
-        ## from this base type
+        ## from this base type and extends
+        ## its functionality
         kind*: ObjectType
         hashValue*: uint64
 
@@ -36,7 +39,7 @@ type
 ## Object constructors and allocators
 
 proc allocateObject*(size: int, kind: ObjectType): ptr Obj =
-    ## Wrapper around memory.reallocate to create a new generic JAPL object
+    ## Wrapper around reallocate() to create a new generic JAPL object
     result = cast[ptr Obj](reallocate(nil, 0, size))
     result.kind = kind
 
@@ -50,13 +53,32 @@ template allocateObj*(kind: untyped, objType: ObjectType): untyped =
 proc newObj*: ptr Obj =
     ## Allocates a generic JAPL object
     result = allocateObj(Obj, ObjectType.BaseObject)
+    result.hashValue = 0x123FFFF
 
 
-proc asObj*(self: ptr Obj): ptr Obj = 
-    ## Casts a specific JAPL object into a generic
-    ## pointer to Obj
-    result = cast[ptr Obj](self)
+## Default object methods implementations
 
-
-proc hash*(self: ptr Obj): uint64 = 0x123FFFF  # Constant hash value
+# In JAPL code, this method will be called
+# stringify()
 proc `$`*(self: ptr Obj): string = "<object>"
+proc stringify*(self: ptr Obj): string = $self
+
+proc hash*(self: ptr Obj): int64 = 0x123FFAA  # Constant hash value
+# I could've used mul, sub and div, but "div" is a reserved
+# keyword and using `div` looks ugly. So to keep everything
+# consistent I just made all names long
+proc multiply*(self, other: ptr Obj): ptr Obj = nil
+proc sum*(self, other: ptr Obj): ptr Obj = nil
+proc divide*(self, other: ptr Obj): ptr Obj = nil
+proc subtract*(self, other: ptr Obj): ptr Obj = nil
+# Returns 0 if self == other, a negative number if self < other
+# and a positive number if self > other. This is a convenience
+# method to implement all basic comparison operators in one
+# method 
+proc compare*(self, other: ptr Obj): ptr Obj = nil
+# Specific methods for each comparison
+proc equalTo*(self, other: ptr Obj): ptr Obj = nil
+proc greaterThan*(self, other: ptr Obj): ptr Obj = nil
+proc lessThan*(self, other: ptr Obj): ptr Obj = nil
+proc greaterOrEqual*(self, other: ptr Obj): ptr Obj = nil
+proc lessOrEqual*(self, other: ptr Obj): ptr Obj = nil

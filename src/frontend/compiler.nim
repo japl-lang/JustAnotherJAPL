@@ -977,7 +977,7 @@ proc funDecl(self: Compiler, node: FunDecl) =
     if not self.enableOptimizations:
         self.emitBytes(OpCode.Nil, OpCode.Return)
     else:
-        self.emitBytes(ImplicitReturn)
+        self.emitByte(ImplicitReturn)
 
     # Currently defer is not functional so we
     # just pop the instructions
